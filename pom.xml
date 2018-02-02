@@ -2,7 +2,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.roguewave</groupId>
-	<artifactId>grpc-gcp-java</artifactId>
+	<artifactId>grpc-java</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>GRPC Java Example Application</name>
 	<description>An example Java application implenting all of the GRPC function calls.</description>
@@ -15,31 +15,27 @@
 			<version>1.9.0</version>
 		</dependency>
 
-		<!-- Do not change these versions without looking at:
-		     https://github.com/grpc/grpc-java/blob/master/SECURITY.md
-		-->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty</artifactId>
+            <version>1.9.0</version>
+        </dependency>
 
-		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-netty</artifactId>
-			<version>1.9.0</version>
-		</dependency>
-
-		<dependency>
-			<groupId>io.netty</groupId>
-			<artifactId>netty-all</artifactId>
-			<version>4.1.20.Final</version>
-		</dependency>
-		<dependency>
-			<groupId>io.netty</groupId>
-			<artifactId>netty-tcnative-boringssl-static</artifactId>
-			<version>2.0.7.Final</version>
-		</dependency>
-		<dependency>
-			<groupId>io.netty</groupId>
-			<artifactId>netty-codec-http2</artifactId>
-			<version>4.1.17.Final</version>
-		</dependency>
+    <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>4.1.20.Final</version>
+        </dependency>
+      <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-tcnative-boringssl-static</artifactId>
+            <version>2.0.7.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-http2</artifactId>
+            <version>4.1.17.Final</version>
+        </dependency>
 
 		<dependency>
 			<groupId>org.slf4j</groupId>
@@ -69,6 +65,26 @@
 			<version>0.9.0</version>
 			<type>pom</type>
 		</dependency>
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-all</artifactId>
+			<version>1.9.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.api</groupId>
+			<artifactId>gax-grpc</artifactId>
+            <version>1.16.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.api</groupId>
+			<artifactId>api-common</artifactId>
+            <version>1.2.0</version>
+		</dependency>
+        <dependency>
+            <groupId>com.google.api</groupId>
+            <artifactId>gax</artifactId>
+            <version>1.16.0</version>
+        </dependency>
 
 
 	</dependencies>
@@ -81,7 +97,7 @@
 					<configuration>
 						<archive>
 							<manifest>
-								<mainClass>org.roguewave.grpc.java.GRPCJavaExample</mainClass>
+								<mainClass>org.roguewave.grpc.Client</mainClass>
 							</manifest>
 						</archive>
 					</configuration>
@@ -98,7 +114,7 @@
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>exec-maven-plugin</artifactId>
 					<configuration>
-						<mainClass>org.roguewave.grpc.java.GRPCJavaExample</mainClass>
+						<mainClass>org.roguewave.grpc.Client</mainClass>
 						<commandlineArgs>
 							-jsoncreds ./grpc.json
 						</commandlineArgs>
