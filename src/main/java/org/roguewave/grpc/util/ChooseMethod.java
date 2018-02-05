@@ -66,7 +66,8 @@ public class ChooseMethod {
                 break;
             case "createindex":
             case "13":
-                //TODO Call createindex
+                CreateIndex ci = new CreateIndex();
+                ci.createIndexCall();
                 break;
             case "deleteindex":
             case "14":
