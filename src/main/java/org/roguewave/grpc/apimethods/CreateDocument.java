@@ -4,7 +4,6 @@ import com.google.firestore.v1beta1.CreateDocumentRequest;
 import com.google.firestore.v1beta1.Document;
 import com.google.firestore.v1beta1.FirestoreGrpc.FirestoreBlockingStub;
 import com.google.firestore.v1beta1.Value;
-import com.google.protobuf.Descriptors;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
 import org.roguewave.grpc.util.gfx.DrawDocument;
 import org.roguewave.grpc.util.gfx.MakeFieldsMap;

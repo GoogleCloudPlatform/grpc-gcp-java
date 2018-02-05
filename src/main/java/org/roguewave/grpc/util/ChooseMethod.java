@@ -53,7 +53,8 @@ public class ChooseMethod {
                 break;
             case "runquery":
             case "10":
-                //TODO Call run query
+                RunQuery rq = new RunQuery();
+                rq.runQueryCall();
                 break;
             case "updatedocument":
             case "11":
