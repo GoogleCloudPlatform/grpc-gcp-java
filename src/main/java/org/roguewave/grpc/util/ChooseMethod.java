@@ -63,7 +63,8 @@ public class ChooseMethod {
                 break;
             case "write":
             case "12":
-                //TODO Call write
+                Write w = new Write();
+                w.writeCall();
                 break;
             case "createindex":
             case "13":
