@@ -6,7 +6,9 @@ This is a Java test program meant to demonstrate calling all of Firebase's core 
 
 ## Building
 
-The program can be built using Maven and contains a Main class.  You can run mvn install, and then simply execute the resulting .jar file with java -jar.
+The program can be built using Maven and contains a Main class.
+
+You can run "mvn clean compile assembly:single", and then simply execute the resulting .jar file with java -jar.
 
 ## Notes
 
