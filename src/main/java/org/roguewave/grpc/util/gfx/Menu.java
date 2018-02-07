@@ -10,8 +10,6 @@ public class Menu {
 
         String selection = "";
 
-        while (! selection.matches("quit")) {
-
             System.out.println("\n     Google Firestore RPC Menu\n");
             System.out.println("1|batchgetdocuments ......... BatchGetDocuments");
             System.out.println("2|begintransaction  ......... BeginTransaction");
@@ -37,10 +35,12 @@ public class Menu {
 
             ChooseMethod cm = new ChooseMethod();
 
-            if (! selection.matches("quit")) {
+            if (selection.matches("quit")) {
+                System.exit(0);
+            }
+            else {
                 cm.choose(selection);
             }
-        }
 
     }
 

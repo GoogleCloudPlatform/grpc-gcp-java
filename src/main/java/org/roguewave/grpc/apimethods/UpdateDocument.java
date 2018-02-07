@@ -5,6 +5,7 @@ import com.google.firestore.v1beta1.FirestoreGrpc.FirestoreBlockingStub;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
 import org.roguewave.grpc.util.gfx.DrawDocument;
 import org.roguewave.grpc.util.gfx.MakeFieldsMap;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -69,6 +70,9 @@ public class UpdateDocument {
         }
 
         System.out.println("Success!");
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 

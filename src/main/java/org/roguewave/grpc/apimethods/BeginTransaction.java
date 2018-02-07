@@ -6,6 +6,7 @@ import com.google.firestore.v1beta1.FirestoreGrpc.FirestoreBlockingStub;
 import com.google.firestore.v1beta1.TransactionOptions;
 import org.roguewave.grpc.Main;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
+import org.roguewave.grpc.util.gfx.Menu;
 
 public class BeginTransaction {
 
@@ -32,5 +33,9 @@ public class BeginTransaction {
 
         System.out.println("Began Transaction: " + response.getTransaction().toString());
         Main.transactionId = response.getTransaction();
+
+        Menu menu = new Menu();
+        menu.draw();
+
     }
 }

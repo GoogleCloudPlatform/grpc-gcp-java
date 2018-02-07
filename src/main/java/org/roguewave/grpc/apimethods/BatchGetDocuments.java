@@ -8,10 +8,13 @@ import com.google.firestore.v1beta1.FirestoreGrpc;
 import io.grpc.stub.StreamObserver;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
 import org.roguewave.grpc.util.gfx.DrawDocument;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class BatchGetDocuments {
 
@@ -37,6 +40,7 @@ public class BatchGetDocuments {
                 .addAllDocuments(docList)
                 .build();
 
+        final CountDownLatch finishLatch = new CountDownLatch(1);
         StreamObserver respStream = new StreamObserver() {
             @Override
             public void onNext(Object resp) {
@@ -50,17 +54,25 @@ public class BatchGetDocuments {
             @Override
             public void onError(Throwable throwable) {
                 System.out.println("Error During Call: " + throwable.getMessage());
+                finishLatch.countDown();
             }
 
             @Override
             public void onCompleted() {
-                System.out.println("finished!");
-
+                Menu menu = new Menu();
+                menu.draw();
+                finishLatch.countDown();
             }
 
         };
 
-        firestoreStub.batchGetDocuments(batchGetDocsRequest, respStream);
+        try {
+            firestoreStub.batchGetDocuments(batchGetDocsRequest, respStream);
+            finishLatch.await(1, TimeUnit.MINUTES);
+        }
+        catch (Exception e) {
+            System.out.println("Error during call: " + e.getMessage() + e.getCause());
+        }
 
 
     }

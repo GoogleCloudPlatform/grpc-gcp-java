@@ -7,6 +7,7 @@ import com.google.firestore.admin.v1beta1.IndexField;
 import com.google.firestore.v1beta1.FirestoreGrpc;
 import com.google.longrunning.Operation;
 import org.roguewave.grpc.util.GRPCFirebaseAdminClientFactory;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.ArrayList;
 import java.util.Scanner;
@@ -66,6 +67,9 @@ public class CreateIndex {
         }
 
         System.out.println("Successfully created new index!");
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 

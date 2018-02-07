@@ -5,6 +5,7 @@ import com.google.firestore.admin.v1beta1.GetIndexRequest;
 import com.google.firestore.admin.v1beta1.Index;
 import org.roguewave.grpc.util.GRPCFirebaseAdminClientFactory;
 import org.roguewave.grpc.util.gfx.DrawIndex;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.Scanner;
 
@@ -37,6 +38,9 @@ public class GetIndex {
 
         DrawIndex di = new DrawIndex();
         di.drawIndex(index);
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 

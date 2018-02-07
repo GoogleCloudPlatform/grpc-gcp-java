@@ -6,6 +6,8 @@ import com.google.firestore.v1beta1.FirestoreGrpc.FirestoreStub;
 import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
+import org.roguewave.grpc.util.gfx.Menu;
+
 import java.util.Scanner;
 
 public class Write {
@@ -114,6 +116,9 @@ public class Write {
         writeRequestStreamObserver.onCompleted();
 
         System.out.println("Finished streaming writes!");
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 

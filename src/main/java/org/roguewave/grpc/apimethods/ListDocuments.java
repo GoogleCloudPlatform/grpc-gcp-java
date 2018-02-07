@@ -1,12 +1,15 @@
 package org.roguewave.grpc.apimethods;
 
-import com.google.firestore.v1beta1.*;
+import com.google.firestore.v1beta1.Document;
+import com.google.firestore.v1beta1.FirestoreGrpc.FirestoreBlockingStub;
+import com.google.firestore.v1beta1.ListDocumentsRequest;
+import com.google.firestore.v1beta1.ListDocumentsResponse;
 import io.grpc.stub.StreamObserver;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
 import org.roguewave.grpc.util.gfx.DrawDocument;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.List;
-import java.util.Map;
 
 public class ListDocuments {
 
@@ -14,42 +17,25 @@ public class ListDocuments {
 
         System.out.println("\n:: Listing all Documents ::\n");
 
-        FirestoreGrpc.FirestoreStub firestoreStub = new GRPCFirebaseClientFactory().createFirebaseClient().getFirestoreStub();
+        FirestoreBlockingStub blockingStub = new GRPCFirebaseClientFactory().createFirebaseClient().getBlockingStub();
 
         ListDocumentsRequest ldr = ListDocumentsRequest.newBuilder()
                 .setParent("projects/firestoretestclient/databases/(default)/documents")
                 .setCollectionId("GrpcTestData")
                 .build();
 
-        StreamObserver respStream = new StreamObserver() {
-            @Override
-            public void onNext(Object resp) {
-
-                ListDocumentsResponse response = (ListDocumentsResponse) resp;
-                List<Document> allDocs = response.getDocumentsList();
-                DrawDocument dd = new DrawDocument();
-
-                for (Document doc : allDocs) {
-                    dd.draw(doc);
-                }
-
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                System.out.println("Error During Call: " + throwable.getMessage());
-            }
-
-            @Override
-            public void onCompleted() {
-                System.out.println("finished!");
-
-            }
-        };
-
         try {
-            firestoreStub
-                    .listDocuments(ldr, respStream);
+
+            ListDocumentsResponse listDocumentsResponse = blockingStub.listDocuments(ldr);
+            List<Document> allDocs = listDocumentsResponse.getDocumentsList();
+            DrawDocument dd = new DrawDocument();
+
+            for (Document doc : allDocs) {
+                dd.draw(doc);
+            }
+
+            Menu menu = new Menu();
+            menu.draw();
             System.out.println("Finished call...");
         }
         catch (Exception e) {

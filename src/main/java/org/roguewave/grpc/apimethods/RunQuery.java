@@ -4,6 +4,8 @@ import com.google.firestore.v1beta1.*;
 import com.google.firestore.v1beta1.FirestoreGrpc.FirestoreBlockingStub;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
 import org.roguewave.grpc.util.gfx.DrawDocument;
+import org.roguewave.grpc.util.gfx.Menu;
+
 import java.util.Iterator;
 import java.util.Scanner;
 
@@ -58,6 +60,9 @@ public class RunQuery {
         }
 
         System.out.println("Done!");
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 

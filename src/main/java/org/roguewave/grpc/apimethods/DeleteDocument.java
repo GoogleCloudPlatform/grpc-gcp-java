@@ -3,6 +3,7 @@ package org.roguewave.grpc.apimethods;
 import com.google.firestore.v1beta1.DeleteDocumentRequest;
 import com.google.firestore.v1beta1.FirestoreGrpc;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.Scanner;
 
@@ -28,6 +29,9 @@ public class DeleteDocument {
         } catch (Exception e) {
             System.out.println("Error executing blocking stub call: " + (e.getMessage() + "\n" + e.getCause().toString()));
         }
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 

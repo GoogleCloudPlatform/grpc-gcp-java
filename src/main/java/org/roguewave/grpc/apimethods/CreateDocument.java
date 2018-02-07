@@ -7,6 +7,7 @@ import com.google.firestore.v1beta1.Value;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
 import org.roguewave.grpc.util.gfx.DrawDocument;
 import org.roguewave.grpc.util.gfx.MakeFieldsMap;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.HashMap;
 import java.util.Scanner;
@@ -49,6 +50,9 @@ public class CreateDocument {
 
         DrawDocument dd = new DrawDocument();
         dd.draw(finishedDoc);
+
+        Menu menu = new Menu();
+        menu.draw();
 
 
     }

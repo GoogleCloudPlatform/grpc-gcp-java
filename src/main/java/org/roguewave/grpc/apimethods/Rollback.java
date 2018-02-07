@@ -4,6 +4,7 @@ import com.google.firestore.v1beta1.FirestoreGrpc.FirestoreBlockingStub;
 import com.google.firestore.v1beta1.RollbackRequest;
 import org.roguewave.grpc.Main;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
+import org.roguewave.grpc.util.gfx.Menu;
 
 public class Rollback {
 
@@ -39,6 +40,9 @@ public class Rollback {
         }
 
         System.out.println("Success!");
+
+        Menu menu = new Menu();
+        menu.draw();
     }
 
 }

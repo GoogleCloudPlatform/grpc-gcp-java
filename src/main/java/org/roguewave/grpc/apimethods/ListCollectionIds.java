@@ -5,6 +5,7 @@ import com.google.firestore.v1beta1.ListCollectionIdsRequest;
 import com.google.firestore.v1beta1.ListCollectionIdsResponse;
 import com.google.protobuf.ProtocolStringList;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.Iterator;
 
@@ -36,6 +37,9 @@ public class ListCollectionIds {
         while (collectionIdIter.hasNext()) {
             System.out.println(collectionIdIter.next());
         }
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 }

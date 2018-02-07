@@ -4,6 +4,7 @@ import com.google.firestore.v1beta1.CommitRequest;
 import com.google.firestore.v1beta1.FirestoreGrpc.FirestoreBlockingStub;
 import org.roguewave.grpc.Main;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
+import org.roguewave.grpc.util.gfx.Menu;
 
 public class Commit {
 
@@ -40,6 +41,8 @@ public class Commit {
         }
 
         System.out.println("Success!");
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 

@@ -3,6 +3,7 @@ package org.roguewave.grpc.apimethods;
 import com.google.firestore.admin.v1beta1.DeleteIndexRequest;
 import com.google.firestore.admin.v1beta1.FirestoreAdminGrpc.FirestoreAdminBlockingStub;
 import org.roguewave.grpc.util.GRPCFirebaseAdminClientFactory;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.Scanner;
 
@@ -32,6 +33,9 @@ public class DeleteIndex {
         }
 
         System.out.println("Successfully deleted index " + indexName);
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 }

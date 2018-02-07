@@ -5,6 +5,7 @@ import com.google.firestore.v1beta1.FirestoreGrpc;
 import com.google.firestore.v1beta1.GetDocumentRequest;
 import org.roguewave.grpc.util.GRPCFirebaseClientFactory;
 import org.roguewave.grpc.util.gfx.DrawDocument;
+import org.roguewave.grpc.util.gfx.Menu;
 
 import java.util.Scanner;
 
@@ -33,6 +34,9 @@ public class GetDocument {
             System.out.println("Error during call: " + e.getMessage() + e.getCause());
             return;
         }
+
+        Menu menu = new Menu();
+        menu.draw();
 
     }
 
