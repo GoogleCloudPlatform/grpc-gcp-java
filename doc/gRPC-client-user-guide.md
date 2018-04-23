@@ -1,9 +1,9 @@
-# Instruction for creating a gRPC client for google cloud services
+# Instructions for create a gRPC client for google cloud services
 
 ## Overview
 
-This instruction includes step by step guide for creating a gRPC 
-client to test the new google cloud service from an empty linux 
+This instruction includes a step by step guide for creating a gRPC 
+client to test the google cloud service from an empty linux 
 VM, using GCE ubuntu 16.04 TLS instance.
 
 The main steps are followed as steps below: 
@@ -15,10 +15,6 @@ The main steps are followed as steps below:
 
 ## Environment Prerequisite
 
-**Linux**
-```sh
-$ [sudo] apt-get install build-essential autoconf libtool pkg-config zip unzip zlib1g-dev
-```
 **Java**
 ```sh
 $ [sudo] apt-get install default-jre
@@ -65,14 +61,14 @@ $ mkdir $HOME/grpc-java/src/main/java
 $ export OUTPUT_FILE=$HOME/project-java/src/main/java
 $ protoc --plugin=protoc-gen-grpc-java=compiler/build/exe/java_plugin/protoc-gen-grpc-java \
 --grpc-java_out="$OUTPUT_FILE" --java_out="$OUTPUT_FILE" --proto_path="$DIR_OF_PROTO_FILE" \
-/path/to/your/proto_dependency_directory1/*.proto \
-/path/to/your/proto_dependency_directory2/*.proto \
-/path/to/your/proto_directory/*.proto
+path/to/your/proto_dependency_directory1/*.proto \
+path/to/your/proto_dependency_directory2/*.proto \
+path/to/your/proto_service_directory/*.proto
 ```
 
 Since most of cloud services already publish proto files under 
-[googleapis github repo](https://github.com/googleapis/googleapis), I
-recommend use it's Makefile to generate the client API. The side effect is that is will generate
+[googleapis github repo](https://github.com/googleapis/googleapis), another way
+to generate client API is to use it's Makefile. The side effect is that is will generate
 lots of unused services which slow the compile. You can delete the generated directories not neede.
 For example, for Firestore service, the directories needed under `src/main/java/com/google/` are
 `api`, `firestore`, `longrunning`, `rpc`, `type`. You can delete all other directories. Then mvn 
