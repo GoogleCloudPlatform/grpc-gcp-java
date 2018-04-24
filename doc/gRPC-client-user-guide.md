@@ -66,8 +66,36 @@ path/to/your/proto_dependency_directory2/*.proto \
 path/to/your/proto_service_directory/*.proto
 ```
 
-Since most of cloud services already publish proto files under 
-[googleapis github repo](https://github.com/googleapis/googleapis), another way
+Take Firestore service under
+[googleapis github repo](https://github.com/googleapis/googleapis) for example.
+The proto files required are
+```
+google/api/annotations.proto
+google/api/http.proto
+google/api/httpbody.proto
+google/longrunning/operations.proto
+google/rpc/code.proto
+google/rpc/error_details.proto
+google/rpc/status.proto
+google/type/latlng.proto
+google/firestore/v1beta1/firestore.proto
+google/firestore/v1beta1/common.proto
+google/firestore/v1beta1/query.proto
+google/firestore/v1beta1/write.proto
+google/firestore/v1beta1/document.proto
+```
+Thus the command generating client API is
+```sh
+$ protoc --plugin=protoc-gen-grpc-java=compiler/build/exe/java_plugin/protoc-gen-grpc-java \
+--grpc-java_out="$OUTPUT_FILE" --java_out="$OUTPUT_FILE" --proto_path=googleapis \
+google/api/annotations.proto google/api/http.proto google/api/httpbody.proto \
+google/longrunning/operations.proto google/rpc/code.proto google/rpc/error_details.proto \
+google/rpc/status.proto google/type/latlng.proto google/firestore/v1beta1/firestore.proto \
+google/firestore/v1beta1/common.proto google/firestore/v1beta1/query.proto \
+google/firestore/v1beta1/write.proto google/firestore/v1beta1/document.proto
+```
+
+Since most google cloud services have proto files inside `googleapis` repo. Another way
 to generate client API is to use it's Makefile. The side effect is that is will generate
 lots of unused services which slow the compile. You can delete the generated directories not neede.
 For example, for Firestore service, the directories needed under `src/main/java/com/google/` are
