@@ -27,8 +27,7 @@ public class Prober {
     ImmutableList<String> requiredScopes = ImmutableList.of(OAUTH_SCOPE);
     creds = creds.createScoped(requiredScopes);
 
-    ManagedChannel channel =
-        ManagedChannelBuilder.forAddress(SPANNER_TARGET, 443).build();
+    ManagedChannel channel = ManagedChannelBuilder.forAddress(SPANNER_TARGET, 443).build();
     SpannerGrpc.SpannerBlockingStub stub =
         SpannerGrpc.newBlockingStub(channel).withCallCredentials(MoreCallCredentials.from(creds));
     return stub;
@@ -36,7 +35,10 @@ public class Prober {
 
   private static void excuteProbe() {
     SpannerGrpc.SpannerBlockingStub stub = getStubChannel();
-    SpannerProbes.sessionManagement(stub);
+    SpannerProbes.sessionManagementProber(stub);
+    SpannerProbes.executeSqlProber(stub);
+    SpannerProbes.transactionProber(stub);
+    SpannerProbes.partitionProber(stub);
   }
 
   public static void main(String[] args) {
