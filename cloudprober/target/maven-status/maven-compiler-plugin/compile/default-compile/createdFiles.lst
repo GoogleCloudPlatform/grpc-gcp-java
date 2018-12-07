@@ -1,4 +1,0 @@
-com/google/grpc/cloudprober/SpannerProbes$ProberException.class
-com/google/grpc/cloudprober/Prober.class
-com/google/grpc/cloudprober/StackdriverUtils.class
-com/google/grpc/cloudprober/SpannerProbes.class
