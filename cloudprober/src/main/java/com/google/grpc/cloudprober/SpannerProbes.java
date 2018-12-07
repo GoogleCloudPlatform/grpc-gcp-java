@@ -134,7 +134,7 @@ public class SpannerProbes {
       }
       if (!response.getRows(0).getValuesList().get(0).getStringValue().equals(TEST_USERNAME)) {
         throw new ProberException(
-            "Response value is not correct when executing SQL 'select * from users'. ");
+            "Response value is not correct when executing SQL.");
       }
 
       // Probing streaming executeSql call.
@@ -193,7 +193,7 @@ public class SpannerProbes {
       }
       if (!response.getRows(0).getValuesList().get(0).getStringValue().equals(TEST_USERNAME)) {
         throw new ProberException(
-            "Response value is not correct when executing SQL 'select * from users'. ");
+            "Response value is not correct when executing Reader.");
       }
 
       // Probing streamingRead call.
@@ -214,7 +214,7 @@ public class SpannerProbes {
         throw new ProberException("Response is null when executing streaming SQL. ");
       }
       if (!responsePartial.next().getValues(0).getStringValue().equals(TEST_USERNAME)) {
-        throw new ProberException("Response value is not correct when executing streaming SQL. ");
+        throw new ProberException("Response value is not correct when executing streaming Reader. ");
       }
 
     } catch (ProberException e) {
