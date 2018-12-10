@@ -22,18 +22,14 @@ import com.google.spanner.v1.TransactionOptions;
 import com.google.spanner.v1.TransactionSelector;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.HashMap;
-
-
 
 public class SpannerProbes {
 
   public static final class ProberException extends Exception {
-    ProberException(String s) {
+    private ProberException(String s) {
       super(s);
     }
   }
-
 
   private static final String DATABASE =
       "projects/cloudprober-test/instances/test-instance/databases/test-db";
@@ -48,14 +44,14 @@ public class SpannerProbes {
     }
   }
 
-
   /**
    * Probes to test session related grpc call from Spanner stub.
    *
    * Includes tests against CreateSession, GetSession, ListSessions, and DeleteSession of Spanner
    * stub.
    */
-  public static void sessionManagementProber(SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
+  public static void sessionManagementProber(
+      SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
 
     Session session = null;
     Long start;
@@ -104,12 +100,11 @@ public class SpannerProbes {
     start = System.currentTimeMillis();
     deleteSession(stub, session);
     metrics.put("delete_session_latency_ms", (System.currentTimeMillis() - start));
-
   }
 
-
   /** Probes to test ExecuteSql and ExecuteStreamingSql call from Spanner stub. */
-  public static void executeSqlProber(SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
+  public static void executeSqlProber(
+      SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
     Session session = null;
     try {
       Long start;
@@ -127,14 +122,16 @@ public class SpannerProbes {
 
       if (response == null) {
         throw new ProberException("Response is null when executing SQL. ");
-      }
-      if (response.getRowsCount() != 1) {
+      } else if (response.getRowsCount() != 1) {
         throw new ProberException(
             String.format("The number of Responses '%d' is not correct.", response.getRowsCount()));
-      }
-      if (!response.getRows(0).getValuesList().get(0).getStringValue().equals(TEST_USERNAME)) {
-        throw new ProberException(
-            "Response value is not correct when executing SQL.");
+      } else if (!response
+          .getRows(0)
+          .getValuesList()
+          .get(0)
+          .getStringValue()
+          .equals(TEST_USERNAME)) {
+        throw new ProberException("Response value is not correct when executing SQL.");
       }
 
       // Probing streaming executeSql call.
@@ -149,18 +146,15 @@ public class SpannerProbes {
 
       if (responsePartial == null) {
         throw new ProberException("Response is null when executing streaming SQL. ");
-      }
-      if (!responsePartial.next().getValues(0).getStringValue().equals(TEST_USERNAME)) {
+      } else if (!responsePartial.next().getValues(0).getStringValue().equals(TEST_USERNAME)) {
         throw new ProberException("Response value is not correct when executing streaming SQL. ");
       }
 
     } catch (ProberException e) {
       System.out.println(e.getMessage());
     }
-
     deleteSession(stub, session);
   }
-
 
   /** Probe to test Read and StreamingRead grpc call from Spanner stub. */
   public static void readProber(SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
@@ -186,14 +180,16 @@ public class SpannerProbes {
 
       if (response == null) {
         throw new ProberException("Response is null when executing SQL. ");
-      }
-      if (response.getRowsCount() != 1) {
+      } else if (response.getRowsCount() != 1) {
         throw new ProberException(
             String.format("The number of Responses '%d' is not correct.", response.getRowsCount()));
-      }
-      if (!response.getRows(0).getValuesList().get(0).getStringValue().equals(TEST_USERNAME)) {
-        throw new ProberException(
-            "Response value is not correct when executing Reader.");
+      } else if (!response
+          .getRows(0)
+          .getValuesList()
+          .get(0)
+          .getStringValue()
+          .equals(TEST_USERNAME)) {
+        throw new ProberException("Response value is not correct when executing Reader.");
       }
 
       // Probing streamingRead call.
@@ -212,9 +208,9 @@ public class SpannerProbes {
 
       if (responsePartial == null) {
         throw new ProberException("Response is null when executing streaming SQL. ");
-      }
-      if (!responsePartial.next().getValues(0).getStringValue().equals(TEST_USERNAME)) {
-        throw new ProberException("Response value is not correct when executing streaming Reader. ");
+      } else if (!responsePartial.next().getValues(0).getStringValue().equals(TEST_USERNAME)) {
+        throw new ProberException(
+            "Response value is not correct when executing streaming Reader. ");
       }
 
     } catch (ProberException e) {
@@ -224,9 +220,9 @@ public class SpannerProbes {
     deleteSession(stub, session);
   }
 
-
   /** Probe to test BeginTransaction, Commit and Rollback grpc from Spanner stub. */
-  public static void transactionProber(SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
+  public static void transactionProber(
+      SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
     Long start;
     Session session =
         stub.createSession(CreateSessionRequest.newBuilder().setDatabase(DATABASE).build());
@@ -267,9 +263,9 @@ public class SpannerProbes {
     deleteSession(stub, session);
   }
 
-
   /** Probe to test PartitionQuery and PartitionRead grpc call from Spanner stub. */
-  public static void partitionProber(SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
+  public static void partitionProber(
+      SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
     Long start;
     Session session =
         stub.createSession(CreateSessionRequest.newBuilder().setDatabase(DATABASE).build());
