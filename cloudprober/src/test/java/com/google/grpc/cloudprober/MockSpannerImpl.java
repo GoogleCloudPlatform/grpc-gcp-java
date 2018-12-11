@@ -15,7 +15,6 @@
  */
 package com.google.grpc.cloudprober;
 
-import com.google.api.core.BetaApi;
 import com.google.protobuf.Empty;
 import com.google.protobuf.GeneratedMessageV3;
 import com.google.spanner.v1.BeginTransactionRequest;
@@ -43,8 +42,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
-
-/** Fake spanner server implementation. */
+/** Fake spanner server implementation. The original file is github.com/googleapis/google-cloud-java/blob/master/google-cloud-clients/google-cloud-spanner/src/test/java/com/google/cloud/spanner/v1/MockSpannerImpl.java 
+ */
 public class MockSpannerImpl extends SpannerImplBase {
   private ArrayList<GeneratedMessageV3> requests;
   private Queue<Object> responses;

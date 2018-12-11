@@ -1,3 +1,19 @@
+/*
+ * Copyright 2018 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.google.grpc.cloudprober;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -48,7 +64,7 @@ public class SpannerProbesTest {
 
   @Before
   public void setUp() throws Exception {
-    // Set up the mockito spy so that we can trace if the method on the server side is called.
+    // Set up the mockito spy so that we can track if the method on the server side is called.
     serviceImpl = Mockito.spy(new MockSpannerImpl());
 
     // Set up the fake server and the channel, get the stub.
@@ -63,7 +79,7 @@ public class SpannerProbesTest {
         grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build());
     stub = SpannerGrpc.newBlockingStub(channel);
 
-    // Set up the rules during the tests.
+    // Set up the vars during the tests.
     session = Session.newBuilder().setName(SESSION_NAME).build();
     emptyResponse = Empty.newBuilder().build();
     metrics = new HashMap<>();
