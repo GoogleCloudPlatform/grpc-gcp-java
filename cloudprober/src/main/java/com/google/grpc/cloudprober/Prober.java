@@ -57,41 +57,41 @@ public class Prober {
     SpannerGrpc.SpannerBlockingStub stub =
         SpannerGrpc.newBlockingStub(channel).withCallCredentials(MoreCallCredentials.from(creds));
 
-    int successCount = 0;
+    int failureCount = 0;
     Map<String, Long> metrics = new HashMap<String, Long>();
     try {
       SpannerProbes.sessionManagementProber(stub, metrics);
     } catch (Exception e) {
       logger.severe(e.getMessage());
-      successCount--;
+      failureCount++;
     }
     try {
       SpannerProbes.executeSqlProber(stub, metrics);
     } catch (Exception e) {
       logger.severe(e.getMessage());
-      successCount--;
+      failureCount++;
     }
     try {
       SpannerProbes.readProber(stub, metrics);
     } catch (Exception e) {
       logger.severe(e.getMessage());
-      successCount--;
+      failureCount++;
     }
     try {
       SpannerProbes.transactionProber(stub, metrics);
     } catch (Exception e) {
       logger.severe(e.getMessage());
-      successCount--;
+      failureCount++;
     }
     try {
       SpannerProbes.partitionProber(stub, metrics);
     } catch (Exception e) {
       logger.severe(e.getMessage());
-      successCount--;
+      failureCount++;
     }
 
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-    if (successCount == 0) {
+    if (failureCount == 0) {
       util.setSuccess(true);
     }
     util.addMetricsDict(metrics);

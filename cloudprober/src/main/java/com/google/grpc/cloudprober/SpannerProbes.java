@@ -40,13 +40,12 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Probes to probe the testing Spanner database and verify the result using the unblocking stub by
- * grpc.
+ * Probes to probe the testing Spanner database using the blockingstub by grpc and verify the result
  */
 public class SpannerProbes {
 
   public static final class ProberException extends Exception {
-    private ProberException(String s) {
+    ProberException(String s) {
       super(s);
     }
   }
@@ -236,9 +235,9 @@ public class SpannerProbes {
   public static void transactionProber(
       SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
     long start;
-    Session session =
-        stub.createSession(CreateSessionRequest.newBuilder().setDatabase(DATABASE).build());
+    Session session = null;
     try {
+      session = stub.createSession(CreateSessionRequest.newBuilder().setDatabase(DATABASE).build());
       // Probing begin transaction call.
       TransactionOptions options =
           TransactionOptions.newBuilder()
@@ -280,9 +279,9 @@ public class SpannerProbes {
   public static void partitionProber(
       SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
     long start;
-    Session session =
-        stub.createSession(CreateSessionRequest.newBuilder().setDatabase(DATABASE).build());
+    Session session = null;       
     try {
+      session = stub.createSession(CreateSessionRequest.newBuilder().setDatabase(DATABASE).build());
       // Probing partition query call.
       TransactionOptions options =
           TransactionOptions.newBuilder()
