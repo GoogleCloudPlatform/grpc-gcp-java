@@ -99,14 +99,14 @@ public class SpannerProbes {
           stub.listSessions(ListSessionsRequest.newBuilder().setDatabase(DATABASE).build());
       metrics.put("list_session_latency_ms", (System.currentTimeMillis() - start));
 
-      int inList = 0;
+      boolean inList = false;
       for (Session s : responseList.getSessionsList()) {
         if (s.getName().equals(session.getName())) {
-          inList = 1;
+          inList = true;
           break;
         }
       }
-      if (inList == 0) {
+      if (!inList) {
         throw new ProberException(
             String.format("The session list doesn't contain %s.", session.getName()));
       }
