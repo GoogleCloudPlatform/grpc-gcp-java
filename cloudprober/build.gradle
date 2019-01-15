@@ -1,0 +1,36 @@
+plugins {
+    id 'java'
+    id 'maven'
+    id 'application'
+}
+
+mainClassName = "com.google.grpc.cloudprober.Prober"
+
+repositories {
+    maven { // The google mirror is less flaky than mavenCentral()
+        url "https://maven-central.storage-download.googleapis.com/repos/central/data/"
+    }
+    mavenLocal()
+}
+
+def grpcVersion = '1.16.1' 
+
+dependencies {
+    compile 'com.google.cloud:google-cloud-logging:1.53.0'
+    compile "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    compile "io.grpc:grpc-protobuf:${grpcVersion}"
+    compile "io.grpc:grpc-stub:${grpcVersion}"
+    compile "io.grpc:grpc-auth:${grpcVersion}"
+    compile 'com.google.cloud:google-cloud-spanner:0.71.0-beta'
+    compile 'com.google.auth:google-auth-library-oauth2-http:0.9.0'
+    compile 'com.google.auth:google-auth-library-parent:0.9.0'
+    compile 'com.google.api:api-common:1.2.0'
+    testCompile 'com.google.truth:truth:0.42'
+    testCompile 'org.mockito:mockito-all:1.9.5'
+    testCompile 'io.grpc:grpc-testing:1.16.1'
+}
+
+group = 'io.grpc'
+version = '0.0.1-SNAPSHOT'
+description = 'GRPC Java CloudProber'
+sourceCompatibility = '1.8'
