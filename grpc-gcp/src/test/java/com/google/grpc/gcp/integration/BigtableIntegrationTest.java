@@ -92,7 +92,7 @@ public class BigtableIntegrationTest {
     return creds;
   }
 
-  private BigtableBlockingStub getBigtableBlockingStub() throws InterruptedException {
+  private BigtableBlockingStub getBigtableBlockingStub() {
     GoogleCredentials creds = getCreds();
     BigtableBlockingStub stub =
         BigtableGrpc.newBlockingStub(gcpChannel)
@@ -100,14 +100,14 @@ public class BigtableIntegrationTest {
     return stub;
   }
 
-  private BigtableStub getBigtableStub() throws InterruptedException {
+  private BigtableStub getBigtableStub() {
     GoogleCredentials creds = getCreds();
     BigtableStub stub =
         BigtableGrpc.newStub(gcpChannel).withCallCredentials(MoreCallCredentials.from(creds));
     return stub;
   }
 
-  private BigtableFutureStub getBigtableFutureStub() throws InterruptedException {
+  private BigtableFutureStub getBigtableFutureStub() {
     GoogleCredentials creds = getCreds();
     BigtableFutureStub stub =
         BigtableGrpc.newFutureStub(gcpChannel).withCallCredentials(MoreCallCredentials.from(creds));
@@ -128,7 +128,7 @@ public class BigtableIntegrationTest {
     return true;
   }
 
-  private boolean runManyManyStreamsGcpChannel() throws InterruptedException {
+  private boolean runManyManyStreamsGcpChannel() {
     BigtableBlockingStub stub = getBigtableBlockingStub();
     ReadRowsRequest request = ReadRowsRequest.newBuilder().setTableName(LARGE_TABLE_NAME).build();
 
@@ -251,6 +251,46 @@ public class BigtableIntegrationTest {
     Iterator<ReadRowsResponse> response = stub.readRows(request);
     assertEquals(21, response.next().getChunksCount());
     assertEquals(1, gcpChannel.channelRefs.size());
+  }
+
+  /** There are 105 streams and our GcpManagedChannel is able to handle them. */
+  @Test
+  public void testReadGiganticDataGcpChannel() throws Exception {
+    ExecutorService executor = Executors.newCachedThreadPool();
+    Callable<Object> task =
+        new Callable<Object>() {
+          public Object call() {
+            return runManyManyStreamsGcpChannel();
+          }
+        };
+    Future<Object> future = executor.submit(task);
+    try {
+      Object result = future.get(120, TimeUnit.SECONDS);
+    } finally {
+      future.cancel(true);
+    }
+  }
+
+  /**
+   * The original ManagedChannel is not able to hold 105 streams concurrently. The 101st stream will
+   * be blocked and throws a TimeoutException.
+   */
+  @Test
+  public void testReadGiganticDataNormalChannel() throws Exception {
+    ExecutorService executor = Executors.newCachedThreadPool();
+    Callable<Object> task =
+        new Callable<Object>() {
+          public Object call() {
+            return runManyManyStreamsNormalChannel();
+          }
+        };
+    expectedEx.expect(TimeoutException.class);
+    Future<Object> future = executor.submit(task);
+    try {
+      Object result = future.get(120, TimeUnit.SECONDS);
+    } finally {
+      future.cancel(true);
+    }
   }
 
   private static MutateRowRequest getMutateRequest(String val, int col, String rowKey) {

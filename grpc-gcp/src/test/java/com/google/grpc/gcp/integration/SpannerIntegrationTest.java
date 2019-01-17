@@ -91,7 +91,7 @@ public final class SpannerIntegrationTest {
   }
 
   /** Helper functions for BlockingStub. */
-  private SpannerBlockingStub getSpannerBlockingStub() throws InterruptedException {
+  private SpannerBlockingStub getSpannerBlockingStub() {
     GoogleCredentials creds = getCreds();
     SpannerBlockingStub stub =
         SpannerGrpc.newBlockingStub(gcpChannel)
@@ -106,7 +106,7 @@ public final class SpannerIntegrationTest {
   }
 
   /** Helper functions for Stub(async calls). */
-  private SpannerStub getSpannerStub() throws InterruptedException {
+  private SpannerStub getSpannerStub() {
     GoogleCredentials creds = getCreds();
     SpannerStub stub =
         SpannerGrpc.newStub(gcpChannel).withCallCredentials(MoreCallCredentials.from(creds));
@@ -149,7 +149,7 @@ public final class SpannerIntegrationTest {
   }
 
   /** Helper Functions for FutureStub. */
-  private SpannerFutureStub getSpannerFutureStub() throws InterruptedException {
+  private SpannerFutureStub getSpannerFutureStub() {
     GoogleCredentials creds = getCreds();
     SpannerFutureStub stub =
         SpannerGrpc.newFutureStub(gcpChannel).withCallCredentials(MoreCallCredentials.from(creds));

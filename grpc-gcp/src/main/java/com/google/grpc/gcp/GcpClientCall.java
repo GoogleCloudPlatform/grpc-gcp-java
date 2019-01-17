@@ -27,8 +27,12 @@ import io.grpc.ForwardingClientCallListener;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
+import java.util.ArrayDeque;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * A wrapper of ClientCall that can fetch the affinitykey from the request/response message.
@@ -37,16 +41,11 @@ import java.util.logging.Logger;
  * facilitate creating new calls. It gets the affinitykey from the request/response message, and
  * defines the callback functions to manage the number of active streams and bind/unbind the
  * affinity key with the channel.
- *
- * <p>Methods are guaranteed to be non-blocking. Not thread-safe except for GcpClientCall.request(),
- * which may be called from any thread.
  */
 public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
 
   private static final Logger logger = Logger.getLogger(GcpClientCall.class.getName());
 
-  private Metadata cachedHeaders;
-  private Listener<RespT> cachedListener;
   private final MethodDescriptor<ReqT, RespT> methodDescriptor;
   private final CallOptions callOptions;
   private final GcpManagedChannel delegateChannel;
@@ -54,11 +53,14 @@ public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
 
   private GcpManagedChannel.ChannelRef delegateChannelRef = null;
   private ClientCall<ReqT, RespT> delegateCall = null;
-  private int msgRequestedBeforeSend = 0;
-  private boolean isCompressed = true;
   private boolean received = false;
-  private final AtomicBoolean started = new AtomicBoolean(false);
   private final AtomicBoolean decremented = new AtomicBoolean(false);
+
+  @GuardedBy("this")
+  private final Queue<Runnable> calls = new ArrayDeque<>();
+
+  @GuardedBy("this")
+  private boolean started;
 
   protected GcpClientCall(
       GcpManagedChannel delegateChannel,
@@ -73,71 +75,37 @@ public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
 
   @Override
   public void start(Listener<RespT> responseListener, Metadata headers) {
-    cachedHeaders = headers;
-    cachedListener = responseListener;
+    checkSendMessage(() -> delegateCall.start(getListener(responseListener), headers));
   }
 
   @Override
   public void request(int numMessages) {
-    if (!started.get()) {
-      // Messages might be requested before sendMessage()
-      // See io.grpc.ClientCalls()
-      msgRequestedBeforeSend += numMessages;
-    }
-    if (started.get()) {
-      delegateCall.request(numMessages);
-    }
+    checkSendMessage(() -> delegateCall.request(numMessages));
   }
 
   @Override
   public void setMessageCompression(boolean enabled) {
-    if (started.get()) {
-      delegateCall.setMessageCompression(enabled);
-    } else if (enabled) {
-      isCompressed = true;
-    } else {
-      isCompressed = false;
-    }
+    checkSendMessage(() -> delegateCall.setMessageCompression(enabled));
   }
 
-  /** DO NOT cancel the call before sendMessage(). */
   @Override
-  public void cancel(String message, Throwable cause) {
-    if (started.get()) {
-      if (!decremented.getAndSet(true)) {
-        delegateChannelRef.activeStreamsCountDecr();
-      }
-      delegateCall.cancel(message, cause);
-    } else {
-      throw new IllegalStateException("Calling cancel() before sendMessage() is not permitted.");
-    }
+  public void cancel(@Nullable String message, @Nullable Throwable cause) {
+    checkSendMessage(() -> checkedCancel(message, cause));
   }
 
-  /** DO NOT halfclose the call before sendMessage(). */
   @Override
   public void halfClose() {
-    if (started.get()) {
-      delegateCall.halfClose();
-    } else {
-      throw new IllegalStateException("Calling halfclose() before sendMessage() is not permitted.");
-    }
+    checkSendMessage(() -> delegateCall.halfClose());
   }
 
   /**
    * Delay executing operations until call.sendMessage() is called, switch the channel, start the
-   * call, and finally do sendMessage().
-   *
-   * <p>call.start() and setMessageCompression() are permitted to be called multiple times prior to
-   * sendMessage() but only the last one will be valid. Calling call.request() before sendMessage()
-   * multiple times, the number of messages able to delivered will be the sum of the calls.
-   *
-   * <p>DO NOT call halfClose() and cancel() before sendMessage(), then the call will never start
-   * and will throw IllegalStateException.
+   * call, do previous operations, and finally do sendMessage().
    */
   @Override
   public void sendMessage(ReqT message) {
     synchronized (this) {
-      if (!started.get()) {
+      if (!started) {
         // Check if the current channelRef is bound with the key and change it if necessary.
         // If no channel is bound with the key, use the least busy one.
         String key = delegateChannel.checkKey(message, true, methodDescriptor);
@@ -153,10 +121,11 @@ public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
 
         // Create the client call and do the previous operations.
         delegateCall = delegateChannelRef.getChannel().newCall(methodDescriptor, callOptions);
-        delegateCall.start(getListener(cachedListener), cachedHeaders);
-        started.set(true);
-        delegateCall.setMessageCompression(isCompressed);
-        delegateCall.request(msgRequestedBeforeSend);
+        for (Runnable call : calls) {
+          call.run();
+        }
+        calls.clear();
+        started = true;
       }
     }
     delegateCall.sendMessage(message);
@@ -165,20 +134,21 @@ public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
   /** Calls that send exactly one message should not check this method. */
   @Override
   public boolean isReady() {
-    if (delegateCall != null) {
-      return delegateCall.isReady();
+    synchronized (this) {
+      return started && delegateCall.isReady();
     }
-    return true;
   }
 
   /** May only be called after Listener#onHeaders or Listener#onClose. */
   @Override
   public Attributes getAttributes() {
-    if (!started.get()) {
-      throw new IllegalStateException(
-          "Calling getAttributes() before Listener#onHeaders or Listener#onClose.");
+    synchronized (this) {
+      if (started) {
+        return delegateCall.getAttributes();
+      } else {
+        throw new IllegalStateException("Calling getAttributes() before sendMessage().");
+      }
     }
-    return delegateCall.getAttributes();
   }
 
   @Override
@@ -186,6 +156,22 @@ public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
     return MoreObjects.toStringHelper(this).add("delegate", delegateCall).toString();
   }
 
+  private void checkedCancel(@Nullable String message, @Nullable Throwable cause) {
+    if (!decremented.getAndSet(true)) {
+      delegateChannelRef.activeStreamsCountDecr();
+    }
+    delegateCall.cancel(message, cause);
+  }
+
+  private void checkSendMessage(Runnable call) {
+    synchronized (this) {
+      if (started) {
+        call.run();
+      } else {
+        calls.add(call);
+      }
+    }
+  }
   private Listener<RespT> getListener(final Listener<RespT> responseListener) {
 
     return new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(
