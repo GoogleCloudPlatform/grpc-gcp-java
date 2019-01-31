@@ -6,7 +6,7 @@
   <version>0.0.1-SNAPSHOT</version>
   <name>GRPC Java CloudProber</name>
   <properties>
-    <powermock.version>1.6.6</powermock.version>
+    <grpc.version>1.18.0</grpc.version>
   </properties>
   <dependencies>
     <dependency>
@@ -15,29 +15,29 @@
       <version>1.53.0</version>
     </dependency>
 
-    <!-- https://mvnrepository.com/artifact/io.grpc/grpc-all -->
+    <!-- grpc dependencies -->
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-netty-shaded</artifactId>
-      <version>1.16.1</version>
+      <version>${grpc.version}</version>
     </dependency>
 
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-protobuf</artifactId>
-      <version>1.16.1</version>
+      <version>${grpc.version}</version>
     </dependency>
 
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-stub</artifactId>
-      <version>1.16.1</version>
+      <version>${grpc.version}</version>
     </dependency>
 
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-auth</artifactId>
-      <version>1.16.1</version>
+      <version>${grpc.version}</version>
     </dependency>
 
     <dependency>
@@ -69,21 +69,17 @@
       <groupId>com.google.truth</groupId>
       <artifactId>truth</artifactId>
       <version>0.42</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-all</artifactId>
       <version>1.9.5</version>
-      <scope>test</scope>
     </dependency>
 
-    <!-- https://mvnrepository.com/artifact/io.grpc/grpc-testing -->
     <dependency>
         <groupId>io.grpc</groupId>
         <artifactId>grpc-testing</artifactId>
-        <version>1.16.1</version>
-        <scope>test</scope>
+        <version>${grpc.version}</version>
     </dependency>
 
     
@@ -92,6 +88,7 @@
   <build>
     <pluginManagement>
       <plugins>
+
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>

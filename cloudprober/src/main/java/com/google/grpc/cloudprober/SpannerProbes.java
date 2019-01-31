@@ -16,6 +16,8 @@
 
 package com.google.grpc.cloudprober;
 
+import com.google.protobuf.ListValue;
+import com.google.protobuf.Value;
 import com.google.spanner.v1.BeginTransactionRequest;
 import com.google.spanner.v1.CommitRequest;
 import com.google.spanner.v1.CreateSessionRequest;
@@ -25,6 +27,7 @@ import com.google.spanner.v1.GetSessionRequest;
 import com.google.spanner.v1.KeySet;
 import com.google.spanner.v1.ListSessionsRequest;
 import com.google.spanner.v1.ListSessionsResponse;
+import com.google.spanner.v1.Mutation;
 import com.google.spanner.v1.PartialResultSet;
 import com.google.spanner.v1.PartitionQueryRequest;
 import com.google.spanner.v1.PartitionReadRequest;
@@ -36,6 +39,7 @@ import com.google.spanner.v1.SpannerGrpc;
 import com.google.spanner.v1.Transaction;
 import com.google.spanner.v1.TransactionOptions;
 import com.google.spanner.v1.TransactionSelector;
+import java.time.LocalDateTime;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -43,12 +47,6 @@ import java.util.Map;
  * Probes to probe the testing Spanner database using the blockingstub by grpc and verify the result
  */
 public class SpannerProbes {
-
-  public static final class ProberException extends Exception {
-    ProberException(String s) {
-      super(s);
-    }
-  }
 
   private static final String DATABASE =
       "projects/cloudprober-test/instances/test-instance/databases/test-db";
@@ -99,14 +97,14 @@ public class SpannerProbes {
           stub.listSessions(ListSessionsRequest.newBuilder().setDatabase(DATABASE).build());
       metrics.put("list_session_latency_ms", (System.currentTimeMillis() - start));
 
-      boolean inList = false;
+      int inList = 0;
       for (Session s : responseList.getSessionsList()) {
         if (s.getName().equals(session.getName())) {
-          inList = true;
+          inList = 1;
           break;
         }
       }
-      if (!inList) {
+      if (inList == 0) {
         throw new ProberException(
             String.format("The session list doesn't contain %s.", session.getName()));
       }
@@ -254,8 +252,26 @@ public class SpannerProbes {
 
       // Probing commit call.
       start = System.currentTimeMillis();
+      LocalDateTime currentTime = LocalDateTime.now();
       stub.commit(
           CommitRequest.newBuilder()
+              .addMutations(
+                  Mutation.newBuilder()
+                      .setInsertOrUpdate(
+                          Mutation.Write.newBuilder()
+                              .addColumns("users")
+                              .addColumns("firstname")
+                              .addColumns("lastname")
+                              .addValues(
+                                  ListValue.newBuilder()
+                                      .addValues(
+                                          Value.newBuilder().setStringValue(currentTime.toString()))
+                                      .addValues(Value.newBuilder().setStringValue("content"))
+                                      .addValues(Value.newBuilder().setStringValue("content"))
+                                      .build())
+                              .setTable("jenny")
+                              .build())
+                      .build())
               .setSession(session.getName())
               .setTransactionId(txn.getId())
               .build());
@@ -279,7 +295,7 @@ public class SpannerProbes {
   public static void partitionProber(
       SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
     long start;
-    Session session = null;       
+    Session session = null;
     try {
       session = stub.createSession(CreateSessionRequest.newBuilder().setDatabase(DATABASE).build());
       // Probing partition query call.
@@ -312,6 +328,13 @@ public class SpannerProbes {
       metrics.put("partition_read__latency_ms", (System.currentTimeMillis() - start));
     } finally {
       deleteSession(stub, session);
+    }
+  }
+
+  /** Exception that will be thrown. */
+  public static final class ProberException extends Exception {
+    ProberException(String s) {
+      super(s);
     }
   }
 }
