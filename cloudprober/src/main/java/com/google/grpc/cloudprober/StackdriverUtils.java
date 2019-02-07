@@ -21,13 +21,11 @@ import java.util.Map;
 
 /** The class to manage latency metrics. */
 public class StackdriverUtils {
-  private Map<String, Long> metrics;
-  private boolean success;
+  private Map<String, Long> metrics = new HashMap<>();;
+  private boolean success =  false;
   private String apiName;
 
   StackdriverUtils(String apiName) {
-    metrics = new HashMap<>();
-    success = false;
     this.apiName = apiName;
   }
 
