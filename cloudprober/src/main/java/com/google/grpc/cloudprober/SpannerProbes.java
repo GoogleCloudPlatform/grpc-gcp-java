@@ -159,7 +159,7 @@ public class SpannerProbes {
         throw new ProberException("Response value is not correct when executing streaming SQL. ");
       }
       metrics.put("execute_streaming_sql_latency_ms", (System.currentTimeMillis() - start));
-      
+
     } finally {
       deleteSession(stub, session);
     }
