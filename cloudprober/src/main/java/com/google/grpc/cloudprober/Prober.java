@@ -69,7 +69,6 @@ public class Prober {
     if (failureCount == 0) {
       util.setSuccess(true);
     }
-    util.reportError("JennyException!", "name", 100);
     util.addMetricsDict(metrics);
     util.outputMetrics();
   }
