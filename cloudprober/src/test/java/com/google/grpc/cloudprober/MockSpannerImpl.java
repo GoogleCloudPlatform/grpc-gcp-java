@@ -42,7 +42,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
-/** Fake spanner server implementation. The original file is github.com/googleapis/google-cloud-java/blob/master/google-cloud-clients/google-cloud-spanner/src/test/java/com/google/cloud/spanner/v1/MockSpannerImpl.java
+/**
+ * Fake spanner server implementation. The original file is
+ * github.com/googleapis/google-cloud-java/blob/master/google-cloud-clients/google-cloud-spanner/src/test/java/com/google/cloud/spanner/v1/MockSpannerImpl.java
  */
 public class MockSpannerImpl extends SpannerImplBase {
   private ArrayList<GeneratedMessageV3> requests;

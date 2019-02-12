@@ -44,16 +44,11 @@ import java.util.Map;
  */
 public class SpannerProbes {
 
-  public static final class ProberException extends Exception {
-    ProberException(String s) {
-      super(s);
-    }
-  }
-
   private static final String DATABASE =
-      "projects/cloudprober-test/instances/test-instance/databases/test-db";
+      "projects/grpc-prober-testing/instances/test-instance/databases/test-db";
   private static final String CLOUD_API_NAME = "Spanner";
   private static final String TEST_USERNAME = "test_username";
+  private static final String TABLE = "users";
 
   private SpannerProbes() {}
 
@@ -97,16 +92,16 @@ public class SpannerProbes {
       start = System.currentTimeMillis();
       ListSessionsResponse responseList =
           stub.listSessions(ListSessionsRequest.newBuilder().setDatabase(DATABASE).build());
-      metrics.put("list_session_latency_ms", (System.currentTimeMillis() - start));
+      metrics.put("list_sessions_latency_ms", (System.currentTimeMillis() - start));
 
-      boolean inList = false;
+      int inList = 0;
       for (Session s : responseList.getSessionsList()) {
         if (s.getName().equals(session.getName())) {
-          inList = true;
+          inList = 1;
           break;
         }
       }
-      if (!inList) {
+      if (inList == 0) {
         throw new ProberException(
             String.format("The session list doesn't contain %s.", session.getName()));
       }
@@ -131,7 +126,7 @@ public class SpannerProbes {
           stub.executeSql(
               ExecuteSqlRequest.newBuilder()
                   .setSession(session.getName())
-                  .setSql("select * FROM jenny")
+                  .setSql("select * FROM " + TABLE)
                   .build());
       metrics.put("execute_sql_latency_ms", (System.currentTimeMillis() - start));
 
@@ -155,15 +150,16 @@ public class SpannerProbes {
           stub.executeStreamingSql(
               ExecuteSqlRequest.newBuilder()
                   .setSession(session.getName())
-                  .setSql("select * FROM jenny")
+                  .setSql("select * FROM " + TABLE)
                   .build());
-      metrics.put("execute_streaming_sql_latency_ms", (System.currentTimeMillis() - start));
 
       if (responsePartial == null) {
         throw new ProberException("Response is null when executing streaming SQL. ");
       } else if (!responsePartial.next().getValues(0).getStringValue().equals(TEST_USERNAME)) {
         throw new ProberException("Response value is not correct when executing streaming SQL. ");
       }
+      metrics.put("execute_streaming_sql_latency_ms", (System.currentTimeMillis() - start));
+
     } finally {
       deleteSession(stub, session);
     }
@@ -184,9 +180,9 @@ public class SpannerProbes {
           stub.read(
               ReadRequest.newBuilder()
                   .setSession(session.getName())
-                  .setTable("jenny")
+                  .setTable(TABLE)
                   .setKeySet(keySet)
-                  .addColumns("users")
+                  .addColumns("username")
                   .addColumns("firstname")
                   .addColumns("lastname")
                   .build());
@@ -212,20 +208,20 @@ public class SpannerProbes {
           stub.streamingRead(
               ReadRequest.newBuilder()
                   .setSession(session.getName())
-                  .setTable("jenny")
+                  .setTable(TABLE)
                   .setKeySet(keySet)
-                  .addColumns("users")
+                  .addColumns("username")
                   .addColumns("firstname")
                   .addColumns("lastname")
                   .build());
-      metrics.put("streaming_read_latency_ms", (System.currentTimeMillis() - start));
-
       if (responsePartial == null) {
         throw new ProberException("Response is null when executing streaming SQL. ");
       } else if (!responsePartial.next().getValues(0).getStringValue().equals(TEST_USERNAME)) {
         throw new ProberException(
             "Response value is not correct when executing streaming Reader. ");
       }
+      metrics.put("streaming_read_latency_ms", (System.currentTimeMillis() - start));
+
     } finally {
       deleteSession(stub, session);
     }
@@ -250,7 +246,7 @@ public class SpannerProbes {
               .build();
       start = System.currentTimeMillis();
       Transaction txn = stub.beginTransaction(request);
-      metrics.put("begin_transaction__latency_ms", (System.currentTimeMillis() - start));
+      metrics.put("begin_transaction_latency_ms", (System.currentTimeMillis() - start));
 
       // Probing commit call.
       start = System.currentTimeMillis();
@@ -259,7 +255,7 @@ public class SpannerProbes {
               .setSession(session.getName())
               .setTransactionId(txn.getId())
               .build());
-      metrics.put("commit__latency_ms", (System.currentTimeMillis() - start));
+      metrics.put("commit_latency_ms", (System.currentTimeMillis() - start));
 
       // Probing rollback call.
       txn = stub.beginTransaction(request);
@@ -269,7 +265,7 @@ public class SpannerProbes {
               .setSession(session.getName())
               .setTransactionId(txn.getId())
               .build());
-      metrics.put("rollback__latency_ms", (System.currentTimeMillis() - start));
+      metrics.put("rollback_latency_ms", (System.currentTimeMillis() - start));
     } finally {
       deleteSession(stub, session);
     }
@@ -279,7 +275,7 @@ public class SpannerProbes {
   public static void partitionProber(
       SpannerGrpc.SpannerBlockingStub stub, Map<String, Long> metrics) {
     long start;
-    Session session = null;       
+    Session session = null;
     try {
       session = stub.createSession(CreateSessionRequest.newBuilder().setDatabase(DATABASE).build());
       // Probing partition query call.
@@ -292,26 +288,33 @@ public class SpannerProbes {
       stub.partitionQuery(
           PartitionQueryRequest.newBuilder()
               .setSession(session.getName())
-              .setSql("select * FROM jenny")
+              .setSql("select * FROM " + TABLE)
               .setTransaction(selector)
               .build());
-      metrics.put("partition_query__latency_ms", (System.currentTimeMillis() - start));
+      metrics.put("partition_query_latency_ms", (System.currentTimeMillis() - start));
 
       // Probing partition read call.
       start = System.currentTimeMillis();
       stub.partitionRead(
           PartitionReadRequest.newBuilder()
               .setSession(session.getName())
-              .setTable("jenny")
+              .setTable(TABLE)
               .setTransaction(selector)
               .setKeySet(KeySet.newBuilder().setAll(true).build())
-              .addColumns("users")
+              .addColumns("username")
               .addColumns("firstname")
               .addColumns("lastname")
               .build());
-      metrics.put("partition_read__latency_ms", (System.currentTimeMillis() - start));
+      metrics.put("partition_read_latency_ms", (System.currentTimeMillis() - start));
     } finally {
       deleteSession(stub, session);
+    }
+  }
+
+  /** Exception that will be thrown. */
+  public static final class ProberException extends Exception {
+    ProberException(String s) {
+      super(s);
     }
   }
 }
