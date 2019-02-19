@@ -6,7 +6,8 @@
   <version>0.0.1-SNAPSHOT</version>
   <name>GRPC Java CloudProber</name>
   <properties>
-    <grpc.version>1.18.0</grpc.version>
+    <!-- run -DgrpcVersion=xx.xx.x to compile and assembly. -->
+    <grpc.version>${grpcVersion}</grpc.version>
   </properties>
   <dependencies>
 
