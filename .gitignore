@@ -1,0 +1,22 @@
+# Gradle
+build
+gradle.properties
+.gradle
+local.properties
+out
+
+# Maven (examples)
+target
+
+# IntelliJ IDEA
+.idea
+*.iml
+
+# Eclipse
+.classpath
+.project
+.settings
+bin
+
+# OS X
+.DS_Store
