@@ -11,6 +11,24 @@
   </properties>
   <dependencies>
 
+    <!--gcloud stackdriver tracing-->
+    <dependency>
+      <groupId>io.opencensus</groupId>
+      <artifactId>opencensus-api</artifactId>
+      <version>0.20.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opencensus</groupId>
+      <artifactId>opencensus-exporter-trace-stackdriver</artifactId>
+      <version>0.20.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opencensus</groupId>
+      <artifactId>opencensus-impl</artifactId>
+      <version>0.20.0</version>
+      <scope>runtime</scope>
+    </dependency>
+
     <!-- log to the gcloud stackdriver errlog -->
     <dependency>
       <groupId>com.google.cloud</groupId>
