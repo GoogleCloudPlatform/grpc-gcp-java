@@ -22,15 +22,25 @@ import com.google.spanner.v1.SpannerGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
+import io.opencensus.common.Scope;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
+import io.opencensus.trace.AttributeValue;
+import io.opencensus.trace.Tracer;
+import io.opencensus.trace.Tracing;
+import io.opencensus.trace.config.TraceConfig;
+import io.opencensus.trace.samplers.Samplers;
+
+import java.io.IOException;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /** Main method of the cloudprober as an entrypoint to execute probes. */
 public class Prober {
 
   private static final String OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
-  private static final String SPANNER_TARGET = "spanner.googleapis.com";
+  private static final String SPANNER_TARGET = System.getenv("SPANNER_TARGET");
+  private static final String PROJECT_ID = System.getenv("GOOGLE_CLOUD_PROJECT");
 
   private Prober() {}
 
@@ -47,6 +57,29 @@ public class Prober {
     return vars;
   }
 
+  /**
+   * return a global tracer
+   */
+  private static Tracer getTracer() {
+    try {
+      createAndRegister();
+    }
+    catch (IOException e) {
+      return null;
+    }
+    return Tracing.getTracer();
+  }
+
+  /**
+   * register stackdriver exporter
+   */
+  private static void createAndRegister() throws IOException {
+    StackdriverTraceExporter.createAndRegister(
+            StackdriverTraceConfiguration.builder()
+                    .setProjectId(PROJECT_ID)
+                    .build());
+  }
+
   private static void excuteSpannerProber() throws InterruptedException {
 
     StackdriverUtils util = new StackdriverUtils("Spanner");
@@ -56,20 +89,48 @@ public class Prober {
         SpannerGrpc.newBlockingStub(channel).withCallCredentials(MoreCallCredentials.from(creds));
 
     int failureCount = 0;
-    Map<String, Long> metrics = new HashMap<String, Long>();
 
-    doOneProber(() -> SpannerProbes.sessionManagementProber(stub, metrics), failureCount, util);
-    doOneProber(() -> SpannerProbes.executeSqlProber(stub, metrics), failureCount, util);
-    doOneProber(() -> SpannerProbes.readProber(stub, metrics), failureCount, util);
-    doOneProber(() -> SpannerProbes.transactionProber(stub, metrics), failureCount, util);
-    doOneProber(() -> SpannerProbes.partitionProber(stub, metrics), failureCount, util);
+    Tracer tracer = getTracer();
+    if (tracer == null) {
+      return;
+    }
 
+    // Get the global TraceConfig
+    TraceConfig globalTraceConfig = Tracing.getTraceConfig();
+
+    // Update the global TraceConfig to always trace
+    globalTraceConfig.updateActiveTraceParams(
+            globalTraceConfig.getActiveTraceParams().toBuilder().setSampler(Samplers.alwaysSample()).build());
+
+    // Start tracing
+    HashMap<String, AttributeValue> map = new HashMap<>();
+    map.put("endpoint", AttributeValue.stringAttributeValue(SPANNER_TARGET));
+    try (Scope scope = tracer.spanBuilder("session_management_java").startScopedSpan()) {
+      tracer.getCurrentSpan().addAnnotation("endpoint info available", map);
+      doOneProber(() -> SpannerProbes.sessionManagementProber(stub), failureCount, util);
+    }
+    try (Scope scope = tracer.spanBuilder("execute_sql_java").startScopedSpan()) {
+      tracer.getCurrentSpan().addAnnotation("endpoint info available", map);
+      doOneProber(() -> SpannerProbes.executeSqlProber(stub), failureCount, util);
+    }
+    try (Scope scope = tracer.spanBuilder("read_java").startScopedSpan()) {
+      tracer.getCurrentSpan().addAnnotation("endpoint info available", map);
+      doOneProber(() -> SpannerProbes.readProber(stub), failureCount, util);
+    }
+    try (Scope scope = tracer.spanBuilder("transaction_java").startScopedSpan()) {
+      tracer.getCurrentSpan().addAnnotation("endpoint info available", map);
+      doOneProber(() -> SpannerProbes.transactionProber(stub), failureCount, util);
+    }
+    try (Scope scope = tracer.spanBuilder("partition_java").startScopedSpan()) {
+      tracer.getCurrentSpan().addAnnotation("endpoint info available", map);
+      doOneProber(() -> SpannerProbes.partitionProber(stub), failureCount, util);
+    }
+    Tracing.getExportComponent().shutdown();
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
 
     if (failureCount == 0) {
       util.setSuccess(true);
     }
-    util.addMetricsDict(metrics);
     util.outputMetrics();
   }
 
