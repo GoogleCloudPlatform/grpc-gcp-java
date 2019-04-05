@@ -16,7 +16,6 @@
 
 package com.google.grpc.cloudprober;
 
-import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -37,8 +36,6 @@ import io.grpc.ManagedChannel;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.testing.GrpcCleanupRule;
-import java.util.HashMap;
-import java.util.Map;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -55,7 +52,6 @@ public class SpannerProbesTest {
   private static final String TEST_USERNAME = "test_username";
 
   private Session session;
-  private Map<String, Long> metrics;
   private SpannerGrpc.SpannerBlockingStub stub;
   private Empty emptyResponse;
   private MockSpannerImpl serviceImpl;
@@ -82,7 +78,6 @@ public class SpannerProbesTest {
     // Set up the vars during the tests.
     session = Session.newBuilder().setName(SESSION_NAME).build();
     emptyResponse = Empty.newBuilder().build();
-    metrics = new HashMap<>();
   }
 
   @Test
@@ -94,12 +89,11 @@ public class SpannerProbesTest {
     serviceImpl.addResponse(sessions);
     serviceImpl.addResponse(emptyResponse);
 
-    SpannerProbes.sessionManagementProber(stub, metrics);
+    SpannerProbes.sessionManagementProber(stub);
     verify(serviceImpl, times(1)).createSession(any(), any());
     verify(serviceImpl, times(1)).getSession(any(), any());
     verify(serviceImpl, times(1)).listSessions(any(), any());
     verify(serviceImpl, times(1)).deleteSession(any(), any());
-    assertThat(metrics.size()).isEqualTo(4);
   }
 
   @Test
@@ -114,12 +108,11 @@ public class SpannerProbesTest {
     serviceImpl.addResponse(responseList);
     serviceImpl.addResponse(emptyResponse);
 
-    SpannerProbes.executeSqlProber(stub, metrics);
+    SpannerProbes.executeSqlProber(stub);
     verify(serviceImpl, times(1)).createSession(any(), any());
     verify(serviceImpl, times(1)).executeSql(any(), any());
     verify(serviceImpl, times(1)).executeStreamingSql(any(), any());
     verify(serviceImpl, times(1)).deleteSession(any(), any());
-    assertThat(metrics.size()).isEqualTo(2);
   }
 
   @Test
@@ -134,12 +127,11 @@ public class SpannerProbesTest {
     serviceImpl.addResponse(responseList);
     serviceImpl.addResponse(emptyResponse);
 
-    SpannerProbes.readProber(stub, metrics);
+    SpannerProbes.readProber(stub);
     verify(serviceImpl, times(1)).createSession(any(), any());
     verify(serviceImpl, times(1)).read(any(), any());
     verify(serviceImpl, times(1)).streamingRead(any(), any());
     verify(serviceImpl, times(1)).deleteSession(any(), any());
-    assertThat(metrics.size()).isEqualTo(2);
   }
 
   @Test
@@ -154,13 +146,12 @@ public class SpannerProbesTest {
     serviceImpl.addResponse(emptyResponse);
     serviceImpl.addResponse(emptyResponse);
 
-    SpannerProbes.transactionProber(stub, metrics);
+    SpannerProbes.transactionProber(stub);
     verify(serviceImpl, times(1)).createSession(any(), any());
     verify(serviceImpl, times(2)).beginTransaction(any(), any());
     verify(serviceImpl, times(1)).rollback(any(), any());
     verify(serviceImpl, times(1)).commit(any(), any());
     verify(serviceImpl, times(1)).deleteSession(any(), any());
-    assertThat(metrics.size()).isEqualTo(3);
   }
 
   @Test
@@ -172,11 +163,10 @@ public class SpannerProbesTest {
     serviceImpl.addResponse(responsePartition);
     serviceImpl.addResponse(emptyResponse);
 
-    SpannerProbes.partitionProber(stub, metrics);
+    SpannerProbes.partitionProber(stub);
     verify(serviceImpl, times(1)).createSession(any(), any());
     verify(serviceImpl, times(1)).partitionQuery(any(), any());
     verify(serviceImpl, times(1)).partitionRead(any(), any());
     verify(serviceImpl, times(1)).deleteSession(any(), any());
-    assertThat(metrics.size()).isEqualTo(2);
   }
 }
