@@ -25,8 +25,8 @@ dependencies {
     testCompile "io.grpc:grpc-testing:${grpcVersion}"
 }
 
-task runClient(type: JavaExec) {
+task run(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
-    main = 'com.google.e2e.checksum.DataStoreChecksumClient'
-    jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
+    main = 'io.grpc.e2e.checksum.DataStoreChecksumClient'
+    // jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
 }
