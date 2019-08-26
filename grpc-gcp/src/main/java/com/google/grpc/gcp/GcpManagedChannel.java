@@ -22,37 +22,30 @@ import com.google.grpc.gcp.proto.ApiConfig;
 import com.google.grpc.gcp.proto.MethodConfig;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.MessageOrBuilder;
-import com.google.protobuf.util.JsonFormat;
 import io.grpc.CallOptions;
 import io.grpc.ClientCall;
 import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.MethodDescriptor;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 /** A channel management factory that implements grpc.Channel APIs. */
 public class GcpManagedChannel extends ManagedChannel {
 
-  private static final Logger logger = Logger.getLogger(GcpManagedChannel.class.getName());
-
   private static final int DEFAULT_MAX_CHANNEL = 10;
   private static final int DEFAULT_MAX_STREAM = 100;
 
-  private final ManagedChannelBuilder builder;
-  private ApiConfig apiConfig;
+  private final ManagedChannelBuilder delegateChannelBuilder;
   private int maxSize = DEFAULT_MAX_CHANNEL;
   private int maxConcurrentStreamsLowWatermark = DEFAULT_MAX_STREAM;
 
@@ -72,23 +65,13 @@ public class GcpManagedChannel extends ManagedChannel {
   /**
    * Constructor for GcpManagedChannel.
    *
-   * @param builder the normal ManagedChannelBuilder
+   * @param delegateChannelBuilder the underlying delegate ManagedChannelBuilder.
+   * @param apiConfig the ApiConfig object for configuring GcpManagedChannel.
    */
-  public GcpManagedChannel(ManagedChannelBuilder builder) {
-    apiConfig = null;
-    this.builder = builder;
-    getChannelRef(null);
-  }
-
-  /**
-   * Constructor for GcpManagedChannel.
-   *
-   * @param builder the normal ManagedChannelBuilder
-   * @param jsonPath optional, the path of the .json file that defines the ApiConfig.
-   */
-  public GcpManagedChannel(ManagedChannelBuilder builder, String jsonPath) {
-    loadApiConfig(jsonPath);
-    this.builder = builder;
+  public GcpManagedChannel(ManagedChannelBuilder delegateChannelBuilder, ApiConfig apiConfig) {
+    loadApiConfig(apiConfig);
+    this.delegateChannelBuilder = delegateChannelBuilder;
+    // Initialize the first delegate channel.
     getChannelRef(null);
   }
 
@@ -118,7 +101,7 @@ public class GcpManagedChannel extends ManagedChannel {
       }
     }
     synchronized (this) {
-      channelRefs.sort((r1, r2) -> r1.getActiveStreamsCount() - r2.getActiveStreamsCount());
+      channelRefs.sort(Comparator.comparingInt(ChannelRef::getActiveStreamsCount));
 
       int size = channelRefs.size();
       // Choose the channelRef that has the least busy channel.
@@ -129,7 +112,7 @@ public class GcpManagedChannel extends ManagedChannel {
       // If all existing channels are busy, and channel pool still has capacity, create a new
       // channel.
       if (size < maxSize) {
-        ChannelRef channelRef = new ChannelRef(builder.build(), size);
+        ChannelRef channelRef = new ChannelRef(delegateChannelBuilder.build(), size);
         channelRefs.add(channelRef);
         return channelRef;
       }
@@ -297,27 +280,8 @@ public class GcpManagedChannel extends ManagedChannel {
     }
   }
 
-  /** Parse .JSON file into ApiConfig. */
-  @VisibleForTesting
-  static ApiConfig parseJson(String filePath) {
-    JsonFormat.Parser parser = JsonFormat.parser();
-    ApiConfig.Builder apiConfig = ApiConfig.newBuilder();
-    try {
-      FileReader reader = new FileReader(filePath);
-      parser.merge(reader, apiConfig);
-    } catch (FileNotFoundException e) {
-      logger.severe(e.getMessage());
-      return null;
-    } catch (IOException e) {
-      logger.severe(e.getMessage());
-      return null;
-    }
-    return apiConfig.build();
-  }
-
   /** Load parameters from ApiConfig. */
-  private void loadApiConfig(String jsonPath) {
-    ApiConfig apiConfig = parseJson(jsonPath);
+  private void loadApiConfig(ApiConfig apiConfig) {
     if (apiConfig == null) {
       return;
     }

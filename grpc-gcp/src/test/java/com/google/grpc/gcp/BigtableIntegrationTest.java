@@ -36,6 +36,7 @@ import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -60,8 +61,7 @@ public class BigtableIntegrationTest {
   private static final int NEW_MAX_STREAM = 5;
   private static final int MAX_MSG_SIZE = 8 * 1024 * 1024;
 
-  private static final String TEST_APICONFIG_FILE =
-      "src/test/resources/apiconfigtests/empty_method.json";
+  private static final String TEST_APICONFIG_FILE = "empty_method.json";
   private static final String BIGTABLE_TARGET = "bigtable.googleapis.com";
   private static final String FAMILY_NAME = "test-family";
   private static final String TABLE_NAME =
@@ -112,7 +112,7 @@ public class BigtableIntegrationTest {
   public void setupChannel() throws InterruptedException {
     builder =
         ManagedChannelBuilder.forAddress(BIGTABLE_TARGET, 443).maxInboundMessageSize(MAX_MSG_SIZE);
-    gcpChannel = new GcpManagedChannel(builder);
+    gcpChannel = (GcpManagedChannel) GcpManagedChannelBuilder.forDelegateBuilder(builder).build();
   }
 
   @After
@@ -166,7 +166,17 @@ public class BigtableIntegrationTest {
   public void testConcurrentStreamsAndChannels() throws Exception {
     // For our current channel pool, the max_stream is 5 and the max_size is 5.
     gcpChannel.shutdownNow();
-    gcpChannel = new GcpManagedChannel(builder, TEST_APICONFIG_FILE);
+    File configFile =
+        new File(
+            BigtableIntegrationTest.class
+                .getClassLoader()
+                .getResource(TEST_APICONFIG_FILE)
+                .getFile());
+    gcpChannel =
+        (GcpManagedChannel)
+            GcpManagedChannelBuilder.forDelegateBuilder(builder)
+                .withApiConfigJsonFile(configFile)
+                .build();
     BigtableStub stub = getBigtableStub();
     List<AsyncResponseObserver<MutateRowResponse>> clearObservers = new ArrayList<>();
 

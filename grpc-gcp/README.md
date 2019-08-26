@@ -45,8 +45,8 @@ Initialize `GcpManagedChannel` based on this API config file.
 ```java
 String API_CONFIG_FILE = "api_config_file.json"
 String SPANNER_TARGET = "spanner.googleapis.com";
-ManagedChannelBuilder builder = ManagedChannelBuilder.forAddress(SPANNER_TARGET, 443);
-GcpManagedChannel gcpChannel = new GcpManagedChannel(builder, API_CONFIG_FILE);
+ManagedChannelBuilder delegateChannelBuilder = ManagedChannelBuilder.forAddress(SPANNER_TARGET, 443);
+GcpManagedChannel gcpChannel = new GcpManagedChannel(delegateChannelBuilder, API_CONFIG_FILE);
 ```
 
 Create Cloud API stub using `GcpManagedChannel`.
@@ -69,7 +69,7 @@ git clone https://github.com/GoogleCloudPlatform/grpc-gcp-java.git && cd grpc-gc
 Build project without tests.
 
 ```sh
-gradle build -x test
+./gradlew build -x test
 ```
 
 ## Test
@@ -80,20 +80,34 @@ Setup credentials. See [Getting Started With Authentication](https://cloud.googl
 export GOOGLE_APPLICATION_CREDENTIALS=path/to/key.json
 ```
 
-Run Bigtable integration tests:
+Run unit tests and integration tests:
 
 ```sh
-gradle btTest
+./gradlew test
 ```
 
-Run Spanner integration tests:
+Run Bigtable load test:
 
 ```sh
-gradle spannerTest
+./gradlew bigtableLoadTest
+```
+
+Run Spanner load test:
+
+```sh
+./gradlew spannerLoadTest
 ```
 
 Run Spanner benchmark tests:
 
 ```sh
-gradle spannerBenchmark --args="--gcp=true --thread=3 --rpc=100"
+./gradlew spannerBenchmark --args="--gcp=true --thread=3 --rpc=100"
+```
+
+## Code Format
+
+Run google-java-format
+
+```sh
+./gradlew goJF
 ```

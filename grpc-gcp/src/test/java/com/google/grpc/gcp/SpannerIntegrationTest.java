@@ -42,6 +42,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -62,12 +63,13 @@ import org.junit.runners.JUnit4;
 /** Integration tests for GcpManagedChannel with Spanner. */
 @RunWith(JUnit4.class)
 public final class SpannerIntegrationTest {
+
   private static final String OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
   private static final String SPANNER_TARGET = "spanner.googleapis.com";
   private static final String USERNAME = "test_username";
   private static final String DATABASE =
       "projects/cloudprober-test/instances/test-instance/databases/test-db";
-  private static final String API_FILE = "src/test/resources/apiconfigtests/spannertest.json";
+  private static final String API_FILE = "spannertest.json";
 
   private static final int MAX_CHANNEL = 3;
   private static final int MAX_STREAM = 2;
@@ -201,7 +203,13 @@ public final class SpannerIntegrationTest {
 
   @Before
   public void setupChannel() throws InterruptedException {
-    gcpChannel = new GcpManagedChannel(builder, API_FILE);
+    File configFile =
+        new File(SpannerIntegrationTest.class.getClassLoader().getResource(API_FILE).getFile());
+    gcpChannel =
+        (GcpManagedChannel)
+            GcpManagedChannelBuilder.forDelegateBuilder(builder)
+                .withApiConfigJsonFile(configFile)
+                .build();
   }
 
   @After
@@ -332,6 +340,7 @@ public final class SpannerIntegrationTest {
   }
 
   private static class AsyncResponseObserver<RespT> implements StreamObserver<RespT> {
+
     private final CountDownLatch finishLatch = new CountDownLatch(1);
     private RespT response = null;
 

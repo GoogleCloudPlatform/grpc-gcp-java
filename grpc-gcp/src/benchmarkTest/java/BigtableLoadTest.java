@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-package com.google.grpc.gcp.testing;
-
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.bigtable.v2.BigtableGrpc;
 import com.google.bigtable.v2.BigtableGrpc.BigtableBlockingStub;
 import com.google.bigtable.v2.ReadRowsRequest;
 import com.google.bigtable.v2.ReadRowsResponse;
 import com.google.common.collect.ImmutableList;
-import com.google.grpc.gcp.GcpManagedChannel;
+import com.google.grpc.gcp.GcpManagedChannelBuilder;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
@@ -46,15 +44,14 @@ import java.util.logging.Logger;
  *
  * <p>On the other hand, our GcpManagedChannel is able to manage 101 streams concurrently.
  */
-public final class BigtableLargeTests {
+public final class BigtableLoadTest {
 
-  private static final Logger logger = Logger.getLogger(BigtableLargeTests.class.getName());
+  private static final Logger logger = Logger.getLogger(BigtableLoadTest.class.getName());
 
   private static final int DEFAULT_MAX_STREAM = 100;
   private static final int MAX_MSG_SIZE = 8 * 1024 * 1024;
 
   private static final String BIGTABLE_TARGET = "bigtable.googleapis.com";
-  private static final String FAMILY_NAME = "test-family";
   // The test-table must be big enough so that the rpc will be blocked.
   private static final String LARGE_TABLE_NAME =
       "projects/cloudprober-test/instances/test-instance/tables/test-large-table";
@@ -122,7 +119,7 @@ public final class BigtableLargeTests {
         ManagedChannelBuilder.forAddress(BIGTABLE_TARGET, 443).maxInboundMessageSize(MAX_MSG_SIZE);
 
     // Running 105 streams using GcpManagedChannel.
-    GcpManagedChannel gcpChannel = new GcpManagedChannel(builder);
+    ManagedChannel gcpChannel = GcpManagedChannelBuilder.forDelegateBuilder(builder).build();
     logger.info("Start running 105 concurrent streams using GcpManagedChannel.");
     if (runManyManyStreams(gcpChannel)) {
       logger.info("Finish running 105 concurrent streams using GcpManagedChannel.");
