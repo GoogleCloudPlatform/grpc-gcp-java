@@ -16,13 +16,32 @@
 
 package com.google.grpc.gcp;
 
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 
+import com.google.api.gax.longrunning.OperationFuture;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.spanner.Database;
+import com.google.cloud.spanner.DatabaseAdminClient;
+import com.google.cloud.spanner.DatabaseClient;
+import com.google.cloud.spanner.DatabaseId;
+import com.google.cloud.spanner.Instance;
+import com.google.cloud.spanner.InstanceAdminClient;
+import com.google.cloud.spanner.InstanceConfig;
+import com.google.cloud.spanner.InstanceConfigId;
+import com.google.cloud.spanner.InstanceId;
+import com.google.cloud.spanner.InstanceInfo;
+import com.google.cloud.spanner.Mutation;
+import com.google.cloud.spanner.Spanner;
+import com.google.cloud.spanner.SpannerExceptionFactory;
+import com.google.cloud.spanner.SpannerOptions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
+import com.google.spanner.admin.database.v1.CreateDatabaseMetadata;
+import com.google.spanner.admin.instance.v1.CreateInstanceMetadata;
 import com.google.spanner.v1.CreateSessionRequest;
 import com.google.spanner.v1.DeleteSessionRequest;
 import com.google.spanner.v1.ExecuteSqlRequest;
@@ -44,6 +63,7 @@ import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -53,7 +73,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assume;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -64,11 +86,15 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public final class SpannerIntegrationTest {
 
+  private static final String GCP_PROJECT_ID = System.getenv("GCP_PROJECT_ID");
+  private static final String INSTANCE_ID = "grpc-gcp-test-instance";
+  private static final String DB_NAME = "grpc-gcp-test-db";
+
   private static final String OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
   private static final String SPANNER_TARGET = "spanner.googleapis.com";
-  private static final String USERNAME = "test_username";
-  private static final String DATABASE =
-      "projects/cloudprober-test/instances/test-instance/databases/test-db";
+  private static final String USERNAME = "test_user";
+  private static final String DATABASE_PATH =
+      String.format("projects/%s/instances/%s/databases/%s", GCP_PROJECT_ID, INSTANCE_ID, DB_NAME);
   private static final String API_FILE = "spannertest.json";
 
   private static final int MAX_CHANNEL = 3;
@@ -77,6 +103,102 @@ public final class SpannerIntegrationTest {
   private static final ManagedChannelBuilder builder =
       ManagedChannelBuilder.forAddress(SPANNER_TARGET, 443);
   private GcpManagedChannel gcpChannel;
+
+  @BeforeClass
+  public static void beforeClass() {
+    Assume.assumeTrue(
+        "Need to provide GCP_PROJECT_ID for SpannerIntegrationTest", GCP_PROJECT_ID != null);
+    SpannerOptions options = SpannerOptions.newBuilder().setProjectId(GCP_PROJECT_ID).build();
+    Spanner spanner = options.getService();
+    InstanceAdminClient instanceAdminClient = spanner.getInstanceAdminClient();
+    InstanceId instanceId = InstanceId.of(GCP_PROJECT_ID, INSTANCE_ID);
+    initializeInstance(instanceAdminClient, instanceId);
+    DatabaseAdminClient databaseAdminClient = spanner.getDatabaseAdminClient();
+    DatabaseId databaseId = DatabaseId.of(instanceId, DB_NAME);
+    initializeDatabase(databaseAdminClient, databaseId);
+    DatabaseClient databaseClient = spanner.getDatabaseClient(databaseId);
+    initializeTable(databaseClient);
+  }
+
+  private static void initializeTable(DatabaseClient databaseClient) {
+    List<Mutation> mutations =
+        Arrays.asList(
+            Mutation.newInsertBuilder("Users")
+                .set("UserId")
+                .to(1)
+                .set("UserName")
+                .to(USERNAME)
+                .build());
+    databaseClient.write(mutations);
+  }
+
+  private static void initializeInstance(
+      InstanceAdminClient instanceAdminClient, InstanceId instanceId) {
+    InstanceConfig instanceConfig =
+        Iterators.get(instanceAdminClient.listInstanceConfigs().iterateAll().iterator(), 0, null);
+    checkState(instanceConfig != null, "No instance configs found");
+
+    InstanceConfigId configId = instanceConfig.getId();
+    InstanceInfo instance =
+        InstanceInfo.newBuilder(instanceId)
+            .setNodeCount(1)
+            .setDisplayName("grpc-gcp test instance")
+            .setInstanceConfigId(configId)
+            .build();
+    OperationFuture<Instance, CreateInstanceMetadata> op =
+        instanceAdminClient.createInstance(instance);
+    try {
+      op.get();
+    } catch (Exception e) {
+      throw SpannerExceptionFactory.newSpannerException(e);
+    }
+  }
+
+  private static void initializeDatabase(
+      DatabaseAdminClient databaseAdminClient, DatabaseId databaseId) {
+    OperationFuture<Database, CreateDatabaseMetadata> op =
+        databaseAdminClient.createDatabase(
+            databaseId.getInstanceId().getInstance(),
+            databaseId.getDatabase(),
+            Arrays.asList(
+                "CREATE TABLE Users ("
+                    + "  UserId INT64 NOT NULL,"
+                    + "  UserName STRING(1024)"
+                    + ") PRIMARY KEY (UserId)"));
+    try {
+      op.get();
+    } catch (Exception e) {
+      throw SpannerExceptionFactory.newSpannerException(e);
+    }
+  }
+
+  @AfterClass
+  public static void afterClass() {
+    cleanupSessions();
+    SpannerOptions options = SpannerOptions.newBuilder().setProjectId(GCP_PROJECT_ID).build();
+    Spanner spanner = options.getService();
+    InstanceAdminClient instanceAdminClient = spanner.getInstanceAdminClient();
+    InstanceId instanceId = InstanceId.of(GCP_PROJECT_ID, INSTANCE_ID);
+    cleanUpInstance(instanceAdminClient, instanceId);
+  }
+
+  private static void cleanupSessions() {
+    ManagedChannel channel = builder.build();
+    GoogleCredentials creds = getCreds();
+    SpannerBlockingStub stub =
+        SpannerGrpc.newBlockingStub(channel).withCallCredentials(MoreCallCredentials.from(creds));
+    ListSessionsResponse responseList =
+        stub.listSessions(ListSessionsRequest.newBuilder().setDatabase(DATABASE_PATH).build());
+    for (Session s : responseList.getSessionsList()) {
+      deleteSession(stub, s);
+    }
+    channel.shutdownNow();
+  }
+
+  private static void cleanUpInstance(
+      InstanceAdminClient instanceAdminClient, InstanceId instanceId) {
+    instanceAdminClient.deleteInstance(instanceId.getInstance());
+  }
 
   private static GoogleCredentials getCreds() {
     GoogleCredentials creds;
@@ -120,7 +242,7 @@ public final class SpannerIntegrationTest {
     assertEquals(ConnectivityState.IDLE, gcpChannel.getState(false));
 
     // Check CreateSession with multiple channels and streams,
-    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE).build();
+    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE_PATH).build();
     for (int i = 0; i < MAX_CHANNEL * MAX_STREAM; i++) {
       AsyncResponseObserver<Session> resp = new AsyncResponseObserver<Session>();
       stub.createSession(req, resp);
@@ -162,7 +284,7 @@ public final class SpannerIntegrationTest {
     assertEquals(ConnectivityState.IDLE, gcpChannel.getState(false));
 
     // Check CreateSession with multiple channels and streams,
-    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE).build();
+    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE_PATH).build();
     for (int i = 0; i < MAX_CHANNEL * MAX_STREAM; i++) {
       ListenableFuture<Session> future = stub.createSession(req);
       futures.add(future);
@@ -202,7 +324,7 @@ public final class SpannerIntegrationTest {
   @Rule public ExpectedException expectedEx = ExpectedException.none();
 
   @Before
-  public void setupChannel() throws InterruptedException {
+  public void setupChannel() {
     File configFile =
         new File(SpannerIntegrationTest.class.getClassLoader().getResource(API_FILE).getFile());
     gcpChannel =
@@ -217,28 +339,10 @@ public final class SpannerIntegrationTest {
     gcpChannel.shutdownNow();
   }
 
-  /**
-   * Delete all the sessions in the database in case that sessions are not cleared in previous tests
-   * because of assertion errors.
-   */
-  @AfterClass
-  public static void clearSessions() throws Exception {
-    ManagedChannel channel = builder.build();
-    GoogleCredentials creds = getCreds();
-    SpannerBlockingStub stub =
-        SpannerGrpc.newBlockingStub(channel).withCallCredentials(MoreCallCredentials.from(creds));
-    ListSessionsResponse responseList =
-        stub.listSessions(ListSessionsRequest.newBuilder().setDatabase(DATABASE).build());
-    for (Session s : responseList.getSessionsList()) {
-      deleteSession(stub, s);
-    }
-    channel.shutdownNow();
-  }
-
   @Test
   public void testCreateAndGetSessionBlocking() throws Exception {
     SpannerBlockingStub stub = getSpannerBlockingStub();
-    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE).build();
+    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE_PATH).build();
     for (int i = 0; i < MAX_CHANNEL * 2; i++) {
       Session session = stub.createSession(req);
       assertThat(session).isNotEqualTo(null);
@@ -259,7 +363,8 @@ public final class SpannerIntegrationTest {
     SpannerFutureStub stub = getSpannerFutureStub();
     List<String> futureNames = createFutureSessions(stub);
     ListSessionsResponse responseList =
-        stub.listSessions(ListSessionsRequest.newBuilder().setDatabase(DATABASE).build()).get();
+        stub.listSessions(ListSessionsRequest.newBuilder().setDatabase(DATABASE_PATH).build())
+            .get();
     Set<String> trueNames = new HashSet<>();
     deleteFutureSessions(stub, futureNames);
   }
@@ -269,7 +374,8 @@ public final class SpannerIntegrationTest {
     SpannerStub stub = getSpannerStub();
     List<String> respNames = createAsyncSessions(stub);
     AsyncResponseObserver<ListSessionsResponse> respList = new AsyncResponseObserver<>();
-    stub.listSessions(ListSessionsRequest.newBuilder().setDatabase(DATABASE).build(), respList);
+    stub.listSessions(
+        ListSessionsRequest.newBuilder().setDatabase(DATABASE_PATH).build(), respList);
     ListSessionsResponse responseList = respList.get();
     deleteAsyncSessions(stub, respNames);
   }
@@ -283,11 +389,11 @@ public final class SpannerIntegrationTest {
           stub.executeSql(
                   ExecuteSqlRequest.newBuilder()
                       .setSession(futureName)
-                      .setSql("select * FROM jenny")
+                      .setSql("select * FROM Users")
                       .build())
               .get();
       assertEquals(1, response.getRowsCount());
-      assertEquals(USERNAME, response.getRows(0).getValuesList().get(0).getStringValue());
+      assertEquals(USERNAME, response.getRows(0).getValuesList().get(1).getStringValue());
     }
     deleteFutureSessions(stub, futureNames);
   }
@@ -299,39 +405,37 @@ public final class SpannerIntegrationTest {
     for (String respName : respNames) {
       AsyncResponseObserver<PartialResultSet> resp = new AsyncResponseObserver<>();
       stub.executeStreamingSql(
-          ExecuteSqlRequest.newBuilder().setSession(respName).setSql("select * FROM jenny").build(),
+          ExecuteSqlRequest.newBuilder().setSession(respName).setSql("select * FROM Users").build(),
           resp);
-      assertEquals(USERNAME, resp.get().getValues(0).getStringValue());
+      assertEquals(USERNAME, resp.get().getValues(1).getStringValue());
     }
     deleteAsyncSessions(stub, respNames);
   }
 
   @Test
-  public void testBoundWithInvalidAffinityKey() throws Exception {
+  public void testBoundWithInvalidAffinityKey() {
     SpannerBlockingStub stub = getSpannerBlockingStub();
-    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE).build();
+    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE_PATH).build();
     Session session = stub.createSession(req);
     expectedEx.expect(StatusRuntimeException.class);
     expectedEx.expectMessage("INVALID_ARGUMENT: Invalid GetSession request.");
-    stub.getSession(GetSessionRequest.newBuilder().setName("jennnny").build());
-    deleteSession(stub, session);
+    stub.getSession(GetSessionRequest.newBuilder().setName("invalid_session").build());
   }
 
   @Test
-  public void testUnbindWithInvalidAffinityKey() throws Exception {
+  public void testUnbindWithInvalidAffinityKey() {
     SpannerBlockingStub stub = getSpannerBlockingStub();
-    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE).build();
+    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE_PATH).build();
     Session session = stub.createSession(req);
     expectedEx.expect(StatusRuntimeException.class);
     expectedEx.expectMessage("INVALID_ARGUMENT: Invalid DeleteSession request.");
-    stub.deleteSession(DeleteSessionRequest.newBuilder().setName("jennnny").build());
-    deleteSession(stub, session);
+    stub.deleteSession(DeleteSessionRequest.newBuilder().setName("invalid_session").build());
   }
 
   @Test
-  public void testBoundAfterUnbind() throws Exception {
+  public void testBoundAfterUnbind() {
     SpannerBlockingStub stub = getSpannerBlockingStub();
-    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE).build();
+    CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE_PATH).build();
     Session session = stub.createSession(req);
     stub.deleteSession(DeleteSessionRequest.newBuilder().setName(session.getName()).build());
     expectedEx.expect(StatusRuntimeException.class);
