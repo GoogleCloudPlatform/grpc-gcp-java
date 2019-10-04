@@ -1,0 +1,77 @@
+plugins {
+    id 'java'
+    id 'com.google.protobuf' version '0.8.8'
+}
+
+group 'io.grpc'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+def grpcVersion = '1.24.0'
+def protobufVersion = '3.9.0'
+def protocVersion = protobufVersion
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "net.sourceforge.argparse4j:argparse4j:0.8.1"
+    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+
+    implementation "io.opencensus:opencensus-exporter-trace-stackdriver:0.20.0"
+    implementation "io.opencensus:opencensus-impl:0.20.0"
+    implementation "io.opencensus:opencensus-api:0.20.0"
+
+    //implementation "com.google.guava:guava:28.1-jre"
+
+    compileOnly "javax.annotation:javax.annotation-api:1.2"
+
+
+    runtimeOnly "io.grpc:grpc-netty-shaded:${grpcVersion}"
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${protocVersion}" }
+    plugins {
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
+    }
+    generateProtoTasks {
+        all()*.plugins { grpc {} }
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated/source/proto/main/grpc'
+            srcDirs 'build/generated/source/proto/main/java'
+        }
+    }
+}
+
+jar {
+    manifest {
+        attributes (
+                'Main-Class': 'io.grpc.echo.EchoClient'
+        )
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+        //configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+task run(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'io.grpc.echo.EchoClient'
+    // jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
+    //jvmArgs = ['-Xlint:deprecation']
+}
+
