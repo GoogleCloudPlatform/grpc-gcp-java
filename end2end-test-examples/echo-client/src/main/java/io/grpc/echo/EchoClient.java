@@ -81,8 +81,11 @@ public class EchoClient {
     if (tracer != null) {
       try (Scope scope = tracer.spanBuilder("echo_java").startScopedSpan()) {
         try {
+          long start = System.currentTimeMillis();
           blockingStub.echoWithResponseSize(request);
-          logger.info("Sent echo with tracer on");
+          if (timeList != null) {
+            timeList.add(System.currentTimeMillis() - start);
+          }
         } catch (StatusRuntimeException e) {
           logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
         }
