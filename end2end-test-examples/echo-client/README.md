@@ -18,7 +18,7 @@ Build:
 Run client with test service:
 
 ```sh
-./gradlew run --args="--numRpcs=100 --payloadKB=100 --host=test-service.googleapis.com"
+./gradlew run --args="--numRpcs=100 --payloadKB=100 --host=some.test.service"
 ```
 
 Example results:
