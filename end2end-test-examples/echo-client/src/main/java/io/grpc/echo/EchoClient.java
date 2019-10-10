@@ -10,6 +10,8 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
+import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiStub;
+import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiBlockingStub;
 import io.grpc.stub.StreamObserver;
 import io.opencensus.common.Scope;
 import io.opencensus.trace.Tracer;
@@ -34,26 +36,45 @@ public class EchoClient {
   private static final String DEFAULT_HOST = "staging-grpc-cfe-benchmarks-with-esf.googleapis.com";
   private static final int PORT = 443;
 
-  private final ManagedChannel originalChannel;
-  private final GrpcCloudapiGrpc.GrpcCloudapiBlockingStub blockingStub;
-  private final GrpcCloudapiGrpc.GrpcCloudapiStub stub;
+//  private final ManagedChannel originalChannel;
+  private final ManagedChannel[] channels;
 
-  public EchoClient(String host, int port, String cookie, boolean corp) {
-    originalChannel = ManagedChannelBuilder.forAddress(host, port).build();
+  private final GrpcCloudapiBlockingStub blockingStub;
+  private final GrpcCloudapiStub[] asyncStubs;
 
+  private int rr;
+
+  public EchoClient(String host, int port, String cookie, boolean corp, int numChannels) {
+
+    channels = new ManagedChannel[numChannels];
+    asyncStubs = new GrpcCloudapiStub[numChannels];
+    rr = 0;
+
+    for (int i = 0; i < numChannels; i++) {
+      channels[i] = ManagedChannelBuilder.forAddress(host, port).build();
+      asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]);
+    }
+
+    // blocking stub test only needs one channel.
     ClientInterceptor interceptor = new HeaderClientInterceptor(cookie, corp);
-    Channel interceptingChannel = ClientInterceptors.intercept(originalChannel, interceptor);
+    Channel interceptingChannel = ClientInterceptors.intercept(channels[0], interceptor);
     blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel);
-    stub = GrpcCloudapiGrpc.newStub(originalChannel);
   }
 
   public void shutdown() throws InterruptedException {
-    originalChannel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+    for (ManagedChannel channel : channels) {
+      channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+    }
   }
 
-  public void asyncEcho(String message, CountDownLatch latch, List<Long> timeList) {
-    EchoWithResponseSizeRequest request =
-        EchoWithResponseSizeRequest.newBuilder().setEchoMsg(message).setResponseSize(10).build();
+  private GrpcCloudapiStub getNextAsyncStub() {
+    GrpcCloudapiStub next = asyncStubs[rr];
+    rr = (rr + 1) % asyncStubs.length;
+    return next;
+  }
+
+  public void asyncEcho(EchoWithResponseSizeRequest request, CountDownLatch latch, List<Long> timeList) {
+    GrpcCloudapiStub stub = getNextAsyncStub();
     stub.echoWithResponseSize(request, new StreamObserver<EchoResponse>() {
       long start = System.currentTimeMillis();
 
@@ -72,10 +93,13 @@ public class EchoClient {
       @Override
       public void onCompleted() {
         long now = System.currentTimeMillis();
-        timeList.add(now - start);
+        if (timeList != null) {
+          timeList.add(now - start);
+        }
         latch.countDown();
       }
-    }); }
+    });
+  }
 
   public void echo(EchoWithResponseSizeRequest request, Tracer tracer, List<Long> timeList) {
     if (tracer != null) {
@@ -121,11 +145,12 @@ public class EchoClient {
     return Tracing.getTracer();
   }
 
-  private static void printResult(int numRpcs, int payload, List<Long> timeList) {
+  private static void printResult(int numRpcs, int numChannels, int payload, List<Long> timeList) {
     Collections.sort(timeList);
     System.out.println(
         String.format(
             "[Number of RPCs: %d, "
+                + "Number of channels: %d, "
                 + "Payload Size: %dKB]\n"
                 + "\t\tAvg"
                 + "\tMin"
@@ -135,6 +160,7 @@ public class EchoClient {
                 + "\tMax\n"
                 + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d",
             numRpcs,
+            numChannels,
             payload,
             timeList.stream().mapToLong(Long::longValue).sum() / timeList.size(),
             timeList.get(0),
@@ -159,6 +185,8 @@ public class EchoClient {
     parser.addArgument("--corp").type(Boolean.class).setDefault(false);
     parser.addArgument("--warmup").type(Integer.class).setDefault(5);
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
+    parser.addArgument("--async").type(Boolean.class).setDefault(false);
+    parser.addArgument("--numChannels").type(Integer.class).setDefault(1);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -168,9 +196,12 @@ public class EchoClient {
     boolean enableTracer = ns.getBoolean("tracer");
     String cookie = ns.getString("cookie");
     int wait = ns.getInt("wait");
-    int warmup = ns.getInt("warmup");
     boolean corp = ns.getBoolean("corp");
+    int warmup = ns.getInt("warmup");
     String host = ns.getString("host");
+    boolean async = ns.getBoolean("async");
+    int numChannels = ns.getInt("numChannels");
+
     String message = generateString(payloadKB * 1024);
 
     // Prepare tracer
@@ -190,26 +221,61 @@ public class EchoClient {
 
 
     // Starting test
-    System.out.println("Start sending " + payloadKB + "KB bytes for " + numRpcs + " times...");
-    EchoClient client = new EchoClient(host, PORT, cookie, corp);
     EchoWithResponseSizeRequest request =
-        EchoWithResponseSizeRequest.newBuilder().setEchoMsg(message).setResponseSize(10).build();
-    List<Long> timeList = new ArrayList<>(numRpcs);
-    try {
-      // Warm up calls
-      for (int i = 0; i < warmup; i++) {
-        client.echo(request, null, null);
-      }
+            EchoWithResponseSizeRequest.newBuilder().setEchoMsg(message).setResponseSize(10).build();
 
-      for (int i = 0; i < numRpcs; i++) {
-        client.echo(request, tracer, timeList);
-        if (wait > 0) {
-          Thread.sleep(wait * 1000);
+    EchoClient client = new EchoClient(host, PORT, cookie, corp, numChannels);
+    if (!async) {
+      try {
+        // Warm up calls
+        for (int i = 0; i < warmup; i++) {
+          client.echo(request, null, null);
         }
+
+        long start = System.currentTimeMillis();
+        List<Long> timeList = new ArrayList<>(numRpcs);
+        for (int i = 0; i < numRpcs; i++) {
+          client.echo(request, tracer, timeList);
+          if (wait > 0) {
+            Thread.sleep(wait * 1000);
+          }
+        }
+        long duration = System.currentTimeMillis() - start;
+        System.out.println("total time: " + duration + "ms");
+        printResult(numRpcs, 1, payloadKB, timeList);
+      } finally {
+        client.shutdown();
       }
-      printResult(numRpcs, payloadKB, timeList);
-    } finally {
-      client.shutdown();
+    } else {
+      try {
+        GrpcCloudapiStub[] stubs = new GrpcCloudapiStub[numChannels];
+        for (int i = 0; i < numChannels; i++) {
+          ManagedChannel channel = ManagedChannelBuilder.forAddress(host, 443).build();
+          stubs[i] = GrpcCloudapiGrpc.newStub(channel);
+        }
+
+        // Warm up calls
+        CountDownLatch latch = new CountDownLatch(warmup);
+        for (int i = 0; i < warmup; i++) {
+          client.asyncEcho(request, latch, null);
+        }
+        latch.await();
+
+        long start = System.currentTimeMillis();
+        latch = new CountDownLatch(numRpcs);
+        List<Long> timeList = new ArrayList<>();
+        for (int i = 0; i < numRpcs; i++) {
+          client.asyncEcho(request, latch, timeList);
+        }
+        latch.await();
+        long duration = System.currentTimeMillis() - start;
+
+        System.out.println("total time: " + duration + "ms");
+
+        printResult(numRpcs, numChannels, payloadKB, timeList);
+      } finally {
+        client.shutdown();
+      }
     }
   }
 }
