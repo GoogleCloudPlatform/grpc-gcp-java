@@ -1,6 +1,7 @@
 package io.grpc.echo;
 
 import static io.opencensus.exporter.trace.stackdriver.StackdriverExporter.createAndRegister;
+
 import io.grpc.Channel;
 import io.grpc.ClientInterceptor;
 import io.grpc.ClientInterceptors;
@@ -10,8 +11,8 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
-import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiStub;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiBlockingStub;
+import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiStub;
 import io.grpc.stub.StreamObserver;
 import io.opencensus.common.Scope;
 import io.opencensus.trace.Tracer;
@@ -26,6 +27,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.net.ssl.SSLException;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.Namespace;
@@ -36,7 +38,7 @@ public class EchoClient {
   private static final String DEFAULT_HOST = "staging-grpc-cfe-benchmarks-with-esf.googleapis.com";
   private static final int PORT = 443;
 
-//  private final ManagedChannel originalChannel;
+  //  private final ManagedChannel originalChannel;
   private final ManagedChannel[] channels;
 
   private final GrpcCloudapiBlockingStub blockingStub;
@@ -44,14 +46,34 @@ public class EchoClient {
 
   private int rr;
 
-  public EchoClient(String host, int port, String cookie, boolean corp, int numChannels) {
+  public EchoClient(
+      String host, int port, String cookie, boolean corp, int numChannels, boolean insecure, String overrideService)
+      throws SSLException {
 
     channels = new ManagedChannel[numChannels];
     asyncStubs = new GrpcCloudapiStub[numChannels];
     rr = 0;
 
     for (int i = 0; i < numChannels; i++) {
-      channels[i] = ManagedChannelBuilder.forAddress(host, port).build();
+
+      //      SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
+      //      SslContext sslContext =
+      // sslContextBuilder.trustManager(TlsTesting.loadCert("CAcert.pem")).build();
+      //
+      //      ManagedChannelBuilder builder =
+      //          NettyChannelBuilder.forTarget(host + ":" + port)
+      //              .overrideAuthority("test_cert_2")
+      //              .sslContext(sslContext);
+
+      ManagedChannelBuilder builder = ManagedChannelBuilder.forAddress(host, port);
+      if (!overrideService.isEmpty()) {
+        builder.overrideAuthority(overrideService);
+      }
+
+      if (insecure) {
+        builder = builder.usePlaintext();
+      }
+      channels[i] = builder.build();
       asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]);
     }
 
@@ -73,32 +95,36 @@ public class EchoClient {
     return next;
   }
 
-  public void asyncEcho(EchoWithResponseSizeRequest request, CountDownLatch latch, List<Long> timeList) {
+  public void asyncEcho(
+      EchoWithResponseSizeRequest request, CountDownLatch latch, List<Long> timeList) {
     GrpcCloudapiStub stub = getNextAsyncStub();
-    stub.echoWithResponseSize(request, new StreamObserver<EchoResponse>() {
-      long start = System.currentTimeMillis();
+    stub.echoWithResponseSize(
+        request,
+        new StreamObserver<EchoResponse>() {
+          long start = System.currentTimeMillis();
 
-      @Override
-      public void onNext(EchoResponse value) {
-      }
+          @Override
+          public void onNext(EchoResponse value) {}
 
-      @Override
-      public void onError(Throwable t) {
-        latch.countDown();
-        Status status = Status.fromThrowable(t);
-        logger.log(Level.WARNING, "Encountered an error in echo RPC. Status: " + status);
-        t.printStackTrace();
-      }
+          @Override
+          public void onError(Throwable t) {
+            latch.countDown();
+            Status status = Status.fromThrowable(t);
+            logger.log(Level.WARNING, "Encountered an error in echo RPC. Status: " + status);
+            t.printStackTrace();
+          }
 
-      @Override
-      public void onCompleted() {
-        long now = System.currentTimeMillis();
-        if (timeList != null) {
-          timeList.add(now - start);
-        }
-        latch.countDown();
-      }
-    });
+          @Override
+          public void onCompleted() {
+            long now = System.currentTimeMillis();
+            if (timeList != null) {
+              timeList.add(now - start);
+            }
+            latch.countDown();
+            System.out.println(
+                "************ Requests left: " + latch.getCount() + ", current rr: " + rr);
+          }
+        });
   }
 
   public void echo(EchoWithResponseSizeRequest request, Tracer tracer, List<Long> timeList) {
@@ -185,8 +211,11 @@ public class EchoClient {
     parser.addArgument("--corp").type(Boolean.class).setDefault(false);
     parser.addArgument("--warmup").type(Integer.class).setDefault(5);
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
+    parser.addArgument("--port").type(Integer.class).setDefault(443);
     parser.addArgument("--async").type(Boolean.class).setDefault(false);
     parser.addArgument("--numChannels").type(Integer.class).setDefault(1);
+    parser.addArgument("--insecure").type(Boolean.class).setDefault(false);
+    parser.addArgument("--override").type(String.class).setDefault("");
 
     Namespace ns = parser.parseArgs(args);
 
@@ -199,8 +228,11 @@ public class EchoClient {
     boolean corp = ns.getBoolean("corp");
     int warmup = ns.getInt("warmup");
     String host = ns.getString("host");
+    int port = ns.getInt("port");
     boolean async = ns.getBoolean("async");
     int numChannels = ns.getInt("numChannels");
+    boolean insecure = ns.getBoolean("insecure");
+    String overrideService = ns.getString("override");
 
     String message = generateString(payloadKB * 1024);
 
@@ -219,12 +251,11 @@ public class EchoClient {
             .setSampler(Samplers.alwaysSample())
             .build());
 
-
     // Starting test
     EchoWithResponseSizeRequest request =
-            EchoWithResponseSizeRequest.newBuilder().setEchoMsg(message).setResponseSize(10).build();
+        EchoWithResponseSizeRequest.newBuilder().setEchoMsg(message).setResponseSize(10).build();
 
-    EchoClient client = new EchoClient(host, PORT, cookie, corp, numChannels);
+    EchoClient client = new EchoClient(host, port, cookie, corp, numChannels, insecure, overrideService);
     if (!async) {
       try {
         // Warm up calls
@@ -248,12 +279,6 @@ public class EchoClient {
       }
     } else {
       try {
-        GrpcCloudapiStub[] stubs = new GrpcCloudapiStub[numChannels];
-        for (int i = 0; i < numChannels; i++) {
-          ManagedChannel channel = ManagedChannelBuilder.forAddress(host, 443).build();
-          stubs[i] = GrpcCloudapiGrpc.newStub(channel);
-        }
-
         // Warm up calls
         CountDownLatch latch = new CountDownLatch(warmup);
         for (int i = 0; i < warmup; i++) {
@@ -267,6 +292,7 @@ public class EchoClient {
         for (int i = 0; i < numRpcs; i++) {
           client.asyncEcho(request, latch, timeList);
         }
+        System.out.println("total time for sending requests: " + (System.currentTimeMillis() - start) + "ms");
         latch.await();
         long duration = System.currentTimeMillis() - start;
 
