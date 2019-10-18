@@ -19,6 +19,7 @@ repositories {
 dependencies {
     implementation "io.grpc:grpc-protobuf:${grpcVersion}"
     implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "io.grpc:grpc-testing:${grpcVersion}"
     implementation "net.sourceforge.argparse4j:argparse4j:0.8.1"
     implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
 
@@ -71,7 +72,7 @@ jar {
 task run(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'io.grpc.echo.EchoClient'
-    // jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
+    //jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
     //jvmArgs = ['-Xlint:deprecation']
 }
 
