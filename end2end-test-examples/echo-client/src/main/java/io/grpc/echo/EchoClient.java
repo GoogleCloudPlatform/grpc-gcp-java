@@ -47,7 +47,7 @@ public class EchoClient {
   private int rr;
 
   public EchoClient(
-      String host, int port, String cookie, boolean corp, int numChannels, boolean insecure, String overrideService)
+      String host, int port, String cookie, boolean corp, int numChannels, boolean insecure, String overrideService, String compression)
       throws SSLException {
 
     channels = new ManagedChannel[numChannels];
@@ -74,13 +74,21 @@ public class EchoClient {
         builder = builder.usePlaintext();
       }
       channels[i] = builder.build();
-      asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]);
+      if (!compression.isEmpty()) {
+        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]).withCompression(compression);
+      } else {
+        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]);
+      }
     }
 
     // blocking stub test only needs one channel.
     ClientInterceptor interceptor = new HeaderClientInterceptor(cookie, corp);
     Channel interceptingChannel = ClientInterceptors.intercept(channels[0], interceptor);
-    blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel);
+    if (!compression.isEmpty()) {
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel).withCompression(compression);
+    } else {
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel);
+    }
   }
 
   public void shutdown() throws InterruptedException {
@@ -216,6 +224,7 @@ public class EchoClient {
     parser.addArgument("--numChannels").type(Integer.class).setDefault(1);
     parser.addArgument("--insecure").type(Boolean.class).setDefault(false);
     parser.addArgument("--override").type(String.class).setDefault("");
+    parser.addArgument("--compression").type(String.class).setDefault("");
 
     Namespace ns = parser.parseArgs(args);
 
@@ -233,6 +242,7 @@ public class EchoClient {
     int numChannels = ns.getInt("numChannels");
     boolean insecure = ns.getBoolean("insecure");
     String overrideService = ns.getString("override");
+    String compression = ns.getString("compression");
 
     String message = generateString(payloadKB * 1024);
 
@@ -255,7 +265,7 @@ public class EchoClient {
     EchoWithResponseSizeRequest request =
         EchoWithResponseSizeRequest.newBuilder().setEchoMsg(message).setResponseSize(10).build();
 
-    EchoClient client = new EchoClient(host, port, cookie, corp, numChannels, insecure, overrideService);
+    EchoClient client = new EchoClient(host, port, cookie, corp, numChannels, insecure, overrideService, compression);
     if (!async) {
       try {
         // Warm up calls
