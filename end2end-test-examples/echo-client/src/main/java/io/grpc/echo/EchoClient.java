@@ -6,13 +6,15 @@ import io.grpc.Channel;
 import io.grpc.ClientInterceptor;
 import io.grpc.ClientInterceptors;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiBlockingStub;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiStub;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
 import io.opencensus.common.Scope;
 import io.opencensus.trace.Tracer;
@@ -56,16 +58,30 @@ public class EchoClient {
 
     for (int i = 0; i < numChannels; i++) {
 
-      //      SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
-      //      SslContext sslContext =
-      // sslContextBuilder.trustManager(TlsTesting.loadCert("CAcert.pem")).build();
+      // SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
+      // SslContext sslContext =
+      //     sslContextBuilder.trustManager(TlsTesting.loadCert("CAcert.pem")).build();
       //
-      //      ManagedChannelBuilder builder =
-      //          NettyChannelBuilder.forTarget(host + ":" + port)
-      //              .overrideAuthority("test_cert_2")
-      //              .sslContext(sslContext);
+      // NettyChannelBuilder builder =
+      //     NettyChannelBuilder.forTarget(host + ":" + port);
+      //
+      // InternalNettyChannelBuilder.overrideAuthorityChecker(
+      //     builder,
+      //     new OverrideAuthorityChecker() {
+      //       @Override
+      //       public String checkAuthority(String authority) {
+      //         return authority;
+      //       }
+      //     });
+      //
+      // builder = builder.overrideAuthority("test_cert_1").sslContext(sslContext).negotiationType(
+      //     NegotiationType.TLS);
+      NettyChannelBuilder builder = NettyChannelBuilder.forTarget(host + ":" + port)
+          .sslContext(GrpcSslContexts.forClient()
+              .trustManager(InsecureTrustManagerFactory.INSTANCE)
+              .build());
 
-      ManagedChannelBuilder builder = ManagedChannelBuilder.forAddress(host, port);
+      //ManagedChannelBuilder builder = ManagedChannelBuilder.forAddress(host, port);
       if (!overrideService.isEmpty()) {
         builder.overrideAuthority(overrideService);
       }
