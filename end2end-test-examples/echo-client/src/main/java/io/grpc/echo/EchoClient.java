@@ -108,10 +108,17 @@ public class EchoClient {
     }
 
     // blocking stub test only needs one channel.
-    if (!compression.isEmpty()) {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channels[0]).withCompression(compression);
+    Channel channel;
+    if (header) {
+      ClientInterceptor interceptor = new HeaderClientInterceptor(cookie, header);
+      channel = ClientInterceptors.intercept(channels[0], interceptor);
     } else {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channels[0]);
+      channel = channels[0];
+    }
+    if (!compression.isEmpty()) {
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel).withCompression(compression);
+    } else {
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel);
     }
   }
 
