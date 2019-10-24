@@ -53,7 +53,7 @@ public class HeaderClientInterceptor implements ClientInterceptor {
         super.start(new SimpleForwardingClientCallListener<RespT>(responseListener) {
           @Override
           public void onHeaders(Metadata headers) {
-            if (counter == 10 && corp) {
+            if (corp) {
               logger.info("Header received from server: " + headers);
             }
             super.onHeaders(headers);
