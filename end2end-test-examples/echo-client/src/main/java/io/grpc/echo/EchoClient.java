@@ -49,7 +49,7 @@ public class EchoClient {
   private int rr;
 
   public EchoClient(
-      String host, int port, String cookie, boolean corp, int numChannels, boolean insecure, String overrideService, String compression)
+      String host, int port, String cookie, boolean header, int numChannels, boolean insecure, String overrideService, String compression)
       throws SSLException {
 
     channels = new ManagedChannel[numChannels];
@@ -89,21 +89,29 @@ public class EchoClient {
       if (insecure) {
         builder = builder.usePlaintext();
       }
+
       channels[i] = builder.build();
-      if (!compression.isEmpty()) {
-        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]).withCompression(compression);
+
+      Channel channel;
+      if (header) {
+        ClientInterceptor interceptor = new HeaderClientInterceptor(cookie, header);
+        channel = ClientInterceptors.intercept(channels[i], interceptor);
       } else {
-        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]);
+        channel = channels[i];
+      }
+
+      if (!compression.isEmpty()) {
+        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel).withCompression(compression);
+      } else {
+        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel);
       }
     }
 
     // blocking stub test only needs one channel.
-    ClientInterceptor interceptor = new HeaderClientInterceptor(cookie, corp);
-    Channel interceptingChannel = ClientInterceptors.intercept(channels[0], interceptor);
     if (!compression.isEmpty()) {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel).withCompression(compression);
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channels[0]).withCompression(compression);
     } else {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel);
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channels[0]);
     }
   }
 
@@ -232,7 +240,7 @@ public class EchoClient {
     parser.addArgument("--tracer").type(Boolean.class).setDefault(false);
     parser.addArgument("--cookie").type(String.class).setDefault("");
     parser.addArgument("--wait").type(Integer.class).setDefault(0);
-    parser.addArgument("--corp").type(Boolean.class).setDefault(false);
+    parser.addArgument("--header").type(Boolean.class).setDefault(false);
     parser.addArgument("--warmup").type(Integer.class).setDefault(5);
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
     parser.addArgument("--port").type(Integer.class).setDefault(443);
@@ -250,7 +258,7 @@ public class EchoClient {
     boolean enableTracer = ns.getBoolean("tracer");
     String cookie = ns.getString("cookie");
     int wait = ns.getInt("wait");
-    boolean corp = ns.getBoolean("corp");
+    boolean header = ns.getBoolean("header");
     int warmup = ns.getInt("warmup");
     String host = ns.getString("host");
     int port = ns.getInt("port");
@@ -281,7 +289,7 @@ public class EchoClient {
     EchoWithResponseSizeRequest request =
         EchoWithResponseSizeRequest.newBuilder().setEchoMsg(message).setResponseSize(10).build();
 
-    EchoClient client = new EchoClient(host, port, cookie, corp, numChannels, insecure, overrideService, compression);
+    EchoClient client = new EchoClient(host, port, cookie, header, numChannels, insecure, overrideService, compression);
     if (!async) {
       try {
         // Warm up calls
