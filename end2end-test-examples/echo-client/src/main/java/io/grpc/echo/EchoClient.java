@@ -6,13 +6,15 @@ import io.grpc.Channel;
 import io.grpc.ClientInterceptor;
 import io.grpc.ClientInterceptors;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiBlockingStub;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiStub;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
 import io.opencensus.common.Scope;
 import io.opencensus.trace.Tracer;
@@ -47,7 +49,7 @@ public class EchoClient {
   private int rr;
 
   public EchoClient(
-      String host, int port, String cookie, boolean corp, int numChannels, boolean insecure, String overrideService, String compression)
+      String host, int port, String cookie, boolean header, int numChannels, boolean insecure, String overrideService, String compression)
       throws SSLException {
 
     channels = new ManagedChannel[numChannels];
@@ -56,16 +58,30 @@ public class EchoClient {
 
     for (int i = 0; i < numChannels; i++) {
 
-      //      SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
-      //      SslContext sslContext =
-      // sslContextBuilder.trustManager(TlsTesting.loadCert("CAcert.pem")).build();
+      // SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
+      // SslContext sslContext =
+      //     sslContextBuilder.trustManager(TlsTesting.loadCert("CAcert.pem")).build();
       //
-      //      ManagedChannelBuilder builder =
-      //          NettyChannelBuilder.forTarget(host + ":" + port)
-      //              .overrideAuthority("test_cert_2")
-      //              .sslContext(sslContext);
+      // NettyChannelBuilder builder =
+      //     NettyChannelBuilder.forTarget(host + ":" + port);
+      //
+      // InternalNettyChannelBuilder.overrideAuthorityChecker(
+      //     builder,
+      //     new OverrideAuthorityChecker() {
+      //       @Override
+      //       public String checkAuthority(String authority) {
+      //         return authority;
+      //       }
+      //     });
+      //
+      // builder = builder.overrideAuthority("test_cert_1").sslContext(sslContext).negotiationType(
+      //     NegotiationType.TLS);
+      NettyChannelBuilder builder = NettyChannelBuilder.forTarget(host + ":" + port)
+          .sslContext(GrpcSslContexts.forClient()
+              .trustManager(InsecureTrustManagerFactory.INSTANCE)
+              .build());
 
-      ManagedChannelBuilder builder = ManagedChannelBuilder.forAddress(host, port);
+      //ManagedChannelBuilder builder = ManagedChannelBuilder.forAddress(host, port);
       if (!overrideService.isEmpty()) {
         builder.overrideAuthority(overrideService);
       }
@@ -73,21 +89,36 @@ public class EchoClient {
       if (insecure) {
         builder = builder.usePlaintext();
       }
+
       channels[i] = builder.build();
-      if (!compression.isEmpty()) {
-        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]).withCompression(compression);
+
+      Channel channel;
+      if (header) {
+        ClientInterceptor interceptor = new HeaderClientInterceptor(cookie, header);
+        channel = ClientInterceptors.intercept(channels[i], interceptor);
       } else {
-        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]);
+        channel = channels[i];
+      }
+
+      if (!compression.isEmpty()) {
+        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel).withCompression(compression);
+      } else {
+        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel);
       }
     }
 
     // blocking stub test only needs one channel.
-    ClientInterceptor interceptor = new HeaderClientInterceptor(cookie, corp);
-    Channel interceptingChannel = ClientInterceptors.intercept(channels[0], interceptor);
-    if (!compression.isEmpty()) {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel).withCompression(compression);
+    Channel channel;
+    if (header) {
+      ClientInterceptor interceptor = new HeaderClientInterceptor(cookie, header);
+      channel = ClientInterceptors.intercept(channels[0], interceptor);
     } else {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel);
+      channel = channels[0];
+    }
+    if (!compression.isEmpty()) {
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel).withCompression(compression);
+    } else {
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel);
     }
   }
 
@@ -216,7 +247,7 @@ public class EchoClient {
     parser.addArgument("--tracer").type(Boolean.class).setDefault(false);
     parser.addArgument("--cookie").type(String.class).setDefault("");
     parser.addArgument("--wait").type(Integer.class).setDefault(0);
-    parser.addArgument("--corp").type(Boolean.class).setDefault(false);
+    parser.addArgument("--header").type(Boolean.class).setDefault(false);
     parser.addArgument("--warmup").type(Integer.class).setDefault(5);
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
     parser.addArgument("--port").type(Integer.class).setDefault(443);
@@ -234,7 +265,7 @@ public class EchoClient {
     boolean enableTracer = ns.getBoolean("tracer");
     String cookie = ns.getString("cookie");
     int wait = ns.getInt("wait");
-    boolean corp = ns.getBoolean("corp");
+    boolean header = ns.getBoolean("header");
     int warmup = ns.getInt("warmup");
     String host = ns.getString("host");
     int port = ns.getInt("port");
@@ -265,7 +296,7 @@ public class EchoClient {
     EchoWithResponseSizeRequest request =
         EchoWithResponseSizeRequest.newBuilder().setEchoMsg(message).setResponseSize(10).build();
 
-    EchoClient client = new EchoClient(host, port, cookie, corp, numChannels, insecure, overrideService, compression);
+    EchoClient client = new EchoClient(host, port, cookie, header, numChannels, insecure, overrideService, compression);
     if (!async) {
       try {
         // Warm up calls
