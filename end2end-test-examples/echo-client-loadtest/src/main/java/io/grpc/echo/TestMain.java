@@ -79,7 +79,7 @@ public class TestMain {
         payloadSize = payloads.get(nextRequestIndex);
         nextRequestIndex = ++nextRequestIndex % requests.size();
       }
-      client.echo(request, latch, tracer, timeList, i);
+      client.echo(request, latch, tracer, timeList);
       totalPayloadSize += payloadSize;
     }
 
@@ -101,7 +101,7 @@ public class TestMain {
 
     // Warmup
     runTest(argObj, client, 10, requests.get(0), null,true);
-    Tracer tracer = new TracerManager().getTracer();
+    Tracer tracer = (argObj.enableTracer) ? new TracerManager().getTracer() : null;
 
     try {
       if (argObj.async) {

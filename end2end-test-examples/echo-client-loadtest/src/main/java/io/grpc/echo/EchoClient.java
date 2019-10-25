@@ -133,7 +133,7 @@ public class EchoClient {
   }
 
   public void echo(EchoWithResponseSizeRequest request, CountDownLatch latch,
-      Tracer tracer, List<Long> timeList, int rpcIndex) {
+      Tracer tracer, List<Long> timeList) {
     if (latch != null) {
       asyncEcho(request, latch, timeList);
       //logger.info("Async request: sent rpc#: " + rpcIndex);
