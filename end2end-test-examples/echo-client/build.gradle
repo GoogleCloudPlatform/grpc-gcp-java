@@ -27,6 +27,8 @@ dependencies {
     implementation "io.opencensus:opencensus-impl:0.20.0"
     implementation "io.opencensus:opencensus-api:0.20.0"
 
+    implementation "org.apache.commons:commons-math3:3.6.1"
+
     //implementation "com.google.guava:guava:28.1-jre"
 
     compileOnly "javax.annotation:javax.annotation-api:1.2"
@@ -71,7 +73,7 @@ jar {
 
 task run(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
-    main = 'io.grpc.echo.EchoClient'
+    main = 'io.grpc.echo.TestMain'
     //jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
     //jvmArgs = ['-Xlint:deprecation']
 }
