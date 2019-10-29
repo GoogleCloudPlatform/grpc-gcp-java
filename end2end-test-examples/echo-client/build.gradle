@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'io.grpc'
-version '1.0-SNAPSHOT'
+version '1.5-SNAPSHOT'
 
 sourceCompatibility = 1.8
 
@@ -62,7 +62,7 @@ sourceSets {
 jar {
     manifest {
         attributes (
-                'Main-Class': 'io.grpc.echo.EchoClient'
+                'Main-Class': 'io.grpc.echo.TestMain'
         )
     }
     from {

@@ -7,11 +7,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 
 public class TestMain {
-  private static final LocalLogger logger = LocalLogger.getLogger(TestMain.class.getName());
-  private static List<Integer> payloads = Arrays.asList(10, 50, 100, 200, 500, 1000, 1500, 2000);
+  private static final Logger logger = Logger.getLogger(TestMain.class.getName());
+  private static List<Integer> payloads = Arrays.asList(100);
   private static List<EchoWithResponseSizeRequest> requests = new ArrayList<>();
   private static String generatePayload(int numBytes) {
     StringBuilder sb = new StringBuilder(numBytes);
@@ -21,11 +22,11 @@ public class TestMain {
     return sb.toString();
   }
 
-  private static void printResult(int numRpcs, Args arg, List<Long> timeList, int total,
+  private static void printResult(long numRpcs, Args arg, List<Long> timeList, int total,
       long duration) {
     if (timeList == null || timeList.isEmpty()) return;
     int avg = total/timeList.size();
-    int totalKb = (avg * numRpcs);
+    long totalKb = (avg * numRpcs);
     Collections.sort(timeList);
     logger.info(
         String.format("%d qps, %d channels, %d total rpc's sent"
@@ -50,22 +51,19 @@ public class TestMain {
   }
 
   private static int nextRequestIndex = 0;
-  private static void runTest(Args arg, EchoClient client, int payloadSize,
+  private static void runTest(Args args, EchoClient client, int payloadSize,
       EchoWithResponseSizeRequest request, Tracer tracer, boolean isWarmup)
       throws InterruptedException {
-    int rpcsToDo = (isWarmup) ? 10 : arg.numRpcs;
+    long rpcsToDo = (isWarmup) ? 10 : args.numRpcs;
     List<Long> timeList = new ArrayList<>();
-    CountDownLatch latch = null;
-    if (arg.async) {
-      latch = new CountDownLatch(rpcsToDo);
-    }
+    CountDownLatch latch = args.waitfordone ? new CountDownLatch((int)rpcsToDo) : null;
 
     int totalPayloadSize = 0;
     long startFirst = System.currentTimeMillis();
     for (int i = 0; i < rpcsToDo; i++) {
       if (!isWarmup) {
-        if (arg.distrib != null) {
-          int sample = arg.distrib.sample();
+        if (args.distrib != null) {
+          int sample = args.distrib.sample();
           if (sample > 0) {
             //logger.info("sleeping for: " + sample);
             Thread.sleep(sample);
@@ -74,7 +72,7 @@ public class TestMain {
       }
 
       // for async, randomize the request size
-      if (arg.async) {
+      if (args.async) {
         request = requests.get(nextRequestIndex);
         payloadSize = payloads.get(nextRequestIndex);
         nextRequestIndex = ++nextRequestIndex % requests.size();
@@ -84,7 +82,7 @@ public class TestMain {
     }
 
     long endSendTime = System.currentTimeMillis() - startFirst;
-    if (arg.async) {
+    if (args.waitfordone) {
       latch.await();
     }
     long endRecvTime = System.currentTimeMillis() - startFirst;
@@ -92,7 +90,7 @@ public class TestMain {
     if (isWarmup) return;
     logger.info("Total Send time = " + endSendTime
         + "ms, Total Receive time = " + endRecvTime + "ms");
-    printResult(rpcsToDo, arg, timeList, totalPayloadSize, endSendTime);
+    printResult(rpcsToDo, args, timeList, totalPayloadSize, endSendTime);
   }
 
   private static void execTask(Args argObj)
@@ -100,9 +98,11 @@ public class TestMain {
     EchoClient client = new EchoClient(argObj);
 
     // Warmup
+    logger.info("Start warm up...");
     runTest(argObj, client, 10, requests.get(0), null,true);
     Tracer tracer = (argObj.enableTracer) ? new TracerManager().getTracer() : null;
 
+    logger.info("Warm up done. Start benchmark tests...");
     try {
       if (argObj.async) {
         runTest(argObj, client, -1, null, tracer, false);

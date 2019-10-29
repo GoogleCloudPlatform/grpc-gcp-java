@@ -10,11 +10,11 @@ public class Args {
   private static final String DEFAULT_HOST = "staging-grpc-cfe-benchmarks-with-esf.googleapis.com";
   private static final int PORT = 443;
 
-  final int numRpcs;
+  final long numRpcs;
   final boolean enableTracer;
   final String cookie;
-  final int wait;
-  final boolean corp;
+  final boolean waitfordone;
+  final boolean header;
   final int warmup;
   final String host;
   final int port;
@@ -34,11 +34,11 @@ public class Args {
             .defaultHelp(true)
             .description("Echo client java binary");
 
-    parser.addArgument("--numRpcs").type(Integer.class).setDefault(1);
+    parser.addArgument("--numRpcs").type(Long.class).setDefault(1);
     parser.addArgument("--tracer").type(Boolean.class).setDefault(false);
     parser.addArgument("--cookie").type(String.class).setDefault("");
-    parser.addArgument("--wait").type(Integer.class).setDefault(0);
-    parser.addArgument("--corp").type(Boolean.class).setDefault(false);
+    parser.addArgument("--waitfordone").type(Boolean.class).setDefault(true);
+    parser.addArgument("--header").type(Boolean.class).setDefault(false);
     parser.addArgument("--warmup").type(Integer.class).setDefault(5);
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
     parser.addArgument("--port").type(Integer.class).setDefault(PORT);
@@ -53,11 +53,11 @@ public class Args {
     Namespace ns = parser.parseArgs(args);
 
     // Read args
-    numRpcs = ns.getInt("numRpcs");
+    numRpcs = ns.getLong("numRpcs");
     enableTracer = ns.getBoolean("tracer");
     cookie = ns.getString("cookie");
-    wait = ns.getInt("wait");
-    corp = ns.getBoolean("corp");
+    waitfordone = ns.getBoolean("waitfordone");
+    header = ns.getBoolean("header");
     warmup = ns.getInt("warmup");
     host = ns.getString("host");
     port = ns.getInt("port");

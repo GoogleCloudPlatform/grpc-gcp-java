@@ -4,7 +4,6 @@ import io.grpc.Channel;
 import io.grpc.ClientInterceptor;
 import io.grpc.ClientInterceptors;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
@@ -19,7 +18,6 @@ import io.opencensus.trace.Tracer;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 import javax.net.ssl.SSLException;
 
 public class EchoClient {
@@ -31,15 +29,19 @@ public class EchoClient {
   private final GrpcCloudapiBlockingStub blockingStub;
   private final GrpcCloudapiStub[] asyncStubs;
 
+  private final Args args;
+
   private int rr;
 
-  public EchoClient(Args argObj) throws SSLException {
 
-    channels = new ManagedChannel[argObj.numChannels];
-    asyncStubs = new GrpcCloudapiStub[argObj.numChannels];
+  public EchoClient(Args args) throws SSLException {
+    this.args = args;
+
+    channels = new ManagedChannel[args.numChannels];
+    asyncStubs = new GrpcCloudapiStub[args.numChannels];
     rr = 0;
 
-    for (int i = 0; i < argObj.numChannels; i++) {
+    for (int i = 0; i < args.numChannels; i++) {
 
       //      SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
       //      SslContext sslContext =
@@ -51,32 +53,46 @@ public class EchoClient {
       //              .sslContext(sslContext);
 
       // ManagedChannelBuilder builder = ManagedChannelBuilder.forAddress(argObj.host, argObj.port);
-      NettyChannelBuilder builder = NettyChannelBuilder.forTarget(argObj.host + ":" +argObj.port)
+      NettyChannelBuilder builder = NettyChannelBuilder.forTarget(args.host + ":" +args.port)
           .sslContext(GrpcSslContexts.forClient()
               .trustManager(InsecureTrustManagerFactory.INSTANCE)
               .build());
-      if (!argObj.overrideService.isEmpty()) {
-        builder.overrideAuthority(argObj.overrideService);
+      if (!args.overrideService.isEmpty()) {
+        builder.overrideAuthority(args.overrideService);
       }
 
-      if (argObj.insecure) {
+      if (args.insecure) {
         builder = builder.usePlaintext();
       }
       channels[i] = builder.build();
-      if (!argObj.compression.isEmpty()) {
-        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]).withCompression(argObj.compression);
+
+      Channel channel;
+      if (args.header) {
+        ClientInterceptor interceptor = new HeaderClientInterceptor(args.cookie, args.header);
+        channel = ClientInterceptors.intercept(channels[i], interceptor);
       } else {
-        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channels[i]);
+        channel = channels[i];
+      }
+
+      if (!args.compression.isEmpty()) {
+        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel).withCompression(args.compression);
+      } else {
+        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel);
       }
     }
 
     // blocking stub test only needs one channel.
-    ClientInterceptor interceptor = new HeaderClientInterceptor(argObj.cookie, argObj.corp);
-    Channel interceptingChannel = ClientInterceptors.intercept(channels[0], interceptor);
-    if (!argObj.compression.isEmpty()) {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel).withCompression(argObj.compression);
+    Channel channel;
+    if (args.header) {
+      ClientInterceptor interceptor = new HeaderClientInterceptor(args.cookie, args.header);
+      channel = ClientInterceptors.intercept(channels[0], interceptor);
     } else {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(interceptingChannel);
+      channel = channels[0];
+    }
+    if (!args.compression.isEmpty()) {
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel).withCompression(args.compression);
+    } else {
+      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel);
     }
   }
 
@@ -106,7 +122,9 @@ public class EchoClient {
 
           @Override
           public void onError(Throwable t) {
-            latch.countDown();
+            if (latch != null) {
+              latch.countDown();
+            }
             Status status = Status.fromThrowable(t);
             logger.warning("Encountered an error in echo RPC. Status: " + status);
             t.printStackTrace();
@@ -118,8 +136,10 @@ public class EchoClient {
             if (timeList != null) {
               timeList.add(now - start);
             }
-            latch.countDown();
-            //logger.info("** Requests left: " + latch.getCount() + ", current rr: " + rr);
+            if (latch != null) {
+              latch.countDown();
+            }
+            logger.info("** Requests left: " + latch.getCount());
           }
         });
   }
@@ -134,7 +154,7 @@ public class EchoClient {
 
   public void echo(EchoWithResponseSizeRequest request, CountDownLatch latch,
       Tracer tracer, List<Long> timeList) {
-    if (latch != null) {
+    if (args.async) {
       asyncEcho(request, latch, timeList);
       //logger.info("Async request: sent rpc#: " + rpcIndex);
       return;
