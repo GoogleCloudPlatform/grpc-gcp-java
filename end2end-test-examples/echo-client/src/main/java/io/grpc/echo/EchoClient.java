@@ -5,6 +5,7 @@ import io.grpc.ClientInterceptor;
 import io.grpc.ClientInterceptors;
 import io.grpc.ManagedChannel;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiBlockingStub;
@@ -15,18 +16,22 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactor
 import io.grpc.stub.StreamObserver;
 import io.opencensus.common.Scope;
 import io.opencensus.trace.Tracer;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 
 public class EchoClient {
-  private static final LocalLogger logger = LocalLogger.getLogger(EchoClient.class.getName());
+  private static final int DEADLINE_MINUTES = 60;
+  private static final Logger logger = Logger.getLogger(EchoClient.class.getName());
 
   //  private final ManagedChannel originalChannel;
   private final ManagedChannel[] channels;
 
-  private final GrpcCloudapiBlockingStub blockingStub;
+  private GrpcCloudapiBlockingStub blockingStub;
   private final GrpcCloudapiStub[] asyncStubs;
 
   private final Args args;
@@ -74,25 +79,17 @@ public class EchoClient {
         channel = channels[i];
       }
 
-      if (!args.compression.isEmpty()) {
-        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel).withCompression(args.compression);
-      } else {
-        asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel);
+      if (i == 0) {
+        blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel).withDeadlineAfter(DEADLINE_MINUTES, TimeUnit.MINUTES);
       }
-    }
+      asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel).withDeadlineAfter(DEADLINE_MINUTES, TimeUnit.MINUTES);
 
-    // blocking stub test only needs one channel.
-    Channel channel;
-    if (args.header) {
-      ClientInterceptor interceptor = new HeaderClientInterceptor(args.cookie, args.header);
-      channel = ClientInterceptors.intercept(channels[0], interceptor);
-    } else {
-      channel = channels[0];
-    }
-    if (!args.compression.isEmpty()) {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel).withCompression(args.compression);
-    } else {
-      blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel);
+      if (!args.compression.isEmpty()) {
+        if (i == 0) {
+          blockingStub = blockingStub.withCompression(args.compression);
+        }
+        asyncStubs[i] = asyncStubs[i].withCompression(args.compression);
+      }
     }
   }
 
@@ -109,8 +106,8 @@ public class EchoClient {
   }
 
 
-  public void asyncEcho(
-      EchoWithResponseSizeRequest request, CountDownLatch latch, List<Long> timeList) {
+  public void asyncEcho(int id, EchoWithResponseSizeRequest request, CountDownLatch latch,
+      List<Long> timeList, long[] startTimeArr, long[] endTimeArr) {
     GrpcCloudapiStub stub = getNextAsyncStub();
     stub.echoWithResponseSize(
         request,
@@ -126,7 +123,7 @@ public class EchoClient {
               latch.countDown();
             }
             Status status = Status.fromThrowable(t);
-            logger.warning("Encountered an error in echo RPC. Status: " + status);
+            logger.warning(String.format("Encountered an error in %dth echo RPC (startTime: %s). Status: %s", id, new Timestamp(start), status));
             t.printStackTrace();
           }
 
@@ -139,31 +136,28 @@ public class EchoClient {
             if (latch != null) {
               latch.countDown();
             }
-            logger.info("** Requests left: " + latch.getCount());
+            //logger.info(String.format("%dth echo RPC succeeded. Start time: %s. Requests left: %d", id, new Timestamp(start), latch.getCount()));
           }
         });
   }
 
   void doSingleCall(EchoWithResponseSizeRequest request, List<Long> timeList) {
-    long start = System.currentTimeMillis();
-    blockingStub.echoWithResponseSize(request);
-    if (timeList != null) {
-      timeList.add(System.currentTimeMillis() - start);
+    try {
+      long start = System.currentTimeMillis();
+      blockingStub.echoWithResponseSize(request);
+      if (timeList != null) {
+        timeList.add(System.currentTimeMillis() - start);
+      }
+    } catch (StatusRuntimeException e) {
+      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      e.printStackTrace();
     }
   }
 
-  public void echo(EchoWithResponseSizeRequest request, CountDownLatch latch,
-      Tracer tracer, List<Long> timeList) {
+  public void echo(int id, EchoWithResponseSizeRequest request, CountDownLatch latch, List<Long> timeList, long[] startTimeArr, long[] endTimeArr) {
     if (args.async) {
-      asyncEcho(request, latch, timeList);
+      asyncEcho(id, request, latch, timeList, startTimeArr, endTimeArr);
       //logger.info("Async request: sent rpc#: " + rpcIndex);
-      return;
-    }
-
-    if (tracer != null) {
-      try (Scope scope = tracer.spanBuilder("echo_java").startScopedSpan()) {
-        doSingleCall(request, timeList);
-      }
     } else {
       doSingleCall(request, timeList);
     }

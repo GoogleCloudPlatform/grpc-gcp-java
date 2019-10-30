@@ -10,10 +10,9 @@ public class Args {
   private static final String DEFAULT_HOST = "staging-grpc-cfe-benchmarks-with-esf.googleapis.com";
   private static final int PORT = 443;
 
-  final long numRpcs;
+  final int numRpcs;
   final boolean enableTracer;
   final String cookie;
-  final boolean waitfordone;
   final boolean header;
   final int warmup;
   final String host;
@@ -25,6 +24,8 @@ public class Args {
   final String compression;
   final int threads;
   final int qps;
+  final int reqSize;
+  final int rspSize;
   final PoissonDistribution distrib;
 
   Args(String[] args) throws ArgumentParserException {
@@ -34,10 +35,9 @@ public class Args {
             .defaultHelp(true)
             .description("Echo client java binary");
 
-    parser.addArgument("--numRpcs").type(Long.class).setDefault(1);
+    parser.addArgument("--numRpcs").type(Integer.class).setDefault(1);
     parser.addArgument("--tracer").type(Boolean.class).setDefault(false);
     parser.addArgument("--cookie").type(String.class).setDefault("");
-    parser.addArgument("--waitfordone").type(Boolean.class).setDefault(true);
     parser.addArgument("--header").type(Boolean.class).setDefault(false);
     parser.addArgument("--warmup").type(Integer.class).setDefault(5);
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
@@ -49,14 +49,15 @@ public class Args {
     parser.addArgument("--compression").type(String.class).setDefault("");
     parser.addArgument("--threads").type(Integer.class).setDefault(1);
     parser.addArgument("--qps").type(Integer.class).setDefault(0);
+    parser.addArgument("--reqSize").type(Integer.class).setDefault(1);
+    parser.addArgument("--rspSize").type(Integer.class).setDefault(1);
 
     Namespace ns = parser.parseArgs(args);
 
     // Read args
-    numRpcs = ns.getLong("numRpcs");
+    numRpcs = ns.getInt("numRpcs");
     enableTracer = ns.getBoolean("tracer");
     cookie = ns.getString("cookie");
-    waitfordone = ns.getBoolean("waitfordone");
     header = ns.getBoolean("header");
     warmup = ns.getInt("warmup");
     host = ns.getString("host");
@@ -68,6 +69,8 @@ public class Args {
     compression = ns.getString("compression");
     threads = ns.getInt("threads");
     qps = ns.getInt("qps");
+    reqSize = ns.getInt("reqSize");
+    rspSize = ns.getInt("rspSize");
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }
