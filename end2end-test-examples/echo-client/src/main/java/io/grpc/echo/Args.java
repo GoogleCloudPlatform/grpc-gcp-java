@@ -13,8 +13,7 @@ public class Args {
   final int numRpcs;
   final boolean enableTracer;
   final String cookie;
-  final int wait;
-  final boolean corp;
+  final boolean header;
   final int warmup;
   final String host;
   final int port;
@@ -25,6 +24,8 @@ public class Args {
   final String compression;
   final int threads;
   final int qps;
+  final int reqSize;
+  final int rspSize;
   final PoissonDistribution distrib;
 
   Args(String[] args) throws ArgumentParserException {
@@ -37,8 +38,7 @@ public class Args {
     parser.addArgument("--numRpcs").type(Integer.class).setDefault(1);
     parser.addArgument("--tracer").type(Boolean.class).setDefault(false);
     parser.addArgument("--cookie").type(String.class).setDefault("");
-    parser.addArgument("--wait").type(Integer.class).setDefault(0);
-    parser.addArgument("--corp").type(Boolean.class).setDefault(false);
+    parser.addArgument("--header").type(Boolean.class).setDefault(false);
     parser.addArgument("--warmup").type(Integer.class).setDefault(5);
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
     parser.addArgument("--port").type(Integer.class).setDefault(PORT);
@@ -49,6 +49,8 @@ public class Args {
     parser.addArgument("--compression").type(String.class).setDefault("");
     parser.addArgument("--threads").type(Integer.class).setDefault(1);
     parser.addArgument("--qps").type(Integer.class).setDefault(0);
+    parser.addArgument("--reqSize").type(Integer.class).setDefault(1);
+    parser.addArgument("--rspSize").type(Integer.class).setDefault(1);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -56,8 +58,7 @@ public class Args {
     numRpcs = ns.getInt("numRpcs");
     enableTracer = ns.getBoolean("tracer");
     cookie = ns.getString("cookie");
-    wait = ns.getInt("wait");
-    corp = ns.getBoolean("corp");
+    header = ns.getBoolean("header");
     warmup = ns.getInt("warmup");
     host = ns.getString("host");
     port = ns.getInt("port");
@@ -68,6 +69,8 @@ public class Args {
     compression = ns.getString("compression");
     threads = ns.getInt("threads");
     qps = ns.getInt("qps");
+    reqSize = ns.getInt("reqSize");
+    rspSize = ns.getInt("rspSize");
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }

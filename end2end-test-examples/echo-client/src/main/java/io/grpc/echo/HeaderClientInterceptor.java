@@ -12,14 +12,14 @@ import java.util.logging.Logger;
 
 public class HeaderClientInterceptor implements ClientInterceptor {
   private int counter = 0;
-  private boolean corp;
+  private boolean headers;
   private String cookie;
 
   private static final Logger logger = Logger.getLogger(HeaderClientInterceptor.class.getName());
 
-  public HeaderClientInterceptor(String cookie, boolean corp) {
+  public HeaderClientInterceptor(String cookie, boolean headers) {
     this.cookie = cookie;
-    this.corp = corp;
+    this.headers = headers;
   }
 
   /**
@@ -50,10 +50,12 @@ public class HeaderClientInterceptor implements ClientInterceptor {
           headers.put(Metadata.Key.of("Cookie", Metadata.ASCII_STRING_MARSHALLER), cookie);
         }
 
+        logger.info("Header from client: " + headers);
+
         super.start(new SimpleForwardingClientCallListener<RespT>(responseListener) {
           @Override
           public void onHeaders(Metadata headers) {
-            if (counter == 10 && corp) {
+            if (HeaderClientInterceptor.this.headers) {
               logger.info("Header received from server: " + headers);
             }
             super.onHeaders(headers);

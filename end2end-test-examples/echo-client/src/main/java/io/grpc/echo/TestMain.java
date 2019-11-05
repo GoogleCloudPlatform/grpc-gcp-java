@@ -1,18 +1,21 @@
 package io.grpc.echo;
 
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
-import io.opencensus.trace.Tracer;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
+import org.HdrHistogram.Histogram;
+import org.HdrHistogram.HistogramLogProcessor;
 
 public class TestMain {
-  private static final LocalLogger logger = LocalLogger.getLogger(TestMain.class.getName());
-  private static List<Integer> payloads = Arrays.asList(10, 50, 100, 200, 500, 1000, 1500, 2000);
-  private static List<EchoWithResponseSizeRequest> requests = new ArrayList<>();
+  private static final Logger logger = Logger.getLogger(TestMain.class.getName());
+
   private static String generatePayload(int numBytes) {
     StringBuilder sb = new StringBuilder(numBytes);
     for (int i = 0; i < numBytes; i++) {
@@ -21,51 +24,65 @@ public class TestMain {
     return sb.toString();
   }
 
-  private static void printResult(int numRpcs, Args arg, List<Long> timeList, int total,
-      long duration) {
-    if (timeList == null || timeList.isEmpty()) return;
-    int avg = total/timeList.size();
-    int totalKb = (avg * numRpcs);
-    Collections.sort(timeList);
-    logger.info(
-        String.format("%d qps, %d channels, %d total rpc's sent"
-                + "\nAvg Payload Size per request = %dKB"
-                + "\nPer sec Payload = %d MB (exact amount of KB = %d)"
-                + "\n\t\tAvg"
-                + "\tMin"
+  private static void printResult(Args arg, long totalPayload,
+      long duration, Histogram histogram) {
+
+    String resultFileName = String.format("qps%d_chan%d_rpcs%d_size%d_%sresult.txt",
+        arg.qps, arg.numChannels, arg.numRpcs, arg.reqSize, (arg.async ? "async_" : ""));
+    try {
+      histogram.outputPercentileDistribution(new PrintStream(new FileOutputStream(resultFileName)), 1.0);
+    } catch (FileNotFoundException e) {
+      logger.warning("File not found: " + e.getMessage());
+    }
+
+
+    System.out.println(
+        String.format("%d qps, %d channels, %d total rpcs sent"
+                + "\nPayload Size per request = %dKB"
+                + "\nPer sec Payload = %.2f MB (exact amount of KB = %d)"
+                //+ "\n\t\tAvg"
+                + "\n\t\tMin"
                 + "\tp50"
                 + "\tp90"
                 + "\tp99"
+                + "\tp99.9"
+                + "\tp99.99"
                 + "\tMax\n"
-                + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d",
-            arg.qps, arg.numChannels, numRpcs,
-            avg,
-            (totalKb / duration), totalKb,
-            timeList.stream().mapToLong(Long::longValue).sum() / timeList.size(),
-            timeList.get(0),
-            timeList.get((int) (timeList.size() * 0.5)),
-            timeList.get((int) (timeList.size() * 0.9)),
-            timeList.get((int) (timeList.size() * 0.99)),
-            timeList.get(timeList.size() - 1)));
+                + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+            arg.qps, arg.numChannels, histogram.getTotalCount(),
+            arg.reqSize,
+            (0.1 * totalPayload / duration), totalPayload,
+            //histogram.getMean(),
+            histogram.getMinValue(),
+            histogram.getValueAtPercentile(50),
+            histogram.getValueAtPercentile(90),
+            histogram.getValueAtPercentile(99),
+            histogram.getValueAtPercentile(99.9),
+            histogram.getValueAtPercentile(99.99),
+            histogram.getValueAtPercentile(100)));
+
+    System.out.println("\n** histogram percentile distribution output file: " + resultFileName);
   }
 
-  private static int nextRequestIndex = 0;
-  private static void runTest(Args arg, EchoClient client, int payloadSize,
-      EchoWithResponseSizeRequest request, Tracer tracer, boolean isWarmup)
-      throws InterruptedException {
-    int rpcsToDo = (isWarmup) ? 10 : arg.numRpcs;
-    List<Long> timeList = new ArrayList<>();
-    CountDownLatch latch = null;
-    if (arg.async) {
-      latch = new CountDownLatch(rpcsToDo);
+  private static void warmup(EchoClient client, EchoWithResponseSizeRequest request, int numCalls) {
+    CountDownLatch latch = new CountDownLatch(numCalls);
+    for (int i = 0; i < numCalls; i++) {
+      client.echo(i, request, latch, null);
     }
+  }
 
-    int totalPayloadSize = 0;
+  private static void runTest(Args args, EchoClient client, EchoWithResponseSizeRequest request) throws InterruptedException {
+
+    int rpcsToDo = args.numRpcs;
+    CountDownLatch latch = new CountDownLatch(rpcsToDo);
+    Histogram histogram = new Histogram(60000000L, 1);
+
+    long totalPayloadSize = 0;
     long startFirst = System.currentTimeMillis();
     for (int i = 0; i < rpcsToDo; i++) {
-      if (!isWarmup) {
-        if (arg.distrib != null) {
-          int sample = arg.distrib.sample();
+      if (args.async) {
+        if (args.distrib != null) {
+          int sample = args.distrib.sample();
           if (sample > 0) {
             //logger.info("sleeping for: " + sample);
             Thread.sleep(sample);
@@ -73,44 +90,37 @@ public class TestMain {
         }
       }
 
-      // for async, randomize the request size
-      if (arg.async) {
-        request = requests.get(nextRequestIndex);
-        payloadSize = payloads.get(nextRequestIndex);
-        nextRequestIndex = ++nextRequestIndex % requests.size();
-      }
-      client.echo(request, latch, tracer, timeList);
-      totalPayloadSize += payloadSize;
+      client.echo(i, request, latch, histogram);
+      totalPayloadSize += args.reqSize;
     }
 
-    long endSendTime = System.currentTimeMillis() - startFirst;
-    if (arg.async) {
+    long totalSendTime = System.currentTimeMillis() - startFirst;
+    if (args.async) {
       latch.await();
     }
-    long endRecvTime = System.currentTimeMillis() - startFirst;
+    long totalRecvTime = System.currentTimeMillis() - startFirst;
 
-    if (isWarmup) return;
-    logger.info("Total Send time = " + endSendTime
-        + "ms, Total Receive time = " + endRecvTime + "ms");
-    printResult(rpcsToDo, arg, timeList, totalPayloadSize, endSendTime);
+    logger.info("TEST DONE.\n"
+        + "=============================================================\n"
+        + "Total Send time = " + totalSendTime
+        + "ms, Total Receive time = " + totalRecvTime + "ms");
+    printResult(args, totalPayloadSize, totalRecvTime, histogram);
   }
 
-  private static void execTask(Args argObj)
-      throws InterruptedException, SSLException {
+  private static void execTask(Args argObj) throws InterruptedException, SSLException {
     EchoClient client = new EchoClient(argObj);
 
-    // Warmup
-    runTest(argObj, client, 10, requests.get(0), null,true);
-    Tracer tracer = (argObj.enableTracer) ? new TracerManager().getTracer() : null;
+    EchoWithResponseSizeRequest request = EchoWithResponseSizeRequest.newBuilder()
+        .setEchoMsg(generatePayload(argObj.reqSize * 1024))
+        .setResponseSize(argObj.rspSize)
+        .build();
 
     try {
-      if (argObj.async) {
-        runTest(argObj, client, -1, null, tracer, false);
-      } else {
-        for (int i = 0; i < payloads.size(); i++) {
-          runTest(argObj, client, payloads.get(i), requests.get(i), tracer, false);
-        }
-      }
+      logger.info("Start warm up...");
+      warmup(client, request, 10 * argObj.numChannels);
+
+      logger.info("Warm up done. Start benchmark tests...");
+      runTest(argObj, client, request);
     } finally {
       client.shutdown();
     }
@@ -118,14 +128,6 @@ public class TestMain {
 
   public static void main(String[] args) throws Exception {
     Args argObj = new Args(args);
-
-    for (int j = 0; j < payloads.size(); j++) {
-      requests.add(EchoWithResponseSizeRequest.newBuilder()
-          .setEchoMsg(generatePayload(payloads.get(j) * 1024))
-          .setResponseSize(10)
-          .build());
-    }
-
     try {
       execTask(argObj);
     } catch (InterruptedException | SSLException e) {
