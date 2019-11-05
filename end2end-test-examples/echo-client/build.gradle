@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'io.grpc'
-version '2.0-SNAPSHOT'
+version '2.1-SNAPSHOT'
 
 sourceCompatibility = 1.8
 
@@ -23,6 +23,7 @@ dependencies {
     implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
     implementation "net.sourceforge.argparse4j:argparse4j:0.8.1"
     implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    implementation "org.hdrhistogram:HdrHistogram:2.1.11"
 
     implementation "org.apache.commons:commons-math3:3.6.1"
 

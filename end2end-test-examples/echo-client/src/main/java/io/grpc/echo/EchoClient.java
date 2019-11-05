@@ -14,15 +14,13 @@ import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
-import io.opencensus.common.Scope;
-import io.opencensus.trace.Tracer;
 import java.sql.Timestamp;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
+import org.HdrHistogram.Histogram;
 
 public class EchoClient {
   private static final int DEADLINE_MINUTES = 60;
@@ -37,7 +35,6 @@ public class EchoClient {
   private final Args args;
 
   private int rr;
-
 
   public EchoClient(Args args) throws SSLException {
     this.args = args;
@@ -80,9 +77,9 @@ public class EchoClient {
       }
 
       if (i == 0) {
-        blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel).withDeadlineAfter(DEADLINE_MINUTES, TimeUnit.MINUTES);
+        blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel);
       }
-      asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel).withDeadlineAfter(DEADLINE_MINUTES, TimeUnit.MINUTES);
+      asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel);
 
       if (!args.compression.isEmpty()) {
         if (i == 0) {
@@ -107,9 +104,9 @@ public class EchoClient {
 
 
   public void asyncEcho(int id, EchoWithResponseSizeRequest request, CountDownLatch latch,
-      List<Long> timeList, long[] startTimeArr, long[] endTimeArr) {
+      Histogram histogram) {
     GrpcCloudapiStub stub = getNextAsyncStub();
-    stub.echoWithResponseSize(
+    stub.withDeadlineAfter(DEADLINE_MINUTES, TimeUnit.MINUTES).echoWithResponseSize(
         request,
         new StreamObserver<EchoResponse>() {
           long start = System.currentTimeMillis();
@@ -119,9 +116,7 @@ public class EchoClient {
 
           @Override
           public void onError(Throwable t) {
-            if (latch != null) {
-              latch.countDown();
-            }
+            if (latch != null) latch.countDown();
             Status status = Status.fromThrowable(t);
             logger.warning(String.format("Encountered an error in %dth echo RPC (startTime: %s). Status: %s", id, new Timestamp(start), status));
             t.printStackTrace();
@@ -130,36 +125,31 @@ public class EchoClient {
           @Override
           public void onCompleted() {
             long now = System.currentTimeMillis();
-            if (timeList != null) {
-              timeList.add(now - start);
-            }
-            if (latch != null) {
-              latch.countDown();
-            }
+            if (histogram != null) histogram.recordValue(now - start);
+            if (latch != null) latch.countDown();
             //logger.info(String.format("%dth echo RPC succeeded. Start time: %s. Requests left: %d", id, new Timestamp(start), latch.getCount()));
           }
         });
   }
 
-  void doSingleCall(EchoWithResponseSizeRequest request, List<Long> timeList) {
+  void blockingEcho(EchoWithResponseSizeRequest request, Histogram histogram) {
     try {
       long start = System.currentTimeMillis();
       blockingStub.echoWithResponseSize(request);
-      if (timeList != null) {
-        timeList.add(System.currentTimeMillis() - start);
-      }
+      long cost = System.currentTimeMillis() - start;
+      if (histogram != null) histogram.recordValue(cost);
     } catch (StatusRuntimeException e) {
       logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
       e.printStackTrace();
     }
   }
 
-  public void echo(int id, EchoWithResponseSizeRequest request, CountDownLatch latch, List<Long> timeList, long[] startTimeArr, long[] endTimeArr) {
+  public void echo(int id, EchoWithResponseSizeRequest request, CountDownLatch latch, Histogram histogram) {
     if (args.async) {
-      asyncEcho(id, request, latch, timeList, startTimeArr, endTimeArr);
+      asyncEcho(id, request, latch, histogram);
       //logger.info("Async request: sent rpc#: " + rpcIndex);
     } else {
-      doSingleCall(request, timeList);
+      blockingEcho(request, histogram);
     }
     //logger.info("Sync request: sent rpc#: " + rpcIndex);
   }
