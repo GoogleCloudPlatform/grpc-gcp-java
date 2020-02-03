@@ -17,6 +17,7 @@ public class Args {
   final boolean http, dp;
   final int size;
   final String method;
+  final boolean conscrypt;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -35,6 +36,7 @@ public class Args {
     parser.addArgument("--dp").type(Boolean.class).setDefault(false);
     parser.addArgument("--size").type(Integer.class).setDefault(0);
     parser.addArgument("--method").type(String.class).setDefault("media");
+    parser.addArgument("--conscrypt").type(Boolean.class).setDefault(false);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -49,5 +51,6 @@ public class Args {
     dp = ns.getBoolean("dp");
     size = ns.getInt("size");
     method = ns.getString("method");
+    conscrypt = ns.getBoolean("conscrypt");
   }
 }

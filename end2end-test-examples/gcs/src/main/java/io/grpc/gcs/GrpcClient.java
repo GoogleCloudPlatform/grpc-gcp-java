@@ -19,11 +19,13 @@ import io.grpc.alts.ComputeEngineChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.security.Security;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import org.HdrHistogram.Histogram;
+import org.conscrypt.Conscrypt;
 
 public class GrpcClient {
   private static final Logger logger = Logger.getLogger(GrpcClient.class.getName());
@@ -46,6 +48,10 @@ public class GrpcClient {
     } catch (IOException e) {
       e.printStackTrace();
       return;
+    }
+
+    if (args.conscrypt) {
+      Security.insertProviderAt(Conscrypt.newProvider(), 1);
     }
 
     ManagedChannelBuilder channelBuilder;
@@ -101,7 +107,7 @@ public class GrpcClient {
       Iterator<GetObjectMediaResponse> resIterator = blockingStub.getObjectMedia(mediaRequest);
       while (resIterator.hasNext()) {
         GetObjectMediaResponse res = resIterator.next();
-        //logger.info("result: " + res.getChecksummedData());
+        logger.info("result: " + res.getChecksummedData());
       }
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for getObjectMedia: " + dur + "ms");
