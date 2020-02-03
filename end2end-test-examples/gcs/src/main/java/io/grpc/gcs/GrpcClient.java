@@ -20,11 +20,11 @@ import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import org.HdrHistogram.Histogram;
 import org.conscrypt.Conscrypt;
 
 public class GrpcClient {
@@ -80,14 +80,14 @@ public class GrpcClient {
         MoreCallCredentials.from(creds.createScoped(SCOPE)));
   }
 
-  public void startCalls(Histogram histogram) throws InterruptedException {
+  public void startCalls(ArrayList<Long> results) throws InterruptedException {
     try {
       switch (args.method) {
         case METHOD_GET_MEDIA:
-          makeMediaRequest(histogram);
+          makeMediaRequest(results);
           break;
         case METHOD_INSERT:
-          makeInsertRequest(histogram);
+          makeInsertRequest(results);
           break;
         default:
           logger.warning("Please provide valid methods with --method");
@@ -97,7 +97,7 @@ public class GrpcClient {
     }
   }
 
-  private void makeMediaRequest(Histogram histogram) {
+  private void makeMediaRequest(ArrayList<Long> results) {
     GetObjectMediaRequest mediaRequest =
         GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj).build();
 
@@ -107,15 +107,15 @@ public class GrpcClient {
       Iterator<GetObjectMediaResponse> resIterator = blockingStub.getObjectMedia(mediaRequest);
       while (resIterator.hasNext()) {
         GetObjectMediaResponse res = resIterator.next();
-        logger.info("result: " + res.getChecksummedData());
+        //logger.info("result: " + res.getChecksummedData());
       }
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for getObjectMedia: " + dur + "ms");
-      histogram.recordValue(dur);
+      results.add(dur);
     }
   }
 
-  private void makeInsertRequest(Histogram histogram) throws InterruptedException {
+  private void makeInsertRequest(ArrayList<Long> results) throws InterruptedException {
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
     for (int i = 0; i < args.calls; i++) {
@@ -143,7 +143,7 @@ public class GrpcClient {
           finishLatch.countDown();
           long dur = System.currentTimeMillis() - start;
           logger.info("time cost for insertObject: " + dur + "ms");
-          histogram.recordValue(dur);
+          results.add(dur);
         }
       };
 

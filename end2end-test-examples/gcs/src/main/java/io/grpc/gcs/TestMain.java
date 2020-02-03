@@ -3,40 +3,43 @@ package io.grpc.gcs;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.logging.Logger;
-import org.HdrHistogram.Histogram;
 
 public class TestMain {
   private static final Logger logger = Logger.getLogger(TestMain.class.getName());
 
-  private static void printResult(Histogram histogram) {
+  private static void printResult(ArrayList<Long> results) {
+    Collections.sort(results);
+    int n = results.size();
     System.out.println(
         String.format( "============ Test Results: \n"
                 + "\t\tMin\tp5\tp10\tp25\tp50\tp75\tp90\tp99\tMax\n"
                 + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
-            histogram.getMinValue(),
-            histogram.getValueAtPercentile(5),
-            histogram.getValueAtPercentile(10),
-            histogram.getValueAtPercentile(25),
-            histogram.getValueAtPercentile(50),
-            histogram.getValueAtPercentile(75),
-            histogram.getValueAtPercentile(90),
-            histogram.getValueAtPercentile(99),
-            histogram.getValueAtPercentile(100)));
+            results.get(0),
+            results.get((int) (n * 0.05)),
+            results.get((int) (n * 0.1)),
+            results.get((int) (n * 0.25)),
+            results.get((int) (n * 0.50)),
+            results.get((int) (n * 0.75)),
+            results.get((int) (n * 0.90)),
+            results.get((int) (n * 0.99)),
+            results.get(n - 1)));
   }
 
   public static void main(String[] args) throws Exception {
     Args a = new Args(args);
-    Histogram histogram = new Histogram(60000000L, 1);
+    ArrayList<Long> results = new ArrayList<>();
     if (a.http) {
       System.out.println("Making http call");
       HttpClient client = new HttpClient(a);
-      client.startCalls(histogram);
+      client.startCalls(results);
     } else {
       GrpcClient client = new GrpcClient(a);
-      client.startCalls(histogram);
+      client.startCalls(results);
     }
 
-    printResult(histogram);
+    printResult(results);
   }
 }

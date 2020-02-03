@@ -7,9 +7,9 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.Storage;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import org.HdrHistogram.Histogram;
 
 
 public class HttpClient {
@@ -28,14 +28,14 @@ public class HttpClient {
 
   }
 
-  public void startCalls(Histogram histogram) throws InterruptedException {
+  public void startCalls(ArrayList<Long> results) throws InterruptedException {
     try {
       switch (args.method) {
         case METHOD_GET_MEDIA:
-          makeMediaRequest(histogram);
+          makeMediaRequest(results);
           break;
         case METHOD_INSERT:
-          makeInsertRequest(histogram);
+          makeInsertRequest(results);
           break;
         default:
           logger.warning("Please provide valid methods with --method");
@@ -44,7 +44,7 @@ public class HttpClient {
     }
   }
 
-  public void makeMediaRequest(Histogram histogram) {
+  public void makeMediaRequest(ArrayList<Long> results) {
     BlobId blobId = BlobId.of(args.bkt, args.obj);
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
@@ -53,11 +53,11 @@ public class HttpClient {
       //logger.info("contentString: " + contentString);
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for readAllBytes: " + dur + "ms");
-      histogram.recordValue(dur);
+      results.add(dur);
     }
   }
 
-  public void makeInsertRequest(Histogram histogram) {
+  public void makeInsertRequest(ArrayList<Long> results) {
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
     BlobId blobId = BlobId.of(args.bkt, args.obj);
@@ -69,7 +69,7 @@ public class HttpClient {
       );
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for creating blob: " + dur + "ms");
-      histogram.recordValue(dur);
+      results.add(dur);
     }
   }
 }
