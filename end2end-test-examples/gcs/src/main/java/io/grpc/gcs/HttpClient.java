@@ -33,8 +33,12 @@ public class HttpClient {
       switch (args.method) {
         case METHOD_GET_MEDIA:
           makeMediaRequest(histogram);
+          break;
         case METHOD_INSERT:
           makeInsertRequest(histogram);
+          break;
+        default:
+          logger.warning("Please provide valid methods with --method");
       }
     } finally {
     }
