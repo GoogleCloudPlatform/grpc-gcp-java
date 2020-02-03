@@ -22,6 +22,7 @@ dependencies {
     implementation "io.grpc:grpc-testing:${grpcVersion}"
     implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
     implementation "io.grpc:grpc-auth:${grpcVersion}"
+    implementation "io.grpc:grpc-alts:${grpcVersion}"
     implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
     implementation "com.google.api.grpc:proto-google-iam-v1:latest.release"
     implementation "com.google.api.grpc:proto-google-common-protos:latest.release"

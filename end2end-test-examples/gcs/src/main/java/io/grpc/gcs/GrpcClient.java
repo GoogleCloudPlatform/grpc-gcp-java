@@ -1,6 +1,8 @@
 package io.grpc.gcs;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.google.storage.v1.ChecksummedData;
 import com.google.google.storage.v1.GetObjectMediaRequest;
 import com.google.google.storage.v1.GetObjectMediaResponse;
@@ -13,6 +15,7 @@ import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
+import io.grpc.alts.ComputeEngineChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
@@ -44,7 +47,27 @@ public class GrpcClient {
       e.printStackTrace();
       return;
     }
-    this.channel = ManagedChannelBuilder.forAddress(args.host, args.port).build();
+
+    ManagedChannelBuilder channelBuilder;
+    if (args.dp) {
+      channelBuilder = ComputeEngineChannelBuilder.forAddress(args.host, args.port);
+
+      ImmutableMap<String, java.lang.Object> pickFirstStrategy =
+          ImmutableMap.<String, java.lang.Object>of("pick_first", ImmutableMap.of());
+      ImmutableMap<String, java.lang.Object> childPolicy =
+          ImmutableMap.<String, java.lang.Object>of("childPolicy", ImmutableList.of(pickFirstStrategy));
+      ImmutableMap<String, java.lang.Object> grpcLbPolicy =
+          ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
+      ImmutableMap<String, java.lang.Object> loadBalancingConfig =
+          ImmutableMap.<String, java.lang.Object>of("loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
+
+      channelBuilder.defaultServiceConfig(loadBalancingConfig);
+
+    } else {
+      channelBuilder = ManagedChannelBuilder.forAddress(args.host, args.port);
+    }
+
+    this.channel = channelBuilder.build();
     this.blockingStub = StorageGrpc.newBlockingStub(channel).withCallCredentials(
         MoreCallCredentials.from(creds.createScoped(SCOPE)));
     this.asyncStub = StorageGrpc.newStub(channel).withCallCredentials(
