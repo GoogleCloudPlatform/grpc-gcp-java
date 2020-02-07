@@ -71,5 +71,6 @@ task run(type: JavaExec) {
     main = 'io.grpc.gcs.TestMain'
     //jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
     //jvmArgs = ['-Xlint:deprecation']
+    //jvmArgs = ['-Djava.security.debug=provider']
 }
 

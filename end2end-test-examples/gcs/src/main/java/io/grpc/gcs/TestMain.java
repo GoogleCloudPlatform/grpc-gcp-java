@@ -6,6 +6,8 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.logging.Logger;
+import org.conscrypt.Conscrypt;
+import java.security.Security;
 
 public class TestMain {
   private static final Logger logger = Logger.getLogger(TestMain.class.getName());
@@ -30,6 +32,9 @@ public class TestMain {
 
   public static void main(String[] args) throws Exception {
     Args a = new Args(args);
+    if (a.conscrypt) {
+      Security.insertProviderAt(Conscrypt.newProvider(), 1);
+    }
     ArrayList<Long> results = new ArrayList<>();
     if (a.http) {
       System.out.println("Making http call");

@@ -53,6 +53,7 @@ public class HttpClient {
       //logger.info("contentString: " + contentString);
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for readAllBytes: " + dur + "ms");
+      logger.info("total mb received: " + content.length/1024/1024);
       results.add(dur);
     }
   }
