@@ -11,19 +11,31 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.logging.Logger;
 
 public class GcsioClient {
+  private static final String SCOPE = "https://www.googleapis.com/auth/cloud-platform";
+
   private Args args;
   private GoogleCloudStorageFileSystem gcsfs;
   private static final Logger logger = Logger.getLogger(GcsioClient.class.getName());
 
-  public GcsioClient(Args args) throws IOException {
+  public GcsioClient(Args args, boolean grpcEnabled) throws IOException {
     this.args = args;
-    GoogleCredential creds = GoogleCredential.getApplicationDefault();
+    GoogleCredential creds = GoogleCredential.getApplicationDefault().createScoped(Arrays.asList(SCOPE));
 
-    this.gcsfs = new GoogleCloudStorageFileSystem(creds, GoogleCloudStorageFileSystemOptions.builder().setCloudStorageOptions(
-        GoogleCloudStorageOptions.builder().setAppName("weiranf-app").build()).build());
+    GoogleCloudStorageOptions gcsOpts =
+        GoogleCloudStorageOptions.builder()
+            .setAppName("weiranf-app")
+            .setGrpcEnabled(grpcEnabled)
+            .build();
+
+    this.gcsfs = new GoogleCloudStorageFileSystem(creds,
+        GoogleCloudStorageFileSystemOptions.builder()
+            .setCloudStorageOptions(gcsOpts)
+            .build()
+    );
 
   }
 

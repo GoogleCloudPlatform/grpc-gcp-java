@@ -1,6 +1,7 @@
 package io.grpc.gcs;
 
-import static io.grpc.gcs.Args.CLIENT_GCSIO;
+import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC;
+import static io.grpc.gcs.Args.CLIENT_GCSIO_HTTP;
 import static io.grpc.gcs.Args.CLIENT_GRPC;
 import static io.grpc.gcs.Args.CLIENT_YOSHI;
 
@@ -46,10 +47,15 @@ public class TestMain {
           HttpClient httpClient = new HttpClient(a);
           httpClient.startCalls(results);
           break;
-        case CLIENT_GCSIO:
-          System.out.println("**** Using gcsio library");
-          GcsioClient gcsioClient = new GcsioClient(a);
-          gcsioClient.startCalls(results);
+        case CLIENT_GCSIO_HTTP:
+          System.out.println("**** Using gcsio http library");
+          GcsioClient gcsioHttpClient = new GcsioClient(a, false);
+          gcsioHttpClient.startCalls(results);
+          break;
+        case CLIENT_GCSIO_GRPC:
+          System.out.println("**** Using gcsio grpc library");
+          GcsioClient gcsioGrpcClient = new GcsioClient(a, true);
+          gcsioGrpcClient.startCalls(results);
           break;
         case CLIENT_GRPC:
           System.out.println("**** Using protoc generated stub");
