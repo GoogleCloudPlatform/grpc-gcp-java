@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'com.google.protobuf' version '0.8.8'
+    id 'maven'
 }
 
 group 'io.grpc'
@@ -8,11 +9,13 @@ version '1.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 
+def gcsioVersion = '2.0.0'
 def grpcVersion = '1.26.0'
 def protobufVersion = '3.11.0'
 def protocVersion = protobufVersion
 
 repositories {
+    mavenLocal()
     mavenCentral()
 }
 
@@ -31,6 +34,10 @@ dependencies {
     implementation "com.google.auth:google-auth-library-oauth2-http:0.20.0"
     //implementation "com.google.apis:google-api-services-storage:v1-rev169-1.25.0"
     implementation "com.google.cloud:google-cloud-storage:1.102.0"
+
+    implementation "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
+    implementation "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
+    implementation "com.google.guava:guava:28.2-jre"
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }

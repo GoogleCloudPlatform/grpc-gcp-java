@@ -6,6 +6,13 @@ import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 
 public class Args {
+  public static final String METHOD_READ = "read";
+  public static final String METHOD_WRITE = "write";
+
+  public static final String CLIENT_GRPC = "grpc";
+  public static final String CLIENT_YOSHI = "yoshi";
+  public static final String CLIENT_GCSIO = "gcsio";
+
   private static final String DEFAULT_HOST = "storage.googleapis.com";
   private static final int PORT = 443;
 
@@ -14,10 +21,11 @@ public class Args {
   final String host;
   final int port;
   final String bkt, obj;
-  final boolean http, dp;
+  final boolean dp;
   final int size;
   final String method;
   final boolean conscrypt;
+  final String client;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -32,11 +40,11 @@ public class Args {
     parser.addArgument("--port").type(Integer.class).setDefault(PORT);
     parser.addArgument("--bkt").type(String.class).setDefault("gcs-grpc-team-weiranf");
     parser.addArgument("--obj").type(String.class).setDefault("a");
-    parser.addArgument("--http").type(Boolean.class).setDefault(false);
     parser.addArgument("--dp").type(Boolean.class).setDefault(false);
     parser.addArgument("--size").type(Integer.class).setDefault(0);
-    parser.addArgument("--method").type(String.class).setDefault("media");
+    parser.addArgument("--method").type(String.class).setDefault(METHOD_READ);
     parser.addArgument("--conscrypt").type(Boolean.class).setDefault(false);
+    parser.addArgument("--client").type(String.class).setDefault(CLIENT_GRPC);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -47,10 +55,10 @@ public class Args {
     port = ns.getInt("port");
     bkt = ns.getString("bkt");
     obj = ns.getString("obj");
-    http = ns.getBoolean("http");
     dp = ns.getBoolean("dp");
     size = ns.getInt("size");
     method = ns.getString("method");
     conscrypt = ns.getBoolean("conscrypt");
+    client = ns.getString("client");
   }
 }

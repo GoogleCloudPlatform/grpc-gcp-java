@@ -1,5 +1,8 @@
 package io.grpc.gcs;
 
+import static io.grpc.gcs.Args.METHOD_READ;
+import static io.grpc.gcs.Args.METHOD_WRITE;
+
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -32,9 +35,6 @@ public class GrpcClient {
   private StorageGrpc.StorageBlockingStub blockingStub;
   private StorageGrpc.StorageStub asyncStub;
   private Args args;
-
-  private static final String METHOD_GET_MEDIA = "media";
-  private static final String METHOD_INSERT = "insert";
 
   private static final String SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 
@@ -77,10 +77,10 @@ public class GrpcClient {
   public void startCalls(ArrayList<Long> results) throws InterruptedException {
     try {
       switch (args.method) {
-        case METHOD_GET_MEDIA:
+        case METHOD_READ:
           makeMediaRequest(results);
           break;
-        case METHOD_INSERT:
+        case METHOD_WRITE:
           makeInsertRequest(results);
           break;
         default:
@@ -110,7 +110,7 @@ public class GrpcClient {
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for getObjectMedia: " + dur + "ms");
       logger.info("total iteration: " + itr);
-      logger.info("total MB read: " + bytesRead / 1024);
+      logger.info("total KB read: " + bytesRead / 1024);
       results.add(dur);
     }
   }

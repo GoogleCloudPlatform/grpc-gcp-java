@@ -1,8 +1,9 @@
 package io.grpc.gcs;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.PrintStream;
+import static io.grpc.gcs.Args.CLIENT_GCSIO;
+import static io.grpc.gcs.Args.CLIENT_GRPC;
+import static io.grpc.gcs.Args.CLIENT_YOSHI;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.logging.Logger;
@@ -13,6 +14,8 @@ public class TestMain {
   private static final Logger logger = Logger.getLogger(TestMain.class.getName());
 
   private static void printResult(ArrayList<Long> results) {
+    if (results.size() == 0) return;
+
     Collections.sort(results);
     int n = results.size();
     System.out.println(
@@ -30,21 +33,35 @@ public class TestMain {
             results.get(n - 1)));
   }
 
-  public static void main(String[] args) throws Exception {
-    Args a = new Args(args);
-    if (a.conscrypt) {
-      Security.insertProviderAt(Conscrypt.newProvider(), 1);
+  public static void main(String[] args) {
+    try {
+      Args a = new Args(args);
+      if (a.conscrypt) {
+        Security.insertProviderAt(Conscrypt.newProvider(), 1);
+      }
+      ArrayList<Long> results = new ArrayList<>();
+      switch (a.client) {
+        case CLIENT_YOSHI:
+          System.out.println("**** Using Yoshi client library");
+          HttpClient httpClient = new HttpClient(a);
+          httpClient.startCalls(results);
+          break;
+        case CLIENT_GCSIO:
+          System.out.println("**** Using gcsio library");
+          GcsioClient gcsioClient = new GcsioClient(a);
+          gcsioClient.startCalls(results);
+          break;
+        case CLIENT_GRPC:
+          System.out.println("**** Using protoc generated stub");
+          GrpcClient grpcClient = new GrpcClient(a);
+          grpcClient.startCalls(results);
+          break;
+        default:
+          logger.warning("Please provide --client");
+      }
+      printResult(results);
+    } catch (Exception e) {
+      e.printStackTrace();
     }
-    ArrayList<Long> results = new ArrayList<>();
-    if (a.http) {
-      System.out.println("Making http call");
-      HttpClient client = new HttpClient(a);
-      client.startCalls(results);
-    } else {
-      GrpcClient client = new GrpcClient(a);
-      client.startCalls(results);
-    }
-
-    printResult(results);
   }
 }

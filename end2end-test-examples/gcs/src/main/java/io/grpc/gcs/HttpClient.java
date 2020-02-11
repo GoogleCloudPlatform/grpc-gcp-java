@@ -1,5 +1,7 @@
 package io.grpc.gcs;
 
+import static io.grpc.gcs.Args.METHOD_READ;
+import static io.grpc.gcs.Args.METHOD_WRITE;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.google.cloud.storage.BlobId;
@@ -18,23 +20,18 @@ public class HttpClient {
   private Args args;
   private Storage client;
 
-  private static final String SCOPE = "https://www.googleapis.com/auth/cloud-platform";
-  private static final String METHOD_GET_MEDIA = "media";
-  private static final String METHOD_INSERT = "insert";
-
   public HttpClient(Args args) {
     this.args = args;
     this.client = StorageOptions.getDefaultInstance().getService();
-
   }
 
   public void startCalls(ArrayList<Long> results) throws InterruptedException {
     try {
       switch (args.method) {
-        case METHOD_GET_MEDIA:
+        case METHOD_READ:
           makeMediaRequest(results);
           break;
-        case METHOD_INSERT:
+        case METHOD_WRITE:
           makeInsertRequest(results);
           break;
         default:
@@ -53,7 +50,7 @@ public class HttpClient {
       //logger.info("contentString: " + contentString);
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for readAllBytes: " + dur + "ms");
-      logger.info("total mb received: " + content.length/1024/1024);
+      logger.info("total KB received: " + content.length/1024);
       results.add(dur);
     }
   }
