@@ -1,5 +1,6 @@
 package io.grpc.gcs;
 
+import static io.grpc.gcs.Args.METHOD_RANDOM;
 import static io.grpc.gcs.Args.METHOD_READ;
 import static io.grpc.gcs.Args.METHOD_WRITE;
 
@@ -24,6 +25,7 @@ import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -80,6 +82,9 @@ public class GrpcClient {
         case METHOD_READ:
           makeMediaRequest(results);
           break;
+        case METHOD_RANDOM:
+          makeRandomMediaRequest(results);
+          break;
         case METHOD_WRITE:
           makeInsertRequest(results);
           break;
@@ -111,6 +116,38 @@ public class GrpcClient {
       logger.info("time cost for getObjectMedia: " + dur + "ms");
       logger.info("total iteration: " + itr);
       logger.info("total KB read: " + bytesRead / 1024);
+      results.add(dur);
+    }
+  }
+
+  private void makeRandomMediaRequest(ArrayList<Long> results) {
+    GetObjectMediaRequest.Builder reqBuilder =
+        GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj);
+    Random r = new Random();
+
+    long buffSize = args.buffSize * 1024;
+    long totalSize = args.size * 1024;
+
+    for (int i = 0; i < args.calls; i++) {
+      long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
+      reqBuilder.setReadOffset(offset);
+      reqBuilder.setReadLimit(buffSize);
+      GetObjectMediaRequest req = reqBuilder.build();
+
+      long start = System.currentTimeMillis();
+      Iterator<GetObjectMediaResponse> resIterator = blockingStub.getObjectMedia(req);
+      int itr = 0;
+      long bytesRead = 0;
+      while (resIterator.hasNext()) {
+        itr++;
+        GetObjectMediaResponse res = resIterator.next();
+        bytesRead += res.getChecksummedData().getSerializedSize();
+        //logger.info("result: " + res.getChecksummedData());
+      }
+      long dur = System.currentTimeMillis() - start;
+      logger.info("time cost for getObjectMedia: " + dur + "ms");
+      logger.info("total iterations: " + itr);
+      logger.info("start pos: " + offset + ", read lenth: " + buffSize + ", total KB read: " + bytesRead / 1024);
       results.add(dur);
     }
   }

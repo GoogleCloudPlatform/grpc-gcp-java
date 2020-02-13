@@ -1,5 +1,6 @@
 package io.grpc.gcs;
 
+import static io.grpc.gcs.Args.METHOD_RANDOM;
 import static io.grpc.gcs.Args.METHOD_READ;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
@@ -10,8 +11,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.logging.Logger;
 
 public class GcsioClient {
@@ -45,6 +48,9 @@ public class GcsioClient {
         case METHOD_READ:
           makeMediaRequest(results);
           break;
+        case METHOD_RANDOM:
+          makeRandomMediaRequest(results);
+          break;
         default:
           logger.warning("Please provide valid methods with --method");
       }
@@ -54,16 +60,39 @@ public class GcsioClient {
   }
 
   private void makeMediaRequest(ArrayList<Long> results) throws IOException {
-    int size = args.size * 1024;
+    int size = args.buffSize * 1024;
 
     URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
 
     for (int i = 0; i < args.calls; i++) {
-      ReadableByteChannel readChannel = gcsfs.open(uri);
       long start = System.currentTimeMillis();
+      ReadableByteChannel readChannel = gcsfs.open(uri);
       ByteBuffer buff = ByteBuffer.allocate(size);
       readChannel.read(buff);
       readChannel.close();
+      long dur = System.currentTimeMillis() - start;
+      if (buff.remaining() > 0) {
+        logger.warning("Got remaining bytes: " + buff.remaining());
+      }
+      logger.info("time cost for reading bytes: " + dur + "ms");
+      results.add(dur);
+    }
+  }
+
+  private void makeRandomMediaRequest(ArrayList<Long> results) throws IOException {
+
+    Random r = new Random();
+
+    URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
+
+    for (int i = 0; i < args.calls; i++) {
+      long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
+      long start = System.currentTimeMillis();
+      ByteBuffer buff = ByteBuffer.allocate(args.buffSize * 1024);
+      SeekableByteChannel reader = gcsfs.open(uri);
+      reader.position(offset);
+      reader.read(buff);
+      reader.close();
       long dur = System.currentTimeMillis() - start;
       if (buff.remaining() > 0) {
         logger.warning("Got remaining bytes: " + buff.remaining());

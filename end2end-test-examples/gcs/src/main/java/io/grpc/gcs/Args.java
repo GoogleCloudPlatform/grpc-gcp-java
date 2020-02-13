@@ -7,6 +7,7 @@ import net.sourceforge.argparse4j.inf.Namespace;
 
 public class Args {
   public static final String METHOD_READ = "read";
+  public static final String METHOD_RANDOM = "random";
   public static final String METHOD_WRITE = "write";
 
   public static final String CLIENT_GRPC = "grpc";
@@ -24,6 +25,7 @@ public class Args {
   final String bkt, obj;
   final boolean dp;
   final int size;
+  final int buffSize;
   final String method;
   final boolean conscrypt;
   final String client;
@@ -43,6 +45,7 @@ public class Args {
     parser.addArgument("--obj").type(String.class).setDefault("a");
     parser.addArgument("--dp").type(Boolean.class).setDefault(false);
     parser.addArgument("--size").type(Integer.class).setDefault(0);
+    parser.addArgument("--buffSize").type(Integer.class).setDefault(0);
     parser.addArgument("--method").type(String.class).setDefault(METHOD_READ);
     parser.addArgument("--conscrypt").type(Boolean.class).setDefault(false);
     parser.addArgument("--client").type(String.class).setDefault(CLIENT_GRPC);
@@ -58,6 +61,7 @@ public class Args {
     obj = ns.getString("obj");
     dp = ns.getBoolean("dp");
     size = ns.getInt("size");
+    buffSize = ns.getInt("buffSize");
     method = ns.getString("method");
     conscrypt = ns.getBoolean("conscrypt");
     client = ns.getString("client");
