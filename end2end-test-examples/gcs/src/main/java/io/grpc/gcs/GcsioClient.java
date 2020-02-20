@@ -7,6 +7,8 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystem;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions.Fadvise;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -64,16 +66,17 @@ public class GcsioClient {
 
     URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
 
+    ByteBuffer buff = ByteBuffer.allocate(size);
     for (int i = 0; i < args.calls; i++) {
-      long start = System.currentTimeMillis();
       ReadableByteChannel readChannel = gcsfs.open(uri);
-      ByteBuffer buff = ByteBuffer.allocate(size);
+      long start = System.currentTimeMillis();
       readChannel.read(buff);
-      readChannel.close();
       long dur = System.currentTimeMillis() - start;
       if (buff.remaining() > 0) {
         logger.warning("Got remaining bytes: " + buff.remaining());
       }
+      buff.clear();
+      readChannel.close();
       logger.info("time cost for reading bytes: " + dur + "ms");
       results.add(dur);
     }
@@ -84,15 +87,16 @@ public class GcsioClient {
     Random r = new Random();
 
     URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
+    
+    GoogleCloudStorageReadOptions readOpts = GoogleCloudStorageReadOptions.builder().build();
 
+    SeekableByteChannel reader = gcsfs.open(uri, readOpts);
     for (int i = 0; i < args.calls; i++) {
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
       long start = System.currentTimeMillis();
       ByteBuffer buff = ByteBuffer.allocate(args.buffSize * 1024);
-      SeekableByteChannel reader = gcsfs.open(uri);
       reader.position(offset);
       reader.read(buff);
-      reader.close();
       long dur = System.currentTimeMillis() - start;
       if (buff.remaining() > 0) {
         logger.warning("Got remaining bytes: " + buff.remaining());
@@ -100,5 +104,6 @@ public class GcsioClient {
       logger.info("time cost for reading bytes: " + dur + "ms");
       results.add(dur);
     }
+    reader.close();
   }
 }

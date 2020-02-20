@@ -67,15 +67,14 @@ public class HttpClient {
     Random r = new Random();
 
     BlobId blobId = BlobId.of(args.bkt, args.obj);
+    ReadChannel reader = client.reader(blobId);
     for (int i = 0; i < args.calls; i++) {
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
-      ReadChannel reader = client.reader(blobId);
       reader.seek(offset);
 
       long start = System.currentTimeMillis();
       ByteBuffer buff = ByteBuffer.allocate(args.buffSize * 1024);
       reader.read(buff);
-      reader.close();
       long dur = System.currentTimeMillis() - start;
       if (buff.remaining() > 0) {
         logger.warning("Got remaining bytes: " + buff.remaining());
@@ -85,6 +84,7 @@ public class HttpClient {
       buff.clear();
       results.add(dur);
     }
+    reader.close();
   }
 
   public void makeInsertRequest(ArrayList<Long> results) {
