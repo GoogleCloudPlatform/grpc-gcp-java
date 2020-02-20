@@ -1,0 +1,83 @@
+plugins {
+    id 'java'
+    id 'com.google.protobuf' version '0.8.8'
+    id 'maven'
+}
+
+group 'io.grpc'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+def gcsioVersion = '2.0.0'
+def grpcVersion = '1.26.0'
+def protobufVersion = '3.11.0'
+def protocVersion = protobufVersion
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "io.grpc:grpc-testing:${grpcVersion}"
+    implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    implementation "io.grpc:grpc-auth:${grpcVersion}"
+    implementation "io.grpc:grpc-alts:${grpcVersion}"
+    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    implementation "com.google.api.grpc:proto-google-iam-v1:latest.release"
+    implementation "com.google.api.grpc:proto-google-common-protos:latest.release"
+    implementation "net.sourceforge.argparse4j:argparse4j:0.8.1"
+    //implementation "org.hdrhistogram:HdrHistogram:2.1.11"
+    implementation "com.google.auth:google-auth-library-oauth2-http:0.20.0"
+    //implementation "com.google.apis:google-api-services-storage:v1-rev169-1.25.0"
+    implementation "com.google.cloud:google-cloud-storage:1.102.0"
+
+    implementation "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
+    implementation "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
+    implementation "com.google.guava:guava:28.2-jre"
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${protocVersion}" }
+    plugins {
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
+    }
+    generateProtoTasks {
+        all()*.plugins { grpc {} }
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated/source/proto/main/grpc'
+            srcDirs 'build/generated/source/proto/main/java'
+        }
+    }
+}
+
+//jar {
+//    manifest {
+//        attributes (
+//                'Main-Class': 'io.grpc.gcs.TestMain'
+//        )
+//    }
+//    from {
+//        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+//        //configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+//    }
+//}
+
+task run(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'io.grpc.gcs.TestMain'
+    //jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
+    //jvmArgs = ['-Xlint:deprecation']
+    //jvmArgs = ['-Djava.security.debug=provider']
+}
+
