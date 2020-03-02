@@ -34,40 +34,36 @@ public class TestMain {
             results.get(n - 1)));
   }
 
-  public static void main(String[] args) {
-    try {
-      Args a = new Args(args);
-      if (a.conscrypt) {
-        Security.insertProviderAt(Conscrypt.newProvider(), 1);
-      }
-      ArrayList<Long> results = new ArrayList<>();
-      switch (a.client) {
-        case CLIENT_YOSHI:
-          System.out.println("**** Using Yoshi client library");
-          HttpClient httpClient = new HttpClient(a);
-          httpClient.startCalls(results);
-          break;
-        case CLIENT_GCSIO_HTTP:
-          System.out.println("**** Using gcsio http library");
-          GcsioClient gcsioHttpClient = new GcsioClient(a, false);
-          gcsioHttpClient.startCalls(results);
-          break;
-        case CLIENT_GCSIO_GRPC:
-          System.out.println("**** Using gcsio grpc library");
-          GcsioClient gcsioGrpcClient = new GcsioClient(a, true);
-          gcsioGrpcClient.startCalls(results);
-          break;
-        case CLIENT_GRPC:
-          System.out.println("**** Using protoc generated stub");
-          GrpcClient grpcClient = new GrpcClient(a);
-          grpcClient.startCalls(results);
-          break;
-        default:
-          logger.warning("Please provide --client");
-      }
-      printResult(results);
-    } catch (Exception e) {
-      e.printStackTrace();
+  public static void main(String[] args) throws Exception{
+    Args a = new Args(args);
+    if (a.conscrypt) {
+      Security.insertProviderAt(Conscrypt.newProvider(), 1);
     }
+    ArrayList<Long> results = new ArrayList<>();
+    switch (a.client) {
+      case CLIENT_YOSHI:
+        System.out.println("**** Using Yoshi client library");
+        HttpClient httpClient = new HttpClient(a);
+        httpClient.startCalls(results);
+        break;
+      case CLIENT_GCSIO_HTTP:
+        System.out.println("**** Using gcsio http library");
+        GcsioClient gcsioHttpClient = new GcsioClient(a, false);
+        gcsioHttpClient.startCalls(results);
+        break;
+      case CLIENT_GCSIO_GRPC:
+        System.out.println("**** Using gcsio grpc library");
+        GcsioClient gcsioGrpcClient = new GcsioClient(a, true);
+        gcsioGrpcClient.startCalls(results);
+        break;
+      case CLIENT_GRPC:
+        System.out.println("**** Using protoc generated stub");
+        GrpcClient grpcClient = new GrpcClient(a);
+        grpcClient.startCalls(results);
+        break;
+      default:
+        logger.warning("Please provide --client");
+    }
+    printResult(results);
   }
 }
