@@ -87,7 +87,7 @@ public class TestMain {
       default:
         logger.warning("Please provide --client");
     }
-    FileWriter writer = new FileWriter(a.latencyFilename + ".json");
+    FileWriter writer = new FileWriter(a.latencyFilename);
     printResult(writer, results);
   }
 }
