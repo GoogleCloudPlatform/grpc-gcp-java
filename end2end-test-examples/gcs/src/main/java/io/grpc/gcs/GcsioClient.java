@@ -14,9 +14,12 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public class GcsioClient {
@@ -44,24 +47,54 @@ public class GcsioClient {
 
   }
 
-  public void startCalls(ArrayList<Long> results) throws InterruptedException, IOException {
-    try {
-      switch (args.method) {
-        case METHOD_READ:
-          makeMediaRequest(results);
-          break;
-        case METHOD_RANDOM:
-          makeRandomMediaRequest(results);
-          break;
-        default:
-          logger.warning("Please provide valid methods with --method");
+  public void startCalls(List<Long> results) throws InterruptedException, IOException {
+    if (args.threads == 0) {
+      try {
+        switch (args.method) {
+          case METHOD_READ:
+            makeMediaRequest(results);
+            break;
+          case METHOD_RANDOM:
+            makeRandomMediaRequest(results);
+            break;
+          default:
+            logger.warning("Please provide valid methods with --method");
+        }
+      } finally {
+        gcsfs.close();
       }
-    } finally {
-      gcsfs.close();
+    } else {
+      ThreadPoolExecutor threadPoolExecutor =
+          (ThreadPoolExecutor) Executors.newFixedThreadPool(args.threads);
+      try {
+        switch (args.method) {
+          case METHOD_READ:
+            for (int i = 0; i < args.threads; i++) {
+              Runnable task = () -> {
+                try {
+                  makeMediaRequest(results);
+                } catch (IOException e) {
+                  e.printStackTrace();
+                }
+              };
+              threadPoolExecutor.execute(task);
+            }
+            break;
+          default:
+            logger.warning("Please provide valid methods with --method");
+        }
+        threadPoolExecutor.shutdown();
+        if (!threadPoolExecutor.awaitTermination(30, TimeUnit.MINUTES)) {
+          threadPoolExecutor.shutdownNow();
+        }
+      } finally {
+        threadPoolExecutor.shutdownNow();
+        gcsfs.close();
+      }
     }
   }
 
-  private void makeMediaRequest(ArrayList<Long> results) throws IOException {
+  private void makeMediaRequest(List<Long> results) throws IOException {
     int size = args.buffSize * 1024;
 
     URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
@@ -77,12 +110,12 @@ public class GcsioClient {
       }
       buff.clear();
       readChannel.close();
-      logger.info("time cost for reading bytes: " + dur + "ms");
+      //logger.info("time cost for reading bytes: " + dur + "ms");
       results.add(dur);
     }
   }
 
-  private void makeRandomMediaRequest(ArrayList<Long> results) throws IOException {
+  private void makeRandomMediaRequest(List<Long> results) throws IOException {
 
     Random r = new Random();
 

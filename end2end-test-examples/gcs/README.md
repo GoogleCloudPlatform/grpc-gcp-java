@@ -17,6 +17,8 @@
 
 `--conscrypt`: whether to enable Conscrypt
 
+`--threads`: whether to use thread pool with fixed number of threads
+
 
 ## Usage
 

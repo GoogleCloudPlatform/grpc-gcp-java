@@ -14,7 +14,10 @@ import com.google.cloud.storage.Storage;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -30,8 +33,8 @@ public class HttpClient {
     this.client = StorageOptions.getDefaultInstance().getService();
   }
 
-  public void startCalls(ArrayList<Long> results) throws InterruptedException, IOException {
-    try {
+  public void startCalls(List<Long> results) throws InterruptedException, IOException {
+    if (args.threads == 0) {
       switch (args.method) {
         case METHOD_READ:
           makeMediaRequest(results);
@@ -45,11 +48,27 @@ public class HttpClient {
         default:
           logger.warning("Please provide valid methods with --method");
       }
-    } finally {
+    } else {
+      ThreadPoolExecutor threadPoolExecutor =
+          (ThreadPoolExecutor) Executors.newFixedThreadPool(args.threads);
+      switch (args.method) {
+        case METHOD_READ:
+          for (int i = 0; i < args.threads; i++) {
+            Runnable task = () -> makeMediaRequest(results);
+            threadPoolExecutor.execute(task);
+          }
+          break;
+        default:
+          logger.warning("Please provide valid methods with --method");
+      }
+      threadPoolExecutor.shutdown();
+      if (!threadPoolExecutor.awaitTermination(30, TimeUnit.MINUTES)) {
+        threadPoolExecutor.shutdownNow();
+      }
     }
   }
 
-  public void makeMediaRequest(ArrayList<Long> results) {
+  public void makeMediaRequest(List<Long> results) {
     BlobId blobId = BlobId.of(args.bkt, args.obj);
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
@@ -57,13 +76,13 @@ public class HttpClient {
       //String contentString = new String(content, UTF_8);
       //logger.info("contentString: " + contentString);
       long dur = System.currentTimeMillis() - start;
-      logger.info("time cost for readAllBytes: " + dur + "ms");
-      logger.info("total KB received: " + content.length/1024);
+      //logger.info("time cost for readAllBytes: " + dur + "ms");
+      //logger.info("total KB received: " + content.length/1024);
       results.add(dur);
     }
   }
 
-  public void makeRandomMediaRequest(ArrayList<Long> results) throws IOException {
+  public void makeRandomMediaRequest(List<Long> results) throws IOException {
     Random r = new Random();
 
     BlobId blobId = BlobId.of(args.bkt, args.obj);
@@ -87,7 +106,7 @@ public class HttpClient {
     reader.close();
   }
 
-  public void makeInsertRequest(ArrayList<Long> results) {
+  public void makeInsertRequest(List<Long> results) {
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
     BlobId blobId = BlobId.of(args.bkt, args.obj);

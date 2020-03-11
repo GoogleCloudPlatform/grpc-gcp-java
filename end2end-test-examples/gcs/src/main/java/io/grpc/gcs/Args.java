@@ -30,6 +30,7 @@ public class Args {
   final boolean conscrypt;
   final String client;
   final String latencyFilename;
+  final int threads;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -51,6 +52,7 @@ public class Args {
     parser.addArgument("--conscrypt").type(Boolean.class).setDefault(false);
     parser.addArgument("--client").type(String.class).setDefault(CLIENT_GRPC);
     parser.addArgument("--latencyFilename").type(String.class).setDefault("latency_results");
+    parser.addArgument("--threads").type(Integer.class).setDefault(0);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -68,5 +70,6 @@ public class Args {
     conscrypt = ns.getBoolean("conscrypt");
     client = ns.getString("client");
     latencyFilename = ns.getString("latencyFilename");
+    threads = ns.getInt("threads");
   }
 }
