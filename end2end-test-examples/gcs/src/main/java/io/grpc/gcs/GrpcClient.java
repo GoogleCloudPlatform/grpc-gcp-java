@@ -23,10 +23,12 @@ import io.grpc.alts.ComputeEngineChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -76,27 +78,51 @@ public class GrpcClient {
         MoreCallCredentials.from(creds.createScoped(SCOPE)));
   }
 
-  public void startCalls(ArrayList<Long> results) throws InterruptedException {
-    try {
-      switch (args.method) {
-        case METHOD_READ:
-          makeMediaRequest(results);
-          break;
-        case METHOD_RANDOM:
-          makeRandomMediaRequest(results);
-          break;
-        case METHOD_WRITE:
-          makeInsertRequest(results);
-          break;
-        default:
-          logger.warning("Please provide valid methods with --method");
+  public void startCalls(List<Long> results) throws InterruptedException {
+    if (args.threads == 0) {
+      try {
+        switch (args.method) {
+          case METHOD_READ:
+            makeMediaRequest(results);
+            break;
+          case METHOD_RANDOM:
+            makeRandomMediaRequest(results);
+            break;
+          case METHOD_WRITE:
+            makeInsertRequest(results);
+            break;
+          default:
+            logger.warning("Please provide valid methods with --method");
+        }
+      } finally {
+        channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
       }
-    } finally {
-      channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
+    } else {
+      ThreadPoolExecutor threadPoolExecutor =
+          (ThreadPoolExecutor) Executors.newFixedThreadPool(args.threads);
+      try {
+        switch (args.method) {
+          case METHOD_READ:
+            for (int i = 0; i < args.threads; i++) {
+              Runnable task = () -> makeMediaRequest(results);
+              threadPoolExecutor.execute(task);
+            }
+            break;
+          default:
+            logger.warning("Please provide valid methods with --method");
+        }
+        threadPoolExecutor.shutdown();
+        if (!threadPoolExecutor.awaitTermination(30, TimeUnit.MINUTES)) {
+          threadPoolExecutor.shutdownNow();
+        }
+      } finally {
+        threadPoolExecutor.shutdownNow();
+        channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
+      }
     }
   }
 
-  private void makeMediaRequest(ArrayList<Long> results) {
+  private void makeMediaRequest(List<Long> results) {
     GetObjectMediaRequest mediaRequest =
         GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj).build();
 
@@ -113,14 +139,14 @@ public class GrpcClient {
         //logger.info("result: " + res.getChecksummedData());
       }
       long dur = System.currentTimeMillis() - start;
-      logger.info("time cost for getObjectMedia: " + dur + "ms");
-      logger.info("total iteration: " + itr);
-      logger.info("total KB read: " + bytesRead / 1024);
+      //logger.info("time cost for getObjectMedia: " + dur + "ms");
+      //logger.info("total iteration: " + itr);
+      //logger.info("total KB read: " + bytesRead / 1024);
       results.add(dur);
     }
   }
 
-  private void makeRandomMediaRequest(ArrayList<Long> results) {
+  private void makeRandomMediaRequest(List<Long> results) {
     GetObjectMediaRequest.Builder reqBuilder =
         GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj);
     Random r = new Random();
@@ -152,7 +178,7 @@ public class GrpcClient {
     }
   }
 
-  private void makeInsertRequest(ArrayList<Long> results) throws InterruptedException {
+  private void makeInsertRequest(List<Long> results) throws InterruptedException {
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
     for (int i = 0; i < args.calls; i++) {
