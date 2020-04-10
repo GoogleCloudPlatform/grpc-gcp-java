@@ -14,6 +14,18 @@ def grpcVersion = '1.26.0'
 def protobufVersion = '3.11.0'
 def protocVersion = protobufVersion
 
+task fatJar(type: Jar) {
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+    manifest {
+        attributes 'Implementation-Title': 'Gradle Jar File Example',
+                   'Implementation-Version': version,
+                   'Main-Class': 'io.grpc.gcs.TestMain'
+    }
+    baseName = project.name + '-all'
+    from { configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
 repositories {
     mavenLocal()
     mavenCentral()
@@ -30,11 +42,8 @@ dependencies {
     implementation "com.google.api.grpc:proto-google-iam-v1:latest.release"
     implementation "com.google.api.grpc:proto-google-common-protos:latest.release"
     implementation "net.sourceforge.argparse4j:argparse4j:0.8.1"
-    //implementation "org.hdrhistogram:HdrHistogram:2.1.11"
     implementation "com.google.auth:google-auth-library-oauth2-http:0.20.0"
-    //implementation "com.google.apis:google-api-services-storage:v1-rev169-1.25.0"
     implementation "com.google.cloud:google-cloud-storage:1.102.0"
-
     implementation "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
     implementation "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
     implementation "com.google.guava:guava:28.2-jre"
@@ -60,18 +69,6 @@ sourceSets {
         }
     }
 }
-
-//jar {
-//    manifest {
-//        attributes (
-//                'Main-Class': 'io.grpc.gcs.TestMain'
-//        )
-//    }
-//    from {
-//        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
-//        //configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
-//    }
-//}
 
 task run(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
