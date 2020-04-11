@@ -14,17 +14,6 @@ def grpcVersion = '1.26.0'
 def protobufVersion = '3.11.0'
 def protocVersion = protobufVersion
 
-task fatJar(type: Jar) {
-    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
-    manifest {
-        attributes 'Implementation-Title': 'Gradle Jar File Example',
-                   'Implementation-Version': version,
-                   'Main-Class': 'io.grpc.gcs.TestMain'
-    }
-    baseName = project.name + '-all'
-    from { configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
-    with jar
-}
 
 repositories {
     mavenLocal()
@@ -77,4 +66,41 @@ task run(type: JavaExec) {
     //jvmArgs = ['-Xlint:deprecation']
     //jvmArgs = ['-Djava.security.debug=provider']
 }
+
+task fatJar(type: Jar) {
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+    manifest {
+        attributes 'Implementation-Title': 'Gradle Jar File Example',
+                   'Implementation-Version': version,
+                   'Main-Class': 'io.grpc.gcs.TestMain'
+    }
+    baseName = project.name + '-all'
+    from {
+        configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    with jar
+}
+
+task copyJarsToLib (type: Copy) {
+    def toDir = "build/libs/dependency-jars"
+
+    // create directories, if not already done:
+    file(toDir).mkdirs()
+
+    // copy jars to lib folder:
+    from configurations.compileClasspath
+    into toDir
+}
+
+jar {
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/*.MF'
+    manifest {
+        attributes (
+            'Main-Class': 'io.grpc.gcs.TestMain',
+            'Class-Path': '. dependency-jars/' + configurations.compileClasspath.collect { it.getName() }.join(' dependency-jars/')
+        )
+    }
+}
+
+jar.dependsOn copyJarsToLib
 
