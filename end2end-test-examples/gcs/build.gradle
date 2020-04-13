@@ -21,21 +21,21 @@ repositories {
 }
 
 dependencies {
-    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
-    implementation "io.grpc:grpc-stub:${grpcVersion}"
-    implementation "io.grpc:grpc-testing:${grpcVersion}"
-    implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
-    implementation "io.grpc:grpc-auth:${grpcVersion}"
-    implementation "io.grpc:grpc-alts:${grpcVersion}"
-    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
-    implementation "com.google.api.grpc:proto-google-iam-v1:latest.release"
-    implementation "com.google.api.grpc:proto-google-common-protos:latest.release"
-    implementation "net.sourceforge.argparse4j:argparse4j:0.8.1"
-    implementation "com.google.auth:google-auth-library-oauth2-http:0.20.0"
-    implementation "com.google.cloud:google-cloud-storage:1.102.0"
-    implementation "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
-    implementation "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
-    implementation "com.google.guava:guava:28.2-jre"
+    compile "io.grpc:grpc-protobuf:${grpcVersion}"
+    compile "io.grpc:grpc-stub:${grpcVersion}"
+    compile "io.grpc:grpc-testing:${grpcVersion}"
+    compile "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    compile "io.grpc:grpc-auth:${grpcVersion}"
+    compile "io.grpc:grpc-alts:${grpcVersion}"
+    compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    compile "com.google.api.grpc:proto-google-iam-v1:latest.release"
+    compile "com.google.api.grpc:proto-google-common-protos:latest.release"
+    compile "net.sourceforge.argparse4j:argparse4j:0.8.1"
+    compile "com.google.auth:google-auth-library-oauth2-http:0.20.0"
+    compile "com.google.cloud:google-cloud-storage:1.102.0"
+    compile "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
+    compile "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
+    compile "com.google.guava:guava:28.2-jre"
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
@@ -76,7 +76,7 @@ task fatJar(type: Jar) {
     }
     baseName = project.name + '-all'
     from {
-        configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
     }
     with jar
 }
@@ -88,7 +88,7 @@ task copyJarsToLib (type: Copy) {
     file(toDir).mkdirs()
 
     // copy jars to lib folder:
-    from configurations.compileClasspath
+    from configurations.compile
     into toDir
 }
 
@@ -97,7 +97,7 @@ jar {
     manifest {
         attributes (
             'Main-Class': 'io.grpc.gcs.TestMain',
-            'Class-Path': '. dependency-jars/' + configurations.compileClasspath.collect { it.getName() }.join(' dependency-jars/')
+            'Class-Path': '. dependency-jars/' + configurations.compile.collect { it.getName() }.join(' dependency-jars/')
         )
     }
 }
