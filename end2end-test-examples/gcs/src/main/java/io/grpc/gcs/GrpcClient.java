@@ -192,7 +192,6 @@ public class GrpcClient {
 
         @Override
         public void onNext(Object value) {
-          logger.info("Got object: " + value.getName());
         }
 
         @Override
@@ -205,7 +204,6 @@ public class GrpcClient {
         public void onCompleted() {
           finishLatch.countDown();
           long dur = System.currentTimeMillis() - start;
-          logger.info("time cost for insertObject: " + dur + "ms");
           results.add(dur);
         }
       };
@@ -237,6 +235,8 @@ public class GrpcClient {
       if (!finishLatch.await(1, TimeUnit.MINUTES)) {
         logger.warning("insertObject cannot finish within 1 minutes");
       }
+
+      Thread.sleep(1000); // Avoid request limit for updating a single object
     }
 
   }

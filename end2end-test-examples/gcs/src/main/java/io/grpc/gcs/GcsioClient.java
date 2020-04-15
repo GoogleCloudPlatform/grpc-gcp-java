@@ -57,6 +57,7 @@ public class GcsioClient {
             break;
           case METHOD_WRITE:
             makeWriteRequest(results);
+	    break;
           case METHOD_RANDOM:
             makeRandomMediaRequest(results);
             break;
@@ -118,8 +119,8 @@ public class GcsioClient {
     }
   }
 
-  private void makeWriteRequest(List<Long> results) throws IOException {
-    int size = args.buffSize * 1024;
+  private void makeWriteRequest(List<Long> results) throws IOException, InterruptedException {
+    int size = args.size * 1024;
     Random rd = new Random();
     byte[] randBytes = new byte[size];
     rd.nextBytes(randBytes);
@@ -130,9 +131,10 @@ public class GcsioClient {
       ByteBuffer buff = ByteBuffer.wrap(randBytes);
       long start = System.currentTimeMillis();
       writeChannel.write(buff);
-      long dur = System.currentTimeMillis() - start;
       writeChannel.close();
+      long dur = System.currentTimeMillis() - start;
       results.add(dur);
+      Thread.sleep(1000); // Avoid request limit for updating a single object
     }
   }
 
