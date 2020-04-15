@@ -38,24 +38,22 @@ import java.util.logging.Logger;
 public class GrpcClient {
   private static final Logger logger = Logger.getLogger(GrpcClient.class.getName());
 
-  private ManagedChannel channel;
-  private StorageGrpc.StorageBlockingStub blockingStub;
-  private StorageGrpc.StorageStub asyncStub;
+  private ManagedChannel[] channels;
   private Args args;
+  private GoogleCredentials creds;
 
   private static final String SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 
   public GrpcClient(Args args) {
     this.args = args;
-    GoogleCredentials creds;
     try {
-      creds = GoogleCredentials.getApplicationDefault();
+      this.creds = GoogleCredentials.getApplicationDefault();
     } catch (IOException e) {
       e.printStackTrace();
       return;
     }
 
-    //ManagedChannelBuilder channelBuilder;
+    ManagedChannelBuilder channelBuilder;
     if (args.dp) {
       ComputeEngineChannelBuilder gceChannelBuilder = ComputeEngineChannelBuilder.forAddress(args.host, args.port);
 
@@ -83,39 +81,35 @@ public class GrpcClient {
           logger.warning("Failed to set flow-control window, will use default value.");
         }
       }
-
-      this.channel = gceChannelBuilder.build();
-
+      channelBuilder = gceChannelBuilder;
     } else {
       NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(args.host, args.port);
       if (args.flowControlWindow > 0) {
         nettyChannelBuilder.flowControlWindow(args.flowControlWindow);
       }
-      channel = nettyChannelBuilder.build();
+      channelBuilder = nettyChannelBuilder;
     }
 
-    this.blockingStub = StorageGrpc.newBlockingStub(channel);
-    this.asyncStub = StorageGrpc.newStub(channel);
-    if (args.host.equals(Args.DEFAULT_HOST)) {
-      this.blockingStub = this.blockingStub.withCallCredentials(
-          MoreCallCredentials.from(creds.createScoped(SCOPE)));
-      this.asyncStub = this.asyncStub.withCallCredentials(
-          MoreCallCredentials.from(creds.createScoped(SCOPE)));
+    // Create the same number of channels as the number of threads.
+    this.channels = new ManagedChannel[args.threads];
+    for (int i = 0; i < args.threads; i++) {
+      channels[i] = channelBuilder.build();
     }
   }
 
   public void startCalls(List<Long> results) throws InterruptedException {
-    if (args.threads == 0) {
+    ManagedChannel channel = this.channels[0];
+    if (args.threads == 1) {
       try {
         switch (args.method) {
           case METHOD_READ:
-            makeMediaRequest(results);
+            makeMediaRequest(channel, results);
             break;
           case METHOD_RANDOM:
-            makeRandomMediaRequest(results);
+            makeRandomMediaRequest(channel, results);
             break;
           case METHOD_WRITE:
-            makeInsertRequest(results);
+            makeInsertRequest(channel, results);
             break;
           default:
             logger.warning("Please provide valid methods with --method");
@@ -130,7 +124,8 @@ public class GrpcClient {
         switch (args.method) {
           case METHOD_READ:
             for (int i = 0; i < args.threads; i++) {
-              Runnable task = () -> makeMediaRequest(results);
+              int finalI = i;
+              Runnable task = () -> makeMediaRequest(this.channels[finalI], results);
               threadPoolExecutor.execute(task);
             }
             break;
@@ -148,37 +143,39 @@ public class GrpcClient {
     }
   }
 
-  private void makeMediaRequest(List<Long> results) {
+  private void makeMediaRequest(ManagedChannel channel, List<Long> results) {
+    StorageGrpc.StorageBlockingStub blockingStub =
+        StorageGrpc.newBlockingStub(channel).withCallCredentials(
+            MoreCallCredentials.from(creds.createScoped(SCOPE)));
+      if (args.host.equals(Args.DEFAULT_HOST)) {
+        blockingStub = blockingStub.withCallCredentials(
+            MoreCallCredentials.from(creds.createScoped(SCOPE)));
+      }
+
     GetObjectMediaRequest mediaRequest =
         GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj).build();
 
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
-      // Object o = blockingStub.getObject(request);
       Iterator<GetObjectMediaResponse> resIterator = blockingStub.getObjectMedia(mediaRequest);
-      int itr = 0;
-      long bytesRead = 0;
       while (resIterator.hasNext()) {
-	itr++;
         GetObjectMediaResponse res = resIterator.next();
-        bytesRead += res.getChecksummedData().getSerializedSize();
-        //logger.info("result: " + res.getChecksummedData());
       }
       long dur = System.currentTimeMillis() - start;
-      //logger.info("time cost for getObjectMedia: " + dur + "ms");
-      //logger.info("total iteration: " + itr);
-      //logger.info("total KB read: " + bytesRead / 1024);
       results.add(dur);
     }
   }
 
-  private void makeRandomMediaRequest(List<Long> results) {
+  private void makeRandomMediaRequest(ManagedChannel channel, List<Long> results) {
+    StorageGrpc.StorageBlockingStub blockingStub =
+        StorageGrpc.newBlockingStub(channel).withCallCredentials(
+            MoreCallCredentials.from(creds.createScoped(SCOPE)));
+
     GetObjectMediaRequest.Builder reqBuilder =
         GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj);
     Random r = new Random();
 
     long buffSize = args.buffSize * 1024;
-    long totalSize = args.size * 1024;
 
     for (int i = 0; i < args.calls; i++) {
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
@@ -204,7 +201,14 @@ public class GrpcClient {
     }
   }
 
-  private void makeInsertRequest(List<Long> results) throws InterruptedException {
+  private void makeInsertRequest(ManagedChannel channel, List<Long> results) throws InterruptedException {
+    StorageGrpc.StorageStub asyncStub = StorageGrpc.newStub(channel).withCallCredentials(
+        MoreCallCredentials.from(creds.createScoped(SCOPE)));
+    if (args.host.equals(Args.DEFAULT_HOST)) {
+      asyncStub = asyncStub.withCallCredentials(
+          MoreCallCredentials.from(creds.createScoped(SCOPE)));
+    }
+
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
     for (int i = 0; i < args.calls; i++) {
@@ -276,12 +280,6 @@ public class GrpcClient {
           ).build()
       );
     }
-
-    //Hasher hasher = Hashing.crc32c().newHasher();
-    //for (ByteBuffer buffer : data.asReadOnlyByteBufferList()) {
-    //  hasher.putBytes(buffer);
-    //}
-    //int checksum = hasher.hash().asInt();
 
     builder.setChecksummedData(ChecksummedData.newBuilder().setContent(bytes).build());
     builder.setWriteOffset(offset);

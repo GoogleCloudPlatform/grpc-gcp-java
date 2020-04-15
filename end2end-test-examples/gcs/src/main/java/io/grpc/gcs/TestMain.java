@@ -23,7 +23,7 @@ public class TestMain {
     public double qps;
   }
 
-  private static void printResult(FileWriter writer, List<Long> results, long totalDur)
+  private static void printResult(List<Long> results, long totalDur, Args args)
       throws IOException {
     if (results.size() == 0) return;
     Collections.sort(results);
@@ -41,12 +41,20 @@ public class TestMain {
     benchmarkResult.p99 = results.get((int) (n * 0.99));
     benchmarkResult.p999 = results.get((int) (n * 0.999));
     benchmarkResult.qps = n / totalSeconds;
-    gson.toJson(benchmarkResult, writer);
-    writer.close();
+    if (!args.latencyFilename.isEmpty()) {
+      FileWriter writer = new FileWriter(args.latencyFilename);
+      gson.toJson(benchmarkResult, writer);
+      writer.close();
+    }
     System.out.println(String.format(
-        "============ Test Results for %d calls: \n"
+        "****** Test Results [client: %s, method: %s, size: %d, threads: %d, dp: %s, calls: %d]: \n"
             + "\t\tMin\tp5\tp10\tp25\tp50\tp75\tp90\tp99\tMax\tTotal\n"
             + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+        args.client,
+        args.method,
+        args.size,
+        args.threads,
+        args.dp,
         n,
         results.get(0),
         results.get((int) (n * 0.05)),
@@ -67,33 +75,29 @@ public class TestMain {
       Security.insertProviderAt(Conscrypt.newProvider(), 1);
     }
     List<Long> results = new ArrayList<>();
-    if (a.threads > 0) results = Collections.synchronizedList(results);
+    if (a.threads > 1) results = Collections.synchronizedList(results);
     long start = 0;
     long totalDur = 0;
     switch (a.client) {
       case CLIENT_YOSHI:
-        System.out.println("**** Using Yoshi client library");
         HttpClient httpClient = new HttpClient(a);
         start = System.currentTimeMillis();
         httpClient.startCalls(results);
         totalDur = System.currentTimeMillis() - start;
         break;
       case CLIENT_GCSIO_HTTP:
-        System.out.println("**** Using gcsio http library");
         GcsioClient gcsioHttpClient = new GcsioClient(a, false);
         start = System.currentTimeMillis();
         gcsioHttpClient.startCalls(results);
         totalDur = System.currentTimeMillis() - start;
         break;
       case CLIENT_GCSIO_GRPC:
-        System.out.println("**** Using gcsio grpc library");
         GcsioClient gcsioGrpcClient = new GcsioClient(a, true);
         start = System.currentTimeMillis();
         gcsioGrpcClient.startCalls(results);
         totalDur = System.currentTimeMillis() - start;
         break;
       case CLIENT_GRPC:
-        System.out.println("**** Using protoc generated stub");
         GrpcClient grpcClient = new GrpcClient(a);
         start = System.currentTimeMillis();
         grpcClient.startCalls(results);
@@ -102,7 +106,6 @@ public class TestMain {
       default:
         logger.warning("Please provide --client");
     }
-    FileWriter writer = new FileWriter(a.latencyFilename);
-    printResult(writer, results, totalDur);
+    printResult(results, totalDur, a);
   }
 }
