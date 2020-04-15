@@ -2,18 +2,19 @@ package io.grpc.gcs;
 
 import static io.grpc.gcs.Args.METHOD_RANDOM;
 import static io.grpc.gcs.Args.METHOD_READ;
+import static io.grpc.gcs.Args.METHOD_WRITE;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystem;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
-import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions.Fadvise;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -54,6 +55,9 @@ public class GcsioClient {
           case METHOD_READ:
             makeMediaRequest(results);
             break;
+          case METHOD_WRITE:
+            makeWriteRequest(results);
+	    break;
           case METHOD_RANDOM:
             makeRandomMediaRequest(results);
             break;
@@ -112,6 +116,25 @@ public class GcsioClient {
       readChannel.close();
       //logger.info("time cost for reading bytes: " + dur + "ms");
       results.add(dur);
+    }
+  }
+
+  private void makeWriteRequest(List<Long> results) throws IOException, InterruptedException {
+    int size = args.size * 1024;
+    Random rd = new Random();
+    byte[] randBytes = new byte[size];
+    rd.nextBytes(randBytes);
+
+    URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
+    for (int i = 0; i < args.calls; i++) {
+      WritableByteChannel writeChannel = gcsfs.create(uri);
+      ByteBuffer buff = ByteBuffer.wrap(randBytes);
+      long start = System.currentTimeMillis();
+      writeChannel.write(buff);
+      writeChannel.close();
+      long dur = System.currentTimeMillis() - start;
+      results.add(dur);
+      Thread.sleep(1000); // Avoid request limit for updating a single object
     }
   }
 
