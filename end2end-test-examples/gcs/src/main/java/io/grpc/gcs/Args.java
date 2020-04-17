@@ -15,7 +15,7 @@ public class Args {
   public static final String CLIENT_GCSIO_HTTP = "gcsio-http";
   public static final String CLIENT_GCSIO_GRPC = "gcsio-grpc";
 
-  private static final String DEFAULT_HOST = "storage.googleapis.com";
+  public static final String DEFAULT_HOST = "storage.googleapis.com";
   private static final int PORT = 443;
 
   final int calls;

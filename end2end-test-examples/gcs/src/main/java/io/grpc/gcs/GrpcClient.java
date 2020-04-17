@@ -3,6 +3,7 @@ package io.grpc.gcs;
 import static io.grpc.gcs.Args.METHOD_RANDOM;
 import static io.grpc.gcs.Args.METHOD_READ;
 import static io.grpc.gcs.Args.METHOD_WRITE;
+import static io.grpc.gcs.Args.DEFAULT_HOST;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.common.collect.ImmutableList;
@@ -72,10 +73,14 @@ public class GrpcClient {
     }
 
     this.channel = channelBuilder.build();
-    this.blockingStub = StorageGrpc.newBlockingStub(channel).withCallCredentials(
+    this.blockingStub = StorageGrpc.newBlockingStub(channel);
+    this.asyncStub = StorageGrpc.newStub(channel);
+    if (args.host.equals(Args.DEFAULT_HOST)) {
+    this.blockingStub = this.blockingStub.withCallCredentials(
         MoreCallCredentials.from(creds.createScoped(SCOPE)));
-    this.asyncStub = StorageGrpc.newStub(channel).withCallCredentials(
+    this.asyncStub = this.asyncStub.withCallCredentials(
         MoreCallCredentials.from(creds.createScoped(SCOPE)));
+    }
   }
 
   public void startCalls(List<Long> results) throws InterruptedException {
