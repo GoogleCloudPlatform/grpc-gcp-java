@@ -237,8 +237,8 @@ public class GrpcClient {
       }
       requestObserver.onCompleted();
 
-      if (!finishLatch.await(1, TimeUnit.MINUTES)) {
-        logger.warning("insertObject cannot finish within 1 minutes");
+      if (!finishLatch.await(20, TimeUnit.MINUTES)) {
+        logger.warning("insertObject cannot finish within 20 minutes");
       }
 
       Thread.sleep(1000); // Avoid request limit for updating a single object
