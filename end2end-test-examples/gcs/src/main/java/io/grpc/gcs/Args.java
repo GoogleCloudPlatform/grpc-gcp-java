@@ -31,6 +31,7 @@ public class Args {
   final String client;
   final String latencyFilename;
   final int threads;
+  final int flowControlWindow;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -53,6 +54,7 @@ public class Args {
     parser.addArgument("--client").type(String.class).setDefault(CLIENT_GRPC);
     parser.addArgument("--latencyFilename").type(String.class).setDefault("latency_results");
     parser.addArgument("--threads").type(Integer.class).setDefault(0);
+    parser.addArgument("--window").type(Integer.class).setDefault(0);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -71,5 +73,6 @@ public class Args {
     client = ns.getString("client");
     latencyFilename = ns.getString("latencyFilename");
     threads = ns.getInt("threads");
+    flowControlWindow = ns.getInt("window");
   }
 }

@@ -22,8 +22,10 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.alts.ComputeEngineChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -53,9 +55,9 @@ public class GrpcClient {
       return;
     }
 
-    ManagedChannelBuilder channelBuilder;
+    //ManagedChannelBuilder channelBuilder;
     if (args.dp) {
-      channelBuilder = ComputeEngineChannelBuilder.forAddress(args.host, args.port);
+      ComputeEngineChannelBuilder gceChannelBuilder = ComputeEngineChannelBuilder.forAddress(args.host, args.port);
 
       ImmutableMap<String, java.lang.Object> pickFirstStrategy =
           ImmutableMap.<String, java.lang.Object>of("pick_first", ImmutableMap.of());
@@ -66,20 +68,39 @@ public class GrpcClient {
       ImmutableMap<String, java.lang.Object> loadBalancingConfig =
           ImmutableMap.<String, java.lang.Object>of("loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
 
-      channelBuilder.defaultServiceConfig(loadBalancingConfig);
+      gceChannelBuilder.defaultServiceConfig(loadBalancingConfig);
+
+      if (args.flowControlWindow > 0) {
+        Field delegateField = null;
+        try {
+          delegateField = ComputeEngineChannelBuilder.class.getDeclaredField("delegate");
+          delegateField.setAccessible(true);
+
+          NettyChannelBuilder delegateBuilder = (NettyChannelBuilder) delegateField.get(gceChannelBuilder);
+          delegateBuilder.flowControlWindow(args.flowControlWindow);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+          e.printStackTrace();
+          logger.warning("Failed to set flow-control window, will use default value.");
+        }
+      }
+
+      this.channel = gceChannelBuilder.build();
 
     } else {
-      channelBuilder = ManagedChannelBuilder.forAddress(args.host, args.port);
+      NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(args.host, args.port);
+      if (args.flowControlWindow > 0) {
+        nettyChannelBuilder.flowControlWindow(args.flowControlWindow);
+      }
+      channel = nettyChannelBuilder.build();
     }
 
-    this.channel = channelBuilder.build();
     this.blockingStub = StorageGrpc.newBlockingStub(channel);
     this.asyncStub = StorageGrpc.newStub(channel);
     if (args.host.equals(Args.DEFAULT_HOST)) {
-    this.blockingStub = this.blockingStub.withCallCredentials(
-        MoreCallCredentials.from(creds.createScoped(SCOPE)));
-    this.asyncStub = this.asyncStub.withCallCredentials(
-        MoreCallCredentials.from(creds.createScoped(SCOPE)));
+      this.blockingStub = this.blockingStub.withCallCredentials(
+          MoreCallCredentials.from(creds.createScoped(SCOPE)));
+      this.asyncStub = this.asyncStub.withCallCredentials(
+          MoreCallCredentials.from(creds.createScoped(SCOPE)));
     }
   }
 
