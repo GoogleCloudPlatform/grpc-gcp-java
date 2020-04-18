@@ -62,7 +62,7 @@ sourceSets {
 task run(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'io.grpc.gcs.TestMain'
-    //jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
+    jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
     //jvmArgs = ['-Xlint:deprecation']
     //jvmArgs = ['-Djava.security.debug=provider']
 }
