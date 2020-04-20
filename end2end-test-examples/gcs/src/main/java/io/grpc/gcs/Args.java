@@ -52,8 +52,8 @@ public class Args {
     parser.addArgument("--method").type(String.class).setDefault(METHOD_READ);
     parser.addArgument("--conscrypt").type(Boolean.class).setDefault(false);
     parser.addArgument("--client").type(String.class).setDefault(CLIENT_GRPC);
-    parser.addArgument("--latencyFilename").type(String.class).setDefault("latency_results");
-    parser.addArgument("--threads").type(Integer.class).setDefault(0);
+    parser.addArgument("--latencyFilename").type(String.class).setDefault("");
+    parser.addArgument("--threads").type(Integer.class).setDefault(1);
     parser.addArgument("--window").type(Integer.class).setDefault(0);
 
     Namespace ns = parser.parseArgs(args);

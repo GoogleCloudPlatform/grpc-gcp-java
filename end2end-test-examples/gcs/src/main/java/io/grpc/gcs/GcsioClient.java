@@ -24,48 +24,37 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public class GcsioClient {
+  private static final Logger logger = Logger.getLogger(GcsioClient.class.getName());
   private static final String SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 
   private Args args;
-  private GoogleCloudStorageFileSystem gcsfs;
-  private static final Logger logger = Logger.getLogger(GcsioClient.class.getName());
+  private GoogleCloudStorageOptions gcsOpts;
+  private GoogleCredential creds;
 
   public GcsioClient(Args args, boolean grpcEnabled) throws IOException {
     this.args = args;
-    GoogleCredential creds = GoogleCredential.getApplicationDefault().createScoped(Arrays.asList(SCOPE));
+    this.creds = GoogleCredential.getApplicationDefault().createScoped(Arrays.asList(SCOPE));
 
-    GoogleCloudStorageOptions gcsOpts =
-        GoogleCloudStorageOptions.builder()
+    this.gcsOpts = GoogleCloudStorageOptions.builder()
             .setAppName("weiranf-app")
             .setGrpcEnabled(grpcEnabled)
             .build();
-
-    this.gcsfs = new GoogleCloudStorageFileSystem(creds,
-        GoogleCloudStorageFileSystemOptions.builder()
-            .setCloudStorageOptions(gcsOpts)
-            .build()
-    );
-
   }
 
   public void startCalls(List<Long> results) throws InterruptedException, IOException {
-    if (args.threads == 0) {
-      try {
-        switch (args.method) {
-          case METHOD_READ:
-            makeMediaRequest(results);
-            break;
-          case METHOD_WRITE:
-            makeWriteRequest(results);
-	    break;
-          case METHOD_RANDOM:
-            makeRandomMediaRequest(results);
-            break;
-          default:
-            logger.warning("Please provide valid methods with --method");
-        }
-      } finally {
-        gcsfs.close();
+    if (args.threads == 1) {
+      switch (args.method) {
+        case METHOD_READ:
+          makeMediaRequest(results);
+          break;
+        case METHOD_WRITE:
+          makeWriteRequest(results, 0);
+          break;
+        case METHOD_RANDOM:
+          makeRandomMediaRequest(results);
+          break;
+        default:
+          logger.warning("Please provide valid methods with --method");
       }
     } else {
       ThreadPoolExecutor threadPoolExecutor =
@@ -84,22 +73,39 @@ public class GcsioClient {
               threadPoolExecutor.execute(task);
             }
             break;
+	  case METHOD_WRITE:
+            for (int i = 0; i < args.threads; i++) {
+              int finalI = i;
+              Runnable task = () -> {
+                try {
+                  makeWriteRequest(results, finalI);
+                } catch (IOException | InterruptedException e) {
+                  e.printStackTrace();
+                }
+              };
+              threadPoolExecutor.execute(task);
+            }
+	    break;
           default:
             logger.warning("Please provide valid methods with --method");
         }
+      } finally {
         threadPoolExecutor.shutdown();
         if (!threadPoolExecutor.awaitTermination(30, TimeUnit.MINUTES)) {
           threadPoolExecutor.shutdownNow();
         }
-      } finally {
-        threadPoolExecutor.shutdownNow();
-        gcsfs.close();
       }
     }
   }
 
   private void makeMediaRequest(List<Long> results) throws IOException {
-    int size = args.buffSize * 1024;
+    GoogleCloudStorageFileSystem gcsfs = new GoogleCloudStorageFileSystem(creds,
+        GoogleCloudStorageFileSystemOptions.builder()
+            .setCloudStorageOptions(gcsOpts)
+            .build()
+    );
+
+    int size = args.size * 1024;
 
     URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
 
@@ -117,28 +123,44 @@ public class GcsioClient {
       //logger.info("time cost for reading bytes: " + dur + "ms");
       results.add(dur);
     }
+
+    gcsfs.close();
   }
 
-  private void makeWriteRequest(List<Long> results) throws IOException, InterruptedException {
+  private void makeWriteRequest(List<Long> results, int idx) throws IOException, InterruptedException {
+    GoogleCloudStorageFileSystem gcsfs = new GoogleCloudStorageFileSystem(creds,
+        GoogleCloudStorageFileSystemOptions.builder()
+            .setCloudStorageOptions(gcsOpts)
+            .build()
+    );
+
     int size = args.size * 1024;
     Random rd = new Random();
     byte[] randBytes = new byte[size];
     rd.nextBytes(randBytes);
 
-    URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
+    URI uri = URI.create("gs://" + args.bkt + "/" + args.obj + "_" + idx);
     for (int i = 0; i < args.calls; i++) {
       WritableByteChannel writeChannel = gcsfs.create(uri);
       ByteBuffer buff = ByteBuffer.wrap(randBytes);
       long start = System.currentTimeMillis();
       writeChannel.write(buff);
       writeChannel.close();
+      // write operation is async, need to call close() to wait for finish.
       long dur = System.currentTimeMillis() - start;
       results.add(dur);
       Thread.sleep(1000); // Avoid request limit for updating a single object
     }
+
+    gcsfs.close();
   }
 
   private void makeRandomMediaRequest(List<Long> results) throws IOException {
+    GoogleCloudStorageFileSystem gcsfs = new GoogleCloudStorageFileSystem(creds,
+        GoogleCloudStorageFileSystemOptions.builder()
+            .setCloudStorageOptions(gcsOpts)
+            .build()
+    );
 
     Random r = new Random();
 
@@ -161,5 +183,7 @@ public class GcsioClient {
       results.add(dur);
     }
     reader.close();
+
+    gcsfs.close();
   }
 }
