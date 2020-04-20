@@ -129,16 +129,34 @@ public class GrpcClient {
               threadPoolExecutor.execute(task);
             }
             break;
+          case METHOD_RANDOM:
+            for (int i = 0; i < args.threads; i++) {
+              int finalI = i;
+              Runnable task = () -> makeRandomMediaRequest(this.channels[finalI], results);
+              threadPoolExecutor.execute(task);
+            }
+            break;
+          case METHOD_WRITE:
+            for (int i = 0; i < args.threads; i++) {
+              int finalI = i;
+              Runnable task = () -> {
+                try {
+                  makeInsertRequest(this.channels[finalI], results);
+                } catch (InterruptedException e) {
+                  e.printStackTrace();
+                }
+              };
+              threadPoolExecutor.execute(task);
+            }
+            break;
           default:
             logger.warning("Please provide valid methods with --method");
         }
+      } finally {
         threadPoolExecutor.shutdown();
         if (!threadPoolExecutor.awaitTermination(30, TimeUnit.MINUTES)) {
           threadPoolExecutor.shutdownNow();
         }
-      } finally {
-        threadPoolExecutor.shutdownNow();
-        channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
       }
     }
   }
