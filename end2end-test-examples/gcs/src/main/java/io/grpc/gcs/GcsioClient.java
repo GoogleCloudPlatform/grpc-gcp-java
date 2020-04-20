@@ -48,7 +48,7 @@ public class GcsioClient {
           makeMediaRequest(results);
           break;
         case METHOD_WRITE:
-          makeWriteRequest(results);
+          makeWriteRequest(results, 0);
           break;
         case METHOD_RANDOM:
           makeRandomMediaRequest(results);
@@ -73,6 +73,19 @@ public class GcsioClient {
               threadPoolExecutor.execute(task);
             }
             break;
+	  case METHOD_WRITE:
+            for (int i = 0; i < args.threads; i++) {
+              int finalI = i;
+              Runnable task = () -> {
+                try {
+                  makeWriteRequest(results, finalI);
+                } catch (IOException | InterruptedException e) {
+                  e.printStackTrace();
+                }
+              };
+              threadPoolExecutor.execute(task);
+            }
+	    break;
           default:
             logger.warning("Please provide valid methods with --method");
         }
@@ -92,7 +105,7 @@ public class GcsioClient {
             .build()
     );
 
-    int size = args.buffSize * 1024;
+    int size = args.size * 1024;
 
     URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
 
@@ -114,7 +127,7 @@ public class GcsioClient {
     gcsfs.close();
   }
 
-  private void makeWriteRequest(List<Long> results) throws IOException, InterruptedException {
+  private void makeWriteRequest(List<Long> results, int idx) throws IOException, InterruptedException {
     GoogleCloudStorageFileSystem gcsfs = new GoogleCloudStorageFileSystem(creds,
         GoogleCloudStorageFileSystemOptions.builder()
             .setCloudStorageOptions(gcsOpts)
@@ -126,13 +139,14 @@ public class GcsioClient {
     byte[] randBytes = new byte[size];
     rd.nextBytes(randBytes);
 
-    URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
+    URI uri = URI.create("gs://" + args.bkt + "/" + args.obj + "_" + idx);
     for (int i = 0; i < args.calls; i++) {
       WritableByteChannel writeChannel = gcsfs.create(uri);
       ByteBuffer buff = ByteBuffer.wrap(randBytes);
       long start = System.currentTimeMillis();
       writeChannel.write(buff);
       writeChannel.close();
+      // write operation is async, need to call close() to wait for finish.
       long dur = System.currentTimeMillis() - start;
       results.add(dur);
       Thread.sleep(1000); // Avoid request limit for updating a single object

@@ -109,7 +109,7 @@ public class GrpcClient {
             makeRandomMediaRequest(channel, results);
             break;
           case METHOD_WRITE:
-            makeInsertRequest(channel, results);
+            makeInsertRequest(channel, results, 0);
             break;
           default:
             logger.warning("Please provide valid methods with --method");
@@ -141,7 +141,7 @@ public class GrpcClient {
               int finalI = i;
               Runnable task = () -> {
                 try {
-                  makeInsertRequest(this.channels[finalI], results);
+                  makeInsertRequest(this.channels[finalI], results, finalI);
                 } catch (InterruptedException e) {
                   e.printStackTrace();
                 }
@@ -219,7 +219,7 @@ public class GrpcClient {
     }
   }
 
-  private void makeInsertRequest(ManagedChannel channel, List<Long> results) throws InterruptedException {
+  private void makeInsertRequest(ManagedChannel channel, List<Long> results, int idx) throws InterruptedException {
     StorageGrpc.StorageStub asyncStub = StorageGrpc.newStub(channel).withCallCredentials(
         MoreCallCredentials.from(creds.createScoped(SCOPE)));
     if (args.host.equals(Args.DEFAULT_HOST)) {
@@ -269,7 +269,7 @@ public class GrpcClient {
           isLast = true;
         }
 
-        InsertObjectRequest req = getInsertRequest(isFirst, isLast, offset, ByteString.copyFrom(data, offset, add));
+        InsertObjectRequest req = getInsertRequest(isFirst, isLast, offset, ByteString.copyFrom(data, offset, add), idx);
         requestObserver.onNext(req);
         if (finishLatch.getCount() == 0) {
           logger.warning("Stream completed before finishing sending requests");
@@ -289,12 +289,12 @@ public class GrpcClient {
 
   }
 
-  private InsertObjectRequest getInsertRequest(boolean first, boolean last, int offset, ByteString bytes) {
+  private InsertObjectRequest getInsertRequest(boolean first, boolean last, int offset, ByteString bytes, int idx) {
     InsertObjectRequest.Builder builder = InsertObjectRequest.newBuilder();
     if (first) {
       builder.setInsertObjectSpec(
           InsertObjectSpec.newBuilder().setResource(
-              Object.newBuilder().setBucket(args.bkt).setName(args.obj)
+              Object.newBuilder().setBucket(args.bkt).setName(args.obj + "_" + idx)
           ).build()
       );
     }
