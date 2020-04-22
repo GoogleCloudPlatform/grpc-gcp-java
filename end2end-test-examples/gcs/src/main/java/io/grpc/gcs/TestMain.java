@@ -6,6 +6,7 @@ import static io.grpc.gcs.Args.CLIENT_GRPC;
 import static io.grpc.gcs.Args.CLIENT_YOSHI;
 
 import com.google.gson.Gson;
+import io.grpc.netty.shaded.io.grpc.netty.InternalHandlerSettings;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.security.Security;
@@ -73,6 +74,10 @@ public class TestMain {
     Args a = new Args(args);
     if (a.conscrypt) {
       Security.insertProviderAt(Conscrypt.newProvider(), 1);
+    }
+    if (a.autoWindow) {
+      InternalHandlerSettings.enable(true);
+      InternalHandlerSettings.autoWindowOn(true);
     }
     List<Long> results = new ArrayList<>();
     if (a.threads > 1) results = Collections.synchronizedList(results);
