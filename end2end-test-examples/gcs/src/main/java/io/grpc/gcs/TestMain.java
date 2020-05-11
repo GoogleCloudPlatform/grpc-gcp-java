@@ -7,12 +7,14 @@ import static io.grpc.gcs.Args.CLIENT_YOSHI;
 
 import com.google.gson.Gson;
 import io.grpc.netty.shaded.io.grpc.netty.InternalHandlerSettings;
+import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.logging.LogManager;
 import java.util.logging.Logger;
 import org.conscrypt.Conscrypt;
 
@@ -72,6 +74,9 @@ public class TestMain {
 
   public static void main(String[] args) throws Exception {
     Args a = new Args(args);
+    if (a.verboseLog) {
+      LogManager.getLogManager().readConfiguration(new FileInputStream("logging.properties"));
+    }
     if (a.conscrypt) {
       Security.insertProviderAt(Conscrypt.newProvider(), 1);
     }

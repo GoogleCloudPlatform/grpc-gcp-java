@@ -33,6 +33,7 @@ public class Args {
   final int threads;
   final int flowControlWindow;
   final boolean autoWindow;
+  final boolean verboseLog;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -57,6 +58,7 @@ public class Args {
     parser.addArgument("--threads").type(Integer.class).setDefault(1);
     parser.addArgument("--window").type(Integer.class).setDefault(0);
     parser.addArgument("--auto").type(Boolean.class).setDefault(false);
+    parser.addArgument("--verboseLog").type(Boolean.class).setDefault(false);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -77,5 +79,6 @@ public class Args {
     threads = ns.getInt("threads");
     flowControlWindow = ns.getInt("window");
     autoWindow = ns.getBoolean("auto");
+    verboseLog = ns.getBoolean("verboseLog");
   }
 }
