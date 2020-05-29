@@ -2,23 +2,16 @@
 
 This is a simple client for e2e testing against our Echo service defined in [echo.proto](src/main/proto/echo.proto).
 
-## Usage
 
-The client sends out `numRpcs` number of Ping-Pong unary requests sequentially
-with payload size specified by `payloadKB`, and displays the test result.
+## Example
 
-## Build and run the test
+Client sends out `numRpcs` number of unary requests to `host` sequentially
+with request payload size of `reqSize`, and expected response payload size of `rspSize`.
 
-Build:
-
-```sh
-./gradlew build
-```
-
-Run client with test service:
+Run test:
 
 ```sh
-./gradlew run --args="--numRpcs=100 --payloadKB=100 --host=some.test.service"
+./gradlew run --args="--numRpcs=100 --reqSize=100 --rspSize=100 --host=grpc-cloudapi1.googleapis.com"
 ```
 
 Example results:
