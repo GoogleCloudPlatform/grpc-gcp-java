@@ -97,7 +97,7 @@ public class GrpcClient {
     }
   }
 
-  public void startCalls(List<Long> results) throws InterruptedException {
+  public void startCalls(ResultTable results) throws InterruptedException {
     ManagedChannel channel = this.channels[0];
     if (args.threads == 1) {
       try {
@@ -161,7 +161,7 @@ public class GrpcClient {
     }
   }
 
-  private void makeMediaRequest(ManagedChannel channel, List<Long> results) {
+  private void makeMediaRequest(ManagedChannel channel, ResultTable results) {
     StorageGrpc.StorageBlockingStub blockingStub =
         StorageGrpc.newBlockingStub(channel).withCallCredentials(
             MoreCallCredentials.from(creds.createScoped(SCOPE)));
@@ -180,11 +180,11 @@ public class GrpcClient {
         GetObjectMediaResponse res = resIterator.next();
       }
       long dur = System.currentTimeMillis() - start;
-      results.add(dur);
+      results.reportResult(dur);
     }
   }
 
-  private void makeRandomMediaRequest(ManagedChannel channel, List<Long> results) {
+  private void makeRandomMediaRequest(ManagedChannel channel, ResultTable results) {
     StorageGrpc.StorageBlockingStub blockingStub =
         StorageGrpc.newBlockingStub(channel).withCallCredentials(
             MoreCallCredentials.from(creds.createScoped(SCOPE)));
@@ -215,11 +215,11 @@ public class GrpcClient {
       logger.info("time cost for getObjectMedia: " + dur + "ms");
       logger.info("total iterations: " + itr);
       logger.info("start pos: " + offset + ", read lenth: " + buffSize + ", total KB read: " + bytesRead / 1024);
-      results.add(dur);
+      results.reportResult(dur);
     }
   }
 
-  private void makeInsertRequest(ManagedChannel channel, List<Long> results, int idx) throws InterruptedException {
+  private void makeInsertRequest(ManagedChannel channel, ResultTable results, int idx) throws InterruptedException {
     StorageGrpc.StorageStub asyncStub = StorageGrpc.newStub(channel).withCallCredentials(
         MoreCallCredentials.from(creds.createScoped(SCOPE)));
     if (args.host.equals(Args.DEFAULT_HOST)) {
@@ -252,7 +252,7 @@ public class GrpcClient {
         public void onCompleted() {
           finishLatch.countDown();
           long dur = System.currentTimeMillis() - start;
-          results.add(dur);
+          results.reportResult(dur);
         }
       };
 

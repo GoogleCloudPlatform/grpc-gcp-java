@@ -33,7 +33,7 @@ public class HttpClient {
     this.client = StorageOptions.getDefaultInstance().getService();
   }
 
-  public void startCalls(List<Long> results) throws InterruptedException, IOException {
+  public void startCalls(ResultTable results) throws InterruptedException, IOException {
     if (args.threads == 0) {
       switch (args.method) {
         case METHOD_READ:
@@ -68,7 +68,7 @@ public class HttpClient {
     }
   }
 
-  public void makeMediaRequest(List<Long> results) {
+  public void makeMediaRequest(ResultTable results) {
     BlobId blobId = BlobId.of(args.bkt, args.obj);
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
@@ -78,11 +78,11 @@ public class HttpClient {
       long dur = System.currentTimeMillis() - start;
       //logger.info("time cost for readAllBytes: " + dur + "ms");
       //logger.info("total KB received: " + content.length/1024);
-      results.add(dur);
+      results.reportResult(dur);
     }
   }
 
-  public void makeRandomMediaRequest(List<Long> results) throws IOException {
+  public void makeRandomMediaRequest(ResultTable results) throws IOException {
     Random r = new Random();
 
     BlobId blobId = BlobId.of(args.bkt, args.obj);
@@ -101,12 +101,12 @@ public class HttpClient {
       logger.info("total KB received: " + buff.position()/1024);
       logger.info("time cost for random reading: " + dur + "ms");
       buff.clear();
-      results.add(dur);
+      results.reportResult(dur);
     }
     reader.close();
   }
 
-  public void makeInsertRequest(List<Long> results) {
+  public void makeInsertRequest(ResultTable results) {
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
     BlobId blobId = BlobId.of(args.bkt, args.obj);
@@ -118,7 +118,7 @@ public class HttpClient {
       );
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for creating blob: " + dur + "ms");
-      results.add(dur);
+      results.reportResult(dur);
     }
   }
 }
