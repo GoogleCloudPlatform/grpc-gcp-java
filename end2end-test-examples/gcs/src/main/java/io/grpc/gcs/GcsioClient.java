@@ -41,7 +41,7 @@ public class GcsioClient {
             .build();
   }
 
-  public void startCalls(List<Long> results) throws InterruptedException, IOException {
+  public void startCalls(ResultTable results) throws InterruptedException, IOException {
     if (args.threads == 1) {
       switch (args.method) {
         case METHOD_READ:
@@ -98,7 +98,7 @@ public class GcsioClient {
     }
   }
 
-  private void makeMediaRequest(List<Long> results) throws IOException {
+  private void makeMediaRequest(ResultTable results) throws IOException {
     GoogleCloudStorageFileSystem gcsfs = new GoogleCloudStorageFileSystem(creds,
         GoogleCloudStorageFileSystemOptions.builder()
             .setCloudStorageOptions(gcsOpts)
@@ -121,13 +121,13 @@ public class GcsioClient {
       buff.clear();
       readChannel.close();
       //logger.info("time cost for reading bytes: " + dur + "ms");
-      results.add(dur);
+      results.reportResult(dur);
     }
 
     gcsfs.close();
   }
 
-  private void makeWriteRequest(List<Long> results, int idx) throws IOException, InterruptedException {
+  private void makeWriteRequest(ResultTable results, int idx) throws IOException, InterruptedException {
     GoogleCloudStorageFileSystem gcsfs = new GoogleCloudStorageFileSystem(creds,
         GoogleCloudStorageFileSystemOptions.builder()
             .setCloudStorageOptions(gcsOpts)
@@ -148,14 +148,14 @@ public class GcsioClient {
       writeChannel.close();
       // write operation is async, need to call close() to wait for finish.
       long dur = System.currentTimeMillis() - start;
-      results.add(dur);
+      results.reportResult(dur);
       Thread.sleep(1000); // Avoid request limit for updating a single object
     }
 
     gcsfs.close();
   }
 
-  private void makeRandomMediaRequest(List<Long> results) throws IOException {
+  private void makeRandomMediaRequest(ResultTable results) throws IOException {
     GoogleCloudStorageFileSystem gcsfs = new GoogleCloudStorageFileSystem(creds,
         GoogleCloudStorageFileSystemOptions.builder()
             .setCloudStorageOptions(gcsOpts)
@@ -180,7 +180,7 @@ public class GcsioClient {
         logger.warning("Got remaining bytes: " + buff.remaining());
       }
       logger.info("time cost for reading bytes: " + dur + "ms");
-      results.add(dur);
+      results.reportResult(dur);
     }
     reader.close();
 
