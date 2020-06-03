@@ -2,7 +2,6 @@
 
 This is a simple client for e2e testing against our Echo service defined in [echo.proto](src/main/proto/echo.proto).
 
-
 ## Example
 
 Client sends out `numRpcs` number of unary requests to `host` sequentially
@@ -40,9 +39,9 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 
 `--resSize`: Set response payload size in KB.
 
-`--reqComp`: gRPC compression algorithm to use for request.
+`--reqComp`: gRPC compression algorithm to use for request. Currently only supports `gzip`.
 
-`--resComp`: gRPC compression algorithm to use for response.
+`--resComp`: gRPC compression algorithm to use for response. Currently only supports `gzip`.
 
 `--async`: Whether to use gRPC async API. Default: false.
 
