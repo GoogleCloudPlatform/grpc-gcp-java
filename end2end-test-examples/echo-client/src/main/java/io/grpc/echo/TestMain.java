@@ -4,14 +4,10 @@ import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 import org.HdrHistogram.Histogram;
-import org.HdrHistogram.HistogramLogProcessor;
 
 public class TestMain {
   private static final Logger logger = Logger.getLogger(TestMain.class.getName());
@@ -37,7 +33,7 @@ public class TestMain {
 
 
     System.out.println(
-        String.format("%d qps, %d channels, %d total rpcs sent"
+        String.format("%d channels, %d total rpcs sent"
                 + "\nPayload Size per request = %dKB"
                 + "\nPer sec Payload = %.2f MB (exact amount of KB = %d)"
                 //+ "\n\t\tAvg"
@@ -46,10 +42,9 @@ public class TestMain {
                 + "\tp90"
                 + "\tp99"
                 + "\tp99.9"
-                + "\tp99.99"
                 + "\tMax\n"
-                + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
-            arg.qps, arg.numChannels, histogram.getTotalCount(),
+                + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d",
+            arg.numChannels, histogram.getTotalCount(),
             arg.reqSize,
             (0.1 * totalPayload / duration), totalPayload,
             //histogram.getMean(),
@@ -58,7 +53,6 @@ public class TestMain {
             histogram.getValueAtPercentile(90),
             histogram.getValueAtPercentile(99),
             histogram.getValueAtPercentile(99.9),
-            histogram.getValueAtPercentile(99.99),
             histogram.getValueAtPercentile(100)));
 
     System.out.println("\n** histogram percentile distribution output file: " + resultFileName);
@@ -112,12 +106,12 @@ public class TestMain {
 
     EchoWithResponseSizeRequest request = EchoWithResponseSizeRequest.newBuilder()
         .setEchoMsg(generatePayload(argObj.reqSize * 1024))
-        .setResponseSize(argObj.rspSize)
+        .setResponseSize(argObj.resSize)
         .build();
 
     try {
       logger.info("Start warm up...");
-      warmup(client, request, 10 * argObj.numChannels);
+      warmup(client, request, argObj.warmup * argObj.numChannels);
 
       logger.info("Warm up done. Start benchmark tests...");
       runTest(argObj, client, request);
@@ -128,10 +122,6 @@ public class TestMain {
 
   public static void main(String[] args) throws Exception {
     Args argObj = new Args(args);
-    try {
-      execTask(argObj);
-    } catch (InterruptedException | SSLException e) {
-      logger.info("interrupted?" + e.getMessage());
-    }
+    execTask(argObj);
   }
 }
