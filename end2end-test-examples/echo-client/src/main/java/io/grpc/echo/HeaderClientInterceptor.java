@@ -4,6 +4,7 @@ import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
 import io.grpc.ClientInterceptor;
+import io.grpc.Context;
 import io.grpc.ForwardingClientCall.SimpleForwardingClientCall;
 import io.grpc.ForwardingClientCallListener.SimpleForwardingClientCallListener;
 import io.grpc.Metadata;
@@ -12,14 +13,16 @@ import java.util.logging.Logger;
 
 public class HeaderClientInterceptor implements ClientInterceptor {
   private int counter = 0;
-  private boolean headers;
+  private boolean header;
   private String cookie;
+  private String resComp;
 
   private static final Logger logger = Logger.getLogger(HeaderClientInterceptor.class.getName());
 
-  public HeaderClientInterceptor(String cookie, boolean headers) {
-    this.cookie = cookie;
-    this.headers = headers;
+  public HeaderClientInterceptor(Args args) {
+    this.cookie = args.cookie;
+    this.header = args.header;
+    this.resComp = args.resComp;
   }
 
   /**
@@ -50,12 +53,16 @@ public class HeaderClientInterceptor implements ClientInterceptor {
           headers.put(Metadata.Key.of("Cookie", Metadata.ASCII_STRING_MARSHALLER), cookie);
         }
 
+        if (!resComp.isEmpty()) {
+          headers.put(Metadata.Key.of("x-response-compression", Metadata.ASCII_STRING_MARSHALLER), resComp);
+        }
+
         logger.info("Header from client: " + headers);
 
         super.start(new SimpleForwardingClientCallListener<RespT>(responseListener) {
           @Override
           public void onHeaders(Metadata headers) {
-            if (HeaderClientInterceptor.this.headers) {
+            if (HeaderClientInterceptor.this.header) {
               logger.info("Header received from server: " + headers);
             }
             super.onHeaders(headers);

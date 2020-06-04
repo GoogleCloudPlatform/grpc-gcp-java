@@ -69,8 +69,8 @@ public class EchoClient {
       channels[i] = builder.build();
 
       Channel channel;
-      if (args.header) {
-        ClientInterceptor interceptor = new HeaderClientInterceptor(args.cookie, args.header);
+      if (args.header || !args.resComp.isEmpty()) {
+        ClientInterceptor interceptor = new HeaderClientInterceptor(args);
         channel = ClientInterceptors.intercept(channels[i], interceptor);
       } else {
         channel = channels[i];
@@ -81,11 +81,11 @@ public class EchoClient {
       }
       asyncStubs[i] = GrpcCloudapiGrpc.newStub(channel);
 
-      if (!args.compression.isEmpty()) {
+      if (!args.reqComp.isEmpty()) {
         if (i == 0) {
-          blockingStub = blockingStub.withCompression(args.compression);
+          blockingStub = blockingStub.withCompression(args.reqComp);
         }
-        asyncStubs[i] = asyncStubs[i].withCompression(args.compression);
+        asyncStubs[i] = asyncStubs[i].withCompression(args.reqComp);
       }
     }
   }
