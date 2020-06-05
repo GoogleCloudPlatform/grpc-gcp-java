@@ -54,7 +54,7 @@ public class HeaderClientInterceptor implements ClientInterceptor {
         }
 
         if (!resComp.isEmpty()) {
-          headers.put(Metadata.Key.of("x-response-compression", Metadata.ASCII_STRING_MARSHALLER), resComp);
+          headers.put(Metadata.Key.of("x-response-encoding", Metadata.ASCII_STRING_MARSHALLER), resComp);
         }
 
         logger.info("Header from client: " + headers);
