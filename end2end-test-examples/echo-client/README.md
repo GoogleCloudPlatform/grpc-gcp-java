@@ -39,6 +39,8 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 
 `--resSize`: Set response payload size in KB.
 
+`--resType`: Set the response type. If 0, the client sends a `EchoWithResponseSize` rpc. If [1,2,3], the client sends a `BatchEcho` and sets the `response_type` with this value in `BatchEchoRequest`. 
+
 `--reqComp`: gRPC compression algorithm to use for request. Currently only supports `gzip`.
 
 `--resComp`: gRPC compression algorithm to use for response. Currently only supports `gzip`.

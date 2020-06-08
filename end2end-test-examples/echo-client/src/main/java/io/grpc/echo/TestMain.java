@@ -12,14 +12,6 @@ import org.HdrHistogram.Histogram;
 public class TestMain {
   private static final Logger logger = Logger.getLogger(TestMain.class.getName());
 
-  private static String generatePayload(int numBytes) {
-    StringBuilder sb = new StringBuilder(numBytes);
-    for (int i = 0; i < numBytes; i++) {
-      sb.append('x');
-    }
-    return sb.toString();
-  }
-
   private static void printResult(Args arg, long totalPayload,
       long duration, Histogram histogram) {
 
@@ -58,14 +50,14 @@ public class TestMain {
     System.out.println("\n** histogram percentile distribution output file: " + resultFileName);
   }
 
-  private static void warmup(EchoClient client, EchoWithResponseSizeRequest request, int numCalls) {
+  private static void warmup(EchoClient client, int numCalls) {
     CountDownLatch latch = new CountDownLatch(numCalls);
     for (int i = 0; i < numCalls; i++) {
-      client.echo(i, request, latch, null);
+      client.echo(i, latch, null);
     }
   }
 
-  private static void runTest(Args args, EchoClient client, EchoWithResponseSizeRequest request) throws InterruptedException {
+  private static void runTest(Args args, EchoClient client) throws InterruptedException {
 
     int rpcsToDo = args.numRpcs;
     CountDownLatch latch = new CountDownLatch(rpcsToDo);
@@ -84,7 +76,7 @@ public class TestMain {
         }
       }
 
-      client.echo(i, request, latch, histogram);
+      client.echo(i, latch, histogram);
       totalPayloadSize += args.reqSize;
     }
 
@@ -103,18 +95,12 @@ public class TestMain {
 
   private static void execTask(Args argObj) throws InterruptedException, SSLException {
     EchoClient client = new EchoClient(argObj);
-
-    EchoWithResponseSizeRequest request = EchoWithResponseSizeRequest.newBuilder()
-        .setEchoMsg(generatePayload(argObj.reqSize * 1024))
-        .setResponseSize(argObj.resSize)
-        .build();
-
     try {
       logger.info("Start warm up...");
-      warmup(client, request, argObj.warmup * argObj.numChannels);
+      warmup(client, argObj.warmup * argObj.numChannels);
 
       logger.info("Warm up done. Start benchmark tests...");
-      runTest(argObj, client, request);
+      runTest(argObj, client);
     } finally {
       client.shutdown();
     }

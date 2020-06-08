@@ -27,6 +27,7 @@ public class Args {
   final int qps;
   final int reqSize;
   final int resSize;
+  final int resType;
   final PoissonDistribution distrib;
 
   Args(String[] args) throws ArgumentParserException {
@@ -53,6 +54,7 @@ public class Args {
     parser.addArgument("--qps").type(Integer.class).setDefault(0);
     parser.addArgument("--reqSize").type(Integer.class).setDefault(1);
     parser.addArgument("--resSize").type(Integer.class).setDefault(1);
+    parser.addArgument("--resType").type(Integer.class).setDefault(0);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -74,6 +76,7 @@ public class Args {
     qps = ns.getInt("qps");
     reqSize = ns.getInt("reqSize");
     resSize = ns.getInt("resSize");
+    resType = ns.getInt("resType");
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }
