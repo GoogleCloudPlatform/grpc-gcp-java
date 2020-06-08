@@ -7,6 +7,8 @@ import io.grpc.ManagedChannel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.echo.Echo.EchoResponse;
+import io.grpc.echo.Echo.BatchEchoRequest;
+import io.grpc.echo.Echo.BatchEchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiBlockingStub;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiStub;
@@ -15,6 +17,9 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -103,8 +108,11 @@ public class EchoClient {
   }
 
 
-  public void asyncEcho(int id, EchoWithResponseSizeRequest request, CountDownLatch latch,
-      Histogram histogram) {
+  public void asyncEcho(int id, CountDownLatch latch, Histogram histogram) {
+    EchoWithResponseSizeRequest request = EchoWithResponseSizeRequest.newBuilder()
+        .setEchoMsg(generatePayload(args.reqSize * 1024))
+        .setResponseSize(args.resSize)
+        .build();
     GrpcCloudapiStub stub = getNextAsyncStub();
     stub.withDeadlineAfter(DEADLINE_MINUTES, TimeUnit.MINUTES).echoWithResponseSize(
         request,
@@ -132,10 +140,38 @@ public class EchoClient {
         });
   }
 
-  void blockingEcho(EchoWithResponseSizeRequest request, Histogram histogram) {
+  private String generatePayload(int numBytes) {
+    StringBuilder sb = new StringBuilder(numBytes);
+    for (int i = 0; i < numBytes; i++) {
+      sb.append('x');
+    }
+    return sb.toString();
+  }
+
+
+  void blockingEcho(Histogram histogram) {
     try {
-      long start = System.currentTimeMillis();
-      blockingStub.echoWithResponseSize(request);
+      long start;
+      if (args.resType == 0) {
+        EchoWithResponseSizeRequest request = EchoWithResponseSizeRequest.newBuilder()
+            .setEchoMsg(generatePayload(args.reqSize * 1024))
+            .setResponseSize(args.resSize)
+            .build();
+        start = System.currentTimeMillis();
+        blockingStub.echoWithResponseSize(request);
+      } else {
+        BatchEchoRequest request = BatchEchoRequest.newBuilder()
+            .setEchoMsg(generatePayload(args.reqSize * 1024))
+            .setResponseType(args.resType)
+            .build();
+        start = System.currentTimeMillis();
+        BatchEchoResponse response = blockingStub.batchEcho(request);
+        List<Integer> sizeList = new ArrayList<>();
+        for (EchoResponse r : response.getEchoResponsesList()) {
+          sizeList.add(r.getSerializedSize());
+        }
+        logger.info("Got EchoResponsesList with sizes: " + Arrays.toString(sizeList.toArray()));
+      }
       long cost = System.currentTimeMillis() - start;
       if (histogram != null) histogram.recordValue(cost);
     } catch (StatusRuntimeException e) {
@@ -144,12 +180,12 @@ public class EchoClient {
     }
   }
 
-  public void echo(int id, EchoWithResponseSizeRequest request, CountDownLatch latch, Histogram histogram) {
+  public void echo(int id, CountDownLatch latch, Histogram histogram) {
     if (args.async) {
-      asyncEcho(id, request, latch, histogram);
+      asyncEcho(id, latch, histogram);
       //logger.info("Async request: sent rpc#: " + rpcIndex);
     } else {
-      blockingEcho(request, histogram);
+      blockingEcho(histogram);
     }
     //logger.info("Sync request: sent rpc#: " + rpcIndex);
   }

@@ -16,6 +16,15 @@ message EchoResponse {
   string echoed_string = 1;
 }
 
+message BatchEchoRequest {
+  string echo_msg = 1;
+  int32 response_type = 2;
+}
+
+message BatchEchoResponse {
+  repeated EchoResponse echo_responses = 1;
+}
+
 message EchoWithResponseSizeRequest {
   string echo_msg = 1;
   int32 response_size = 2;
@@ -32,14 +41,14 @@ service GrpcCloudapi {
   // A simple echo RPC returns the input string
   rpc Echo(EchoRequest) returns (EchoResponse) {
     option (google.api.http) = {
-      get: "/v1/{string_to_echo}"
+      get: "/v1/echo/{string_to_echo}"
     };
   }
 
   // A simple echo RPC receives a custom response size
   rpc EchoWithResponseSize(EchoWithResponseSizeRequest) returns (EchoResponse) {
     option (google.api.http) = {
-      get: "/v1/{response_size}"
+      get: "/v1/echo/{echo_msg}/{response_size}"
     };
   }
 
@@ -49,4 +58,12 @@ service GrpcCloudapi {
       get: "/v1/stream/{message_count}/{message_interval}"
     };
   }
+
+  // RPC to get a list of echo responses
+  rpc BatchEcho(BatchEchoRequest) returns (BatchEchoResponse) {
+    option (google.api.http) = {
+      get: "/v1/batch/{echo_msg}/{response_type}"
+    };
+  }
+
 }
