@@ -16,6 +16,7 @@ public class HeaderClientInterceptor implements ClientInterceptor {
   private boolean header;
   private String cookie;
   private String resComp;
+  private String token;
 
   private static final Logger logger = Logger.getLogger(HeaderClientInterceptor.class.getName());
 
@@ -23,6 +24,7 @@ public class HeaderClientInterceptor implements ClientInterceptor {
     this.cookie = args.cookie;
     this.header = args.header;
     this.resComp = args.resComp;
+    this.token = args.token;
   }
 
   /**
@@ -55,6 +57,10 @@ public class HeaderClientInterceptor implements ClientInterceptor {
 
         if (!resComp.isEmpty()) {
           headers.put(Metadata.Key.of("x-response-encoding", Metadata.ASCII_STRING_MARSHALLER), resComp);
+        }
+
+        if (!token.isEmpty()) {
+          headers.put(Metadata.Key.of("x-custom-auth-ticket", Metadata.ASCII_STRING_MARSHALLER), token);
         }
 
         logger.info("Header from client: " + headers);
