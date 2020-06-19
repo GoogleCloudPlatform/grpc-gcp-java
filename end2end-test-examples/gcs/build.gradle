@@ -11,7 +11,7 @@ sourceCompatibility = 1.8
 
 def gcsioVersion = '2.2.0-SNAPSHOT'
 def grpcVersion = '1.30.0'
-def protobufVersion = '3.11.0'
+def protobufVersion = '3.12.0'
 def protocVersion = protobufVersion
 
 
