@@ -5,15 +5,8 @@ import static io.grpc.gcs.Args.CLIENT_GCSIO_HTTP;
 import static io.grpc.gcs.Args.CLIENT_GRPC;
 import static io.grpc.gcs.Args.CLIENT_YOSHI;
 
-import com.google.gson.Gson;
-import io.grpc.netty.shaded.io.grpc.netty.InternalHandlerSettings;
 import java.io.FileInputStream;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.security.Security;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 import org.conscrypt.Conscrypt;
@@ -28,10 +21,6 @@ public class TestMain {
     }
     if (a.conscrypt) {
       Security.insertProviderAt(Conscrypt.newProvider(), 1);
-    }
-    if (a.autoWindow) {
-      InternalHandlerSettings.enable(true);
-      InternalHandlerSettings.autoWindowOn(true);
     }
     ResultTable results = new ResultTable(a);
     long start = 0;
