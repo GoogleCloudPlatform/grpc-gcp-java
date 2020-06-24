@@ -20,7 +20,7 @@ public class TestMain {
       LogManager.getLogManager().readConfiguration(new FileInputStream("logging.properties"));
     }
     if (a.conscrypt) {
-      Security.insertProviderAt(Conscrypt.newProviderBuilder().provideTrustManager(false).build(), 1);
+      Security.insertProviderAt(Conscrypt.newProvider(), 1);
     }
     ResultTable results = new ResultTable(a);
     long start = 0;
