@@ -250,9 +250,17 @@ public class GrpcClient {
 
         @Override
         public void onCompleted() {
-          finishLatch.countDown();
           long dur = System.currentTimeMillis() - start;
           results.reportResult(dur);
+          if (dur < 1000) {
+            try {
+              Thread.sleep(1000 - dur); // Avoid limit of 1 qps for updating the same object
+            } catch (InterruptedException e) {
+              e.printStackTrace();
+              finishLatch.countDown();
+            }
+          }
+          finishLatch.countDown();
         }
       };
 
@@ -283,8 +291,6 @@ public class GrpcClient {
       if (!finishLatch.await(20, TimeUnit.MINUTES)) {
         logger.warning("insertObject cannot finish within 20 minutes");
       }
-
-      Thread.sleep(1000); // Avoid request limit for updating a single object
     }
 
   }
