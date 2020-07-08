@@ -149,7 +149,9 @@ public class GcsioClient {
       // write operation is async, need to call close() to wait for finish.
       long dur = System.currentTimeMillis() - start;
       results.reportResult(dur);
-      Thread.sleep(1000); // Avoid request limit for updating a single object
+      if (dur < 1000) {
+        Thread.sleep(1000 - dur); // Avoid limit of 1 qps for updating the same object
+      }
     }
 
     gcsfs.close();
