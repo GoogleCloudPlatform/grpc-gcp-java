@@ -9,6 +9,7 @@ import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystem;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
+import com.google.cloud.hadoop.util.AsyncWriteChannelOptions;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -16,12 +17,12 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
 import java.util.logging.Logger;
+import java.util.Random;
 
 public class GcsioClient {
   private static final Logger logger = Logger.getLogger(GcsioClient.class.getName());
@@ -38,6 +39,8 @@ public class GcsioClient {
     this.gcsOpts = GoogleCloudStorageOptions.builder()
             .setAppName("weiranf-app")
             .setGrpcEnabled(grpcEnabled)
+            .setReadChannelOptions(GoogleCloudStorageReadOptions.builder().setGrpcChecksumsEnabled(args.checksum).build())
+            .setWriteChannelOptions(AsyncWriteChannelOptions.builder().setGrpcChecksumsEnabled(args.checksum).build())
             .build();
   }
 
@@ -168,7 +171,7 @@ public class GcsioClient {
 
     URI uri = URI.create("gs://" + args.bkt + "/" + args.obj);
     
-    GoogleCloudStorageReadOptions readOpts = GoogleCloudStorageReadOptions.builder().build();
+    GoogleCloudStorageReadOptions readOpts = gcsOpts.getReadChannelOptions();
 
     SeekableByteChannel reader = gcsfs.open(uri, readOpts);
     for (int i = 0; i < args.calls; i++) {

@@ -21,6 +21,8 @@ public class TestMain {
     }
     if (a.conscrypt) {
       Security.insertProviderAt(Conscrypt.newProvider(), 1);
+    } else if (a.conscrypt_notm) {
+      Security.insertProviderAt(Conscrypt.newProviderBuilder().provideTrustManager(false).build(), 1);
     }
     ResultTable results = new ResultTable(a);
     long start = 0;
