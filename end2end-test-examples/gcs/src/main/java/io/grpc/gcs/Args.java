@@ -28,6 +28,7 @@ public class Args {
   final int buffSize;
   final String method;
   final boolean conscrypt;
+  final boolean conscrypt_notm;
   final String client;
   final String latencyFilename;
   final int threads;
@@ -53,6 +54,7 @@ public class Args {
     parser.addArgument("--buffSize").type(Integer.class).setDefault(0);
     parser.addArgument("--method").type(String.class).setDefault(METHOD_READ);
     parser.addArgument("--conscrypt").type(Boolean.class).setDefault(false);
+    parser.addArgument("--conscrypt_notm").type(Boolean.class).setDefault(false);
     parser.addArgument("--client").type(String.class).setDefault(CLIENT_GRPC);
     parser.addArgument("--latencyFilename").type(String.class).setDefault("");
     parser.addArgument("--threads").type(Integer.class).setDefault(1);
@@ -74,6 +76,7 @@ public class Args {
     buffSize = ns.getInt("buffSize");
     method = ns.getString("method");
     conscrypt = ns.getBoolean("conscrypt");
+    conscrypt_notm = ns.getBoolean("conscrypt_notm");
     client = ns.getString("client");
     latencyFilename = ns.getString("latencyFilename");
     threads = ns.getInt("threads");
