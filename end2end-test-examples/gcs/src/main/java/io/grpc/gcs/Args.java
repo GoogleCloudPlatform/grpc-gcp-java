@@ -33,6 +33,7 @@ public class Args {
   final String latencyFilename;
   final int threads;
   final int flowControlWindow;
+  final boolean checksum;
   final boolean verboseLog;
   final boolean verboseResult;
 
@@ -59,6 +60,7 @@ public class Args {
     parser.addArgument("--latencyFilename").type(String.class).setDefault("");
     parser.addArgument("--threads").type(Integer.class).setDefault(1);
     parser.addArgument("--window").type(Integer.class).setDefault(0);
+    parser.addArgument("--checksum").type(Boolean.class).setDefault(false);
     parser.addArgument("--verboseLog").type(Boolean.class).setDefault(false);
     parser.addArgument("--verboseResult").type(Boolean.class).setDefault(false);
 
@@ -81,6 +83,7 @@ public class Args {
     latencyFilename = ns.getString("latencyFilename");
     threads = ns.getInt("threads");
     flowControlWindow = ns.getInt("window");
+    checksum = ns.getBoolean("checksum");
     verboseLog = ns.getBoolean("verboseLog");
     verboseResult = ns.getBoolean("verboseResult");
   }
