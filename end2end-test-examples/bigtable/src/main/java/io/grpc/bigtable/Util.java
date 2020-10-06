@@ -1,22 +1,36 @@
-package com.google.cloud;
+package io.grpc.bigtable;
   
-import java.io.*;
+import java.io.IOException;
 import com.google.cloud.bigtable.data.v2.BigtableDataClient;
 import com.google.cloud.bigtable.data.v2.models.*;
 import com.google.cloud.bigtable.data.v2.BigtableDataSettings;
-import java.net.*;
-import io.grpc.*;
+import java.net.SocketAddress;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import io.grpc.Grpc;
+import io.grpc.ClientInterceptor;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.MethodDescriptor;
+import io.grpc.CallOptions;
+import io.grpc.Channel;
+import io.grpc.ClientCall;
+import io.grpc.Metadata;
 import io.grpc.ForwardingClientCall.SimpleForwardingClientCall;
 import io.grpc.ForwardingClientCallListener.SimpleForwardingClientCallListener;
 import com.google.api.gax.rpc.TransportChannelProvider;
 import com.google.api.gax.grpc.InstantiatingGrpcChannelProvider;
 import com.google.api.core.ApiFunction;
+import java.util.logging.Logger;
 
 public class Util{
-  // Construct a bigtable dataclient with checking peer IP enabled
-  public static BigtableDataClient peerIpDataClient(String projectId, String instanceId, String dataEndPoint) throws IOException {
+	private static final Logger logger = Logger.getLogger(TestMain.class.getName());
+
+  /**
+  * Construct a BigTable DataClient that can check peer IP address.
+  */
+  public static final BigtableDataClient peerIpDataClient(String projectId, String instanceId) throws IOException {
     BigtableDataSettings.Builder dataSettings = BigtableDataSettings.newBuilder().setProjectId(projectId).setInstanceId(instanceId);
-    //dataSettings.stubSettings().setEndpoint(dataEndPoint);
+    // dataSettings.stubSettings().setEndpoint(dataEndPoint);
     TransportChannelProvider channelProvider =
       dataSettings.stubSettings().getTransportChannelProvider();
     InstantiatingGrpcChannelProvider defaultTransportProvider =
@@ -37,9 +51,7 @@ public class Util{
     return BigtableDataClient.create(dataSettings.build());
   }
 
-  // Captures the request attributes "Grpc.TRANSPORT_ATTR_REMOTE_ADDR" when connection is
-  // established and check the peer IP address 
-  private static ClientInterceptor addressCheckInterceptor() {
+  private static final ClientInterceptor addressCheckInterceptor() {
     return new ClientInterceptor() {
       @Override
       public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(
@@ -57,7 +69,7 @@ public class Util{
                         clientCall.getAttributes().get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR);
                     InetAddress inetAddress = ((InetSocketAddress) remoteAddr).getAddress();
                     String addr = inetAddress.getHostAddress();
-                    System.out.println("peer ip = " + addr);
+										logger.info("peer ip = " + addr);
                     super.onHeaders(headers);
                   }
                 },

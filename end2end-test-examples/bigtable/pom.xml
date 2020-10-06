@@ -1,12 +1,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.google.cloud</groupId>
-  <artifactId>stress-test</artifactId>
+  <groupId>io.grpc.bigtable</groupId>
+	<artifactId>directpath-stress-test</artifactId>
   <packaging>jar</packaging>
   <version>0.0.1-SNAPSHOT</version>
 	<name>Bigtable stress test over directpath</name>
-	<description>An client for running stress tests for java-bigtable over directpath.</description>
+	<description>A Bigtable client for running stress tests over directpath in Java.</description>
   <url>http://maven.apache.org</url>
 
 	<properties>
@@ -28,6 +28,16 @@
       <artifactId>google-cloud-bigtable</artifactId>
       <version>1.14.0</version>
     </dependency>
+		<dependency>
+			<groupId>net.sourceforge.argparse4j</groupId>
+			<artifactId>argparse4j</artifactId>
+			<version>0.8.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.hdrhistogram</groupId>
+			<artifactId>HdrHistogram</artifactId>
+			<version>2.1.4</version>
+		</dependency>
 	</dependencies>
 
 	<build>
