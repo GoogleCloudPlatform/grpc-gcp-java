@@ -28,7 +28,6 @@ import javax.net.ssl.SSLException;
 import org.HdrHistogram.Histogram;
 
 public class EchoClient {
-  private static final int DEADLINE_MINUTES = 60;
   private static final Logger logger = Logger.getLogger(EchoClient.class.getName());
 
   //  private final ManagedChannel originalChannel;
@@ -114,7 +113,7 @@ public class EchoClient {
         .setResponseSize(args.resSize)
         .build();
     GrpcCloudapiStub stub = getNextAsyncStub();
-    stub.withDeadlineAfter(DEADLINE_MINUTES, TimeUnit.MINUTES).echoWithResponseSize(
+    stub.withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS).echoWithResponseSize(
         request,
         new StreamObserver<EchoResponse>() {
           long start = System.currentTimeMillis();
@@ -126,7 +125,8 @@ public class EchoClient {
           public void onError(Throwable t) {
             if (latch != null) latch.countDown();
             Status status = Status.fromThrowable(t);
-            logger.warning(String.format("Encountered an error in %dth echo RPC (startTime: %s). Status: %s", id, new Timestamp(start), status));
+            long elapsed = System.currentTimeMillis() - start;
+            logger.warning(String.format("Encountered an error in %dth echo RPC (startTime: %s, elapsed: %dms). Status: %s", id, new Timestamp(start), elapsed, status));
             t.printStackTrace();
           }
 
@@ -150,22 +150,26 @@ public class EchoClient {
 
 
   void blockingEcho(Histogram histogram) {
+    long start = 0;
     try {
-      long start;
       if (args.resType == 0) {
         EchoWithResponseSizeRequest request = EchoWithResponseSizeRequest.newBuilder()
             .setEchoMsg(generatePayload(args.reqSize * 1024))
             .setResponseSize(args.resSize)
             .build();
         start = System.currentTimeMillis();
-        blockingStub.echoWithResponseSize(request);
+        blockingStub
+            .withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS)
+            .echoWithResponseSize(request);
       } else {
         BatchEchoRequest request = BatchEchoRequest.newBuilder()
             .setEchoMsg(generatePayload(args.reqSize * 1024))
             .setResponseType(args.resType)
             .build();
         start = System.currentTimeMillis();
-        BatchEchoResponse response = blockingStub.batchEcho(request);
+        BatchEchoResponse response = blockingStub
+            .withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS)
+            .batchEcho(request);
         List<Integer> sizeList = new ArrayList<>();
         for (EchoResponse r : response.getEchoResponsesList()) {
           sizeList.add(r.getSerializedSize());
@@ -174,8 +178,10 @@ public class EchoClient {
       }
       long cost = System.currentTimeMillis() - start;
       if (histogram != null) histogram.recordValue(cost);
+      logger.info(String.format("RPC succeeded after %d ms.", cost));
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      long elapsed = System.currentTimeMillis() - start;
+      logger.warning(String.format("RPC failed after %d ms: %s", elapsed, e.getStatus()));
       e.printStackTrace();
     }
   }
