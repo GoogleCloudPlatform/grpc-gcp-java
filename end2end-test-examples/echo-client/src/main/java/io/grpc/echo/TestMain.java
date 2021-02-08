@@ -1,10 +1,10 @@
 package io.grpc.echo;
 
-import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.util.concurrent.CountDownLatch;
+import java.util.logging.LogManager;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 import org.HdrHistogram.Histogram;
@@ -116,6 +116,12 @@ public class TestMain {
 
   public static void main(String[] args) throws Exception {
     Args argObj = new Args(args);
+
+    if (argObj.fineLogs) {
+        LogManager.getLogManager().readConfiguration(
+            TestMain.class.getResourceAsStream("/logging.properties"));
+    }
+
     execTask(argObj);
   }
 }

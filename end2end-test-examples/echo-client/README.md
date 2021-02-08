@@ -49,7 +49,7 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 
 `--timeout`: Timeout for each request in ms. (Default 60 minutes).
 
-`--warmup`: Number of warm-up RPCs to send before the test. Default: 5.
+`--warmup`: Number of warm-up RPCs to send before the test. Default: 0.
 
 `--reqSize`: Set request payload size in KB.
 
@@ -68,4 +68,6 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 `--cookie`: Cookie String to enable tracing.
 
 `--stream`: Infinitely call EchoStream request with server-streaming responses for `--numRpcs` responses with `--interval`. (This overrides --async option).
+ 
+ `--fineLogs`: Extensive logging of network operations. Default: false.
  
