@@ -75,3 +75,8 @@ task run(type: JavaExec) {
     //jvmArgs = ['-Xlint:deprecation']
 }
 
+task runWithLogs(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'io.grpc.echo.TestMain'
+    jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
+}
