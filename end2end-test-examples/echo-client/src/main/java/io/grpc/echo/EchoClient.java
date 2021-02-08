@@ -159,9 +159,10 @@ public class EchoClient {
           .build();
       start = System.currentTimeMillis();
       Iterator<EchoResponse> iter = blockingStub.echoStream(request);
-      for (long counter = 0; iter.hasNext(); ++counter) {
+      for (long counter = 1; iter.hasNext(); ++counter) {
         EchoResponse resp = iter.next();
-        logger.info(String.format("Got %d EchoResponse", counter));
+        long elapsed = System.currentTimeMillis() - start;
+        logger.info(String.format("Got %d EchoResponse after %dms.", counter, elapsed));
       }
     } catch (StatusRuntimeException e) {
       long elapsed = System.currentTimeMillis() - start;
@@ -199,7 +200,9 @@ public class EchoClient {
       }
       long cost = System.currentTimeMillis() - start;
       if (histogram != null) histogram.recordValue(cost);
-      logger.info(String.format("RPC succeeded after %d ms.", cost));
+      if (args.numRpcs == 0) {
+        logger.info(String.format("RPC succeeded after %d ms.", cost));
+      }
     } catch (StatusRuntimeException e) {
       long elapsed = System.currentTimeMillis() - start;
       logger.warning(String.format("RPC failed after %d ms: %s", elapsed, e.getStatus()));
