@@ -66,7 +66,7 @@ public class TestMain {
 
     long totalPayloadSize = 0;
     long startFirst = System.currentTimeMillis();
-    for (int i = 0; rpcsToDo == 0 || i < rpcsToDo; i++) {
+    for (int i = 0; args.stream || rpcsToDo == 0 || i < rpcsToDo; i++) {
       if (args.async) {
         if (args.distrib != null) {
           int sample = args.distrib.sample();
@@ -77,7 +77,7 @@ public class TestMain {
         }
       }
 
-      if (args.interval > 0 || rpcsToDo == 0) {
+      if (!args.stream && (args.interval > 0 || rpcsToDo == 0)) {
         int delay = args.interval;
         if (rpcsToDo == 0 && delay < INFINITE_REQUESTS_MIN_DELAY) {
           delay = INFINITE_REQUESTS_MIN_DELAY;

@@ -23,6 +23,12 @@ Sending requests infinitely with 10 seconds interval between requests.
 ./gradlew run --args="--numRpcs=0 --interval=10000 --reqSize=100 --resSize=100 --host=grpc-cloudapi1.googleapis.com"
 ```
 
+Receive server-streaming responses with 10 seconds interval. Re-create the stream after each 10 responses.
+
+```sh
+./gradlew run --args="--stream=true --numRpcs=10 --interval=10000 --host=grpc-cloudapi1.googleapis.com"
+```
+
 Example results:
 
 ```sh
@@ -60,3 +66,6 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 `--numChannels`: Number of channels to use.
 
 `--cookie`: Cookie String to enable tracing.
+
+`--stream`: Infinitely call EchoStream request with server-streaming responses for `--numRpcs` responses with `--interval`. (This overrides --async option).
+ 

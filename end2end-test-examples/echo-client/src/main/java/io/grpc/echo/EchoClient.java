@@ -10,6 +10,7 @@ import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.BatchEchoRequest;
 import io.grpc.echo.Echo.BatchEchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
+import io.grpc.echo.Echo.StreamEchoRequest;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiBlockingStub;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiStub;
 import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
@@ -19,15 +20,16 @@ import io.grpc.stub.StreamObserver;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 import org.HdrHistogram.Histogram;
 
 public class EchoClient {
+  private static final int STREAMING_MIN_INTERVAL = 1000;
   private static final Logger logger = Logger.getLogger(EchoClient.class.getName());
 
   //  private final ManagedChannel originalChannel;
@@ -148,6 +150,25 @@ public class EchoClient {
     return sb.toString();
   }
 
+  void streamingEcho() {
+    long start = 0;
+    try {
+      StreamEchoRequest request = StreamEchoRequest.newBuilder()
+          .setMessageCount(args.numRpcs)
+          .setMessageInterval(Math.max(args.interval, STREAMING_MIN_INTERVAL))
+          .build();
+      start = System.currentTimeMillis();
+      Iterator<EchoResponse> iter = blockingStub.echoStream(request);
+      for (long counter = 0; iter.hasNext(); ++counter) {
+        EchoResponse resp = iter.next();
+        logger.info(String.format("Got %d EchoResponse", counter));
+      }
+    } catch (StatusRuntimeException e) {
+      long elapsed = System.currentTimeMillis() - start;
+      logger.warning(String.format("EchoStream RPC failed after %dms: %s", elapsed, e.getStatus()));
+      e.printStackTrace();
+    }
+  }
 
   void blockingEcho(Histogram histogram) {
     long start = 0;
@@ -187,6 +208,10 @@ public class EchoClient {
   }
 
   public void echo(int id, CountDownLatch latch, Histogram histogram) {
+    if (args.stream) {
+      streamingEcho();
+      return;
+    }
     if (args.async) {
       asyncEcho(id, latch, histogram);
       //logger.info("Async request: sent rpc#: " + rpcIndex);

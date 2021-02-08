@@ -32,6 +32,7 @@ public class Args {
   final PoissonDistribution distrib;
   final int interval;
   final int timeout;
+  final boolean stream;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -61,6 +62,7 @@ public class Args {
     parser.addArgument("--token").type(String.class).setDefault("");
     parser.addArgument("--interval").type(Integer.class).setDefault(0);
     parser.addArgument("--timeout").type(Integer.class).setDefault(3600000);
+    parser.addArgument("--stream").type(Boolean.class).setDefault(false);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -86,6 +88,7 @@ public class Args {
     token = ns.getString("token");
     interval = ns.getInt("interval");
     timeout = ns.getInt("timeout");
+    stream = ns.getBoolean("stream");
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }
