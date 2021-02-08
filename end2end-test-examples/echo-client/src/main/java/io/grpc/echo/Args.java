@@ -30,6 +30,7 @@ public class Args {
   final int resType;
   final String token;
   final PoissonDistribution distrib;
+  final int interval;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -57,6 +58,7 @@ public class Args {
     parser.addArgument("--resSize").type(Integer.class).setDefault(1);
     parser.addArgument("--resType").type(Integer.class).setDefault(0);
     parser.addArgument("--token").type(String.class).setDefault("");
+    parser.addArgument("--interval").type(Integer.class).setDefault(0);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -80,6 +82,7 @@ public class Args {
     resSize = ns.getInt("resSize");
     resType = ns.getInt("resType");
     token = ns.getString("token");
+    interval = ns.getInt("interval");
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }

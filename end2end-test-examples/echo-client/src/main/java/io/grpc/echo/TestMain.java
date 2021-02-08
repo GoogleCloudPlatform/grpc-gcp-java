@@ -10,6 +10,7 @@ import javax.net.ssl.SSLException;
 import org.HdrHistogram.Histogram;
 
 public class TestMain {
+  private static final int INFINITE_REQUESTS_MIN_DELAY = 1000;
   private static final Logger logger = Logger.getLogger(TestMain.class.getName());
 
   private static void printResult(Args arg, long totalPayload,
@@ -65,7 +66,7 @@ public class TestMain {
 
     long totalPayloadSize = 0;
     long startFirst = System.currentTimeMillis();
-    for (int i = 0; i < rpcsToDo; i++) {
+    for (int i = 0; rpcsToDo == 0 || i < rpcsToDo; i++) {
       if (args.async) {
         if (args.distrib != null) {
           int sample = args.distrib.sample();
@@ -76,6 +77,13 @@ public class TestMain {
         }
       }
 
+      if (args.interval > 0 || rpcsToDo == 0) {
+        int delay = args.interval;
+        if (rpcsToDo == 0 && delay < INFINITE_REQUESTS_MIN_DELAY) {
+          delay = INFINITE_REQUESTS_MIN_DELAY;
+        }
+        Thread.sleep(delay);
+      }
       client.echo(i, latch, histogram);
       totalPayloadSize += args.reqSize;
     }

@@ -17,6 +17,12 @@ Enable gRPC compression for both request and response with gzip:
 ./gradlew run --args="--numRpcs=100 --reqSize=100 --resSize=100 --reqComp=gzip --resComp=gzip --host=grpc-cloudapi1.googleapis.com"
 ```
 
+Sending requests infinitely with 10 seconds interval between requests.
+
+```sh
+./gradlew run --args="--numRpcs=0 --interval=10000 --reqSize=100 --resSize=100 --host=grpc-cloudapi1.googleapis.com"
+```
+
 Example results:
 
 ```sh
@@ -31,7 +37,9 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 ## Args
 `--host`: Target endpoint.
 
-`--numRpcs`: Number of gRPC calls to send.
+`--numRpcs`: Number of gRPC calls to send. Use 0 for sending requests infinitely with a 1-second interval between requests.
+
+`--interval`: Interval in ms between gRPC calls. For finite number of requests the default value is 0, 1000 ms otherwise.
 
 `--warmup`: Number of warm-up RPCs to send before the test. Default: 5.
 
