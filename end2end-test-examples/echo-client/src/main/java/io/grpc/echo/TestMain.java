@@ -51,10 +51,14 @@ public class TestMain {
     System.out.println("\n** histogram percentile distribution output file: " + resultFileName);
   }
 
-  private static void warmup(EchoClient client, int numCalls) {
+  private static void warmup(EchoClient client, Args args) throws InterruptedException {
+    int numCalls = args.warmup * args.numChannels;
     CountDownLatch latch = new CountDownLatch(numCalls);
     for (int i = 0; i < numCalls; i++) {
       client.echo(i, latch, null);
+    }
+    if (args.async) {
+      latch.await();
     }
   }
 
@@ -105,7 +109,7 @@ public class TestMain {
     EchoClient client = new EchoClient(argObj);
     try {
       logger.info("Start warm up...");
-      warmup(client, argObj.warmup * argObj.numChannels);
+      warmup(client, argObj);
 
       logger.info("Warm up done. Start benchmark tests...");
       runTest(argObj, client);
