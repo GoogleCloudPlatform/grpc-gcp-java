@@ -61,27 +61,8 @@ public class EchoClient {
       //              .sslContext(sslContext);
 
       // ManagedChannelBuilder builder = ManagedChannelBuilder.forAddress(argObj.host, argObj.port);
-      NettyChannelBuilder builder = NettyChannelBuilder.forTarget(args.host + ":" +args.port)
-          .sslContext(GrpcSslContexts.forClient()
-              .trustManager(InsecureTrustManagerFactory.INSTANCE)
-              .build());
-      if (!args.overrideService.isEmpty()) {
-        builder.overrideAuthority(args.overrideService);
-      }
 
-      if (args.insecure) {
-        builder = builder.usePlaintext();
-      }
-      channels[i] = builder.build();
-
-      Channel channel;
-      if (args.header || !args.resComp.isEmpty()) {
-        ClientInterceptor interceptor = new HeaderClientInterceptor(args);
-        channel = ClientInterceptors.intercept(channels[i], interceptor);
-      } else {
-        channel = channels[i];
-      }
-
+      Channel channel = createChannel(i);
       if (i == 0) {
         blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel);
       }
@@ -93,6 +74,44 @@ public class EchoClient {
         }
         asyncStubs[i] = asyncStubs[i].withCompression(args.reqComp);
       }
+    }
+  }
+
+  private NettyChannelBuilder getChannelBuilder() throws SSLException {
+    NettyChannelBuilder builder = NettyChannelBuilder.forTarget(args.host + ":" +args.port)
+        .sslContext(GrpcSslContexts.forClient()
+            .trustManager(InsecureTrustManagerFactory.INSTANCE)
+            .build());
+    if (!args.overrideService.isEmpty()) {
+      builder.overrideAuthority(args.overrideService);
+    }
+
+    if (args.insecure) {
+      builder.usePlaintext();
+    }
+
+    return builder;
+  }
+
+  private Channel createChannel(int i) throws SSLException {
+    ManagedChannel managedChannel = getChannelBuilder().build();
+    channels[i] = managedChannel;
+    Channel channel = managedChannel;
+    if (args.header || !args.resComp.isEmpty()) {
+      ClientInterceptor interceptor = new HeaderClientInterceptor(args);
+      channel = ClientInterceptors.intercept(channel, interceptor);
+    }
+    return channel;
+  }
+
+  private void reCreateBlockingStub() throws SSLException {
+    if (!channels[0].isShutdown()) {
+      channels[0].shutdown();
+    }
+    Channel channel = createChannel(0);
+    blockingStub = GrpcCloudapiGrpc.newBlockingStub(channel);
+    if (!args.reqComp.isEmpty()) {
+      blockingStub = blockingStub.withCompression(args.reqComp);
     }
   }
 
@@ -171,7 +190,7 @@ public class EchoClient {
     }
   }
 
-  void blockingEcho(Histogram histogram) {
+  void blockingEcho(Histogram histogram) throws SSLException {
     long start = 0;
     try {
       if (args.resType == 0) {
@@ -180,6 +199,9 @@ public class EchoClient {
             .setResponseSize(args.resSize)
             .build();
         start = System.currentTimeMillis();
+        if (args.dropChannel) {
+          reCreateBlockingStub();
+        }
         blockingStub
             .withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS)
             .echoWithResponseSize(request);
@@ -210,7 +232,7 @@ public class EchoClient {
     }
   }
 
-  public void echo(int id, CountDownLatch latch, Histogram histogram) {
+  public void echo(int id, CountDownLatch latch, Histogram histogram) throws SSLException {
     if (args.stream) {
       streamingEcho();
       return;

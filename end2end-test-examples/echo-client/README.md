@@ -47,6 +47,8 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 
 `--interval`: Interval in ms between gRPC calls. For finite number of requests the default value is 0, 1000 ms otherwise.
 
+`--dropChannel`: Re-create the channel before each request. Not applicable with --async.
+
 `--timeout`: Timeout for each request in ms. (Default 60 minutes).
 
 `--warmup`: Number of warm-up RPCs to send before the test. Default: 0.

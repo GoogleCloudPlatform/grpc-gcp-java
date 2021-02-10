@@ -51,7 +51,7 @@ public class TestMain {
     System.out.println("\n** histogram percentile distribution output file: " + resultFileName);
   }
 
-  private static void warmup(EchoClient client, Args args) throws InterruptedException {
+  private static void warmup(EchoClient client, Args args) throws SSLException, InterruptedException {
     int numCalls = args.warmup * args.numChannels;
     CountDownLatch latch = new CountDownLatch(numCalls);
     for (int i = 0; i < numCalls; i++) {
@@ -62,7 +62,7 @@ public class TestMain {
     }
   }
 
-  private static void runTest(Args args, EchoClient client) throws InterruptedException {
+  private static void runTest(Args args, EchoClient client) throws SSLException, InterruptedException {
 
     int rpcsToDo = args.numRpcs;
     CountDownLatch latch = new CountDownLatch(rpcsToDo);

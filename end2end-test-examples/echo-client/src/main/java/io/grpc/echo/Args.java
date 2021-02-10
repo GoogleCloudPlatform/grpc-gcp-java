@@ -31,6 +31,7 @@ public class Args {
   final String token;
   final PoissonDistribution distrib;
   final int interval;
+  final boolean dropChannel;
   final int timeout;
   final boolean stream;
   final boolean fineLogs;
@@ -62,6 +63,7 @@ public class Args {
     parser.addArgument("--resType").type(Integer.class).setDefault(0);
     parser.addArgument("--token").type(String.class).setDefault("");
     parser.addArgument("--interval").type(Integer.class).setDefault(0);
+    parser.addArgument("--dropChannel").type(Boolean.class).setDefault(false);
     parser.addArgument("--timeout").type(Integer.class).setDefault(3600000);
     parser.addArgument("--stream").type(Boolean.class).setDefault(false);
     parser.addArgument("--fineLogs").type(Boolean.class).setDefault(false);
@@ -89,6 +91,7 @@ public class Args {
     resType = ns.getInt("resType");
     token = ns.getString("token");
     interval = ns.getInt("interval");
+    dropChannel = ns.getBoolean("dropChannel");
     timeout = ns.getInt("timeout");
     stream = ns.getBoolean("stream");
     fineLogs = ns.getBoolean("fineLogs");
