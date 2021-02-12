@@ -73,3 +73,5 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
  
  `--fineLogs`: Extensive logging of network operations. Default: false.
  
+ `--debugHeader`: Request debug headers from the server. Default: false.
+ 

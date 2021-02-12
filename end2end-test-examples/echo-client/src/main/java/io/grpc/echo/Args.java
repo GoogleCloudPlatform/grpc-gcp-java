@@ -35,6 +35,7 @@ public class Args {
   final int timeout;
   final boolean stream;
   final boolean fineLogs;
+  final boolean debugHeader;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -67,6 +68,7 @@ public class Args {
     parser.addArgument("--timeout").type(Integer.class).setDefault(3600000);
     parser.addArgument("--stream").type(Boolean.class).setDefault(false);
     parser.addArgument("--fineLogs").type(Boolean.class).setDefault(false);
+    parser.addArgument("--debugHeader").type(Boolean.class).setDefault(false);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -95,6 +97,7 @@ public class Args {
     timeout = ns.getInt("timeout");
     stream = ns.getBoolean("stream");
     fineLogs = ns.getBoolean("fineLogs");
+    debugHeader = ns.getBoolean("debugHeader");
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }

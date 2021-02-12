@@ -97,7 +97,7 @@ public class EchoClient {
     ManagedChannel managedChannel = getChannelBuilder().build();
     channels[i] = managedChannel;
     Channel channel = managedChannel;
-    if (args.header || !args.resComp.isEmpty()) {
+    if (HeaderClientInterceptor.needsInterception(args)) {
       ClientInterceptor interceptor = new HeaderClientInterceptor(args);
       channel = ClientInterceptors.intercept(channel, interceptor);
     }
