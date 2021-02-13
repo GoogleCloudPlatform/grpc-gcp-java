@@ -36,6 +36,10 @@ public class Args {
   final boolean stream;
   final boolean fineLogs;
   final boolean debugHeader;
+  final String logFilename;
+  final int logMaxSize;
+  final int logMaxFiles;
+  final boolean disableConsoleLog;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -69,6 +73,10 @@ public class Args {
     parser.addArgument("--stream").type(Boolean.class).setDefault(false);
     parser.addArgument("--fineLogs").type(Boolean.class).setDefault(false);
     parser.addArgument("--debugHeader").type(Boolean.class).setDefault(false);
+    parser.addArgument("--logFilename").type(String.class).setDefault("");
+    parser.addArgument("--logMaxSize").type(Integer.class).setDefault(0);
+    parser.addArgument("--logMaxFiles").type(Integer.class).setDefault(0);
+    parser.addArgument("--disableConsoleLog").type(Boolean.class).setDefault(false);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -98,6 +106,10 @@ public class Args {
     stream = ns.getBoolean("stream");
     fineLogs = ns.getBoolean("fineLogs");
     debugHeader = ns.getBoolean("debugHeader");
+    logFilename = ns.getString("logFilename");
+    logMaxSize = ns.getInt("logMaxSize");
+    logMaxFiles = ns.getInt("logMaxFiles");
+    disableConsoleLog = ns.getBoolean("disableConsoleLog");
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }

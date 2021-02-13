@@ -70,8 +70,15 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 `--cookie`: Cookie String to enable tracing.
 
 `--stream`: Infinitely call EchoStream request with server-streaming responses for `--numRpcs` responses with `--interval`. (This overrides --async option).
+
+`--debugHeader`: Request debug headers from the server. Default: false.
+
+`--fineLogs`: Extensive logging of network operations. Default: false.
+
+`--logFilename`: Filename to log to. Default: empty, will log to console only.
+
+`--logMaxSize`: Max log file size in bytes. Default: unlimited.
+
+`--logMaxFiles`: If log file size is limited rotate log files and keep this number of files. Default: unlimited.
  
- `--fineLogs`: Extensive logging of network operations. Default: false.
- 
- `--debugHeader`: Request debug headers from the server. Default: false.
- 
+`--disableConsoleLog`: If logging to a file do not log to console. Default: false.

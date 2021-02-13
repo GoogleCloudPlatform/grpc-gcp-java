@@ -1,8 +1,11 @@
 package io.grpc.echo;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -118,14 +121,52 @@ public class TestMain {
     }
   }
 
+  private static void setUpLogs(Args args) throws IOException {
+    if (!args.fineLogs && args.logFilename.isEmpty()) {
+      return;
+    }
+    String handlers = "java.util.logging.ConsoleHandler";
+    String consoleHandlerProps = "java.util.logging.ConsoleHandler.level = ALL\n"
+        + "java.util.logging.ConsoleHandler.formatter = java.util.logging.SimpleFormatter\n";
+    String fileHandlerProps = "";
+    if (!args.logFilename.isEmpty()) {
+      if (args.disableConsoleLog) {
+        handlers = "java.util.logging.FileHandler";
+        consoleHandlerProps = "";
+      } else {
+        handlers = handlers + ", java.util.logging.FileHandler";
+      }
+      fileHandlerProps = "java.util.logging.FileHandler.level = ALL\n"
+          + "java.util.logging.FileHandler.formatter = java.util.logging.SimpleFormatter\n";
+      String filename = args.logFilename;
+      if (args.logMaxFiles > 0) {
+        filename += ".%g";
+        fileHandlerProps += "java.util.logging.FileHandler.count = " + args.logMaxFiles + "\n";
+      }
+      filename += ".log";
+      if (args.logMaxSize > 0) {
+        fileHandlerProps += "java.util.logging.FileHandler.limit = " + args.logMaxSize + "\n";
+      }
+      fileHandlerProps += "java.util.logging.FileHandler.pattern = " + filename + "\n";
+    }
+    String fineProps = "";
+    if (args.fineLogs) {
+      fineProps = ".level = FINE\n";
+    }
+    LogManager.getLogManager().readConfiguration(new ByteArrayInputStream((
+        "handlers=" + handlers + "\n"
+            + consoleHandlerProps
+            + fileHandlerProps
+            + fineProps
+            + "java.util.logging.SimpleFormatter.format=%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS.%1$tN %2$s%n%4$s: %5$s%6$s%n\n")
+        .getBytes(StandardCharsets.UTF_8)
+    ));
+  }
+
   public static void main(String[] args) throws Exception {
     Args argObj = new Args(args);
 
-    if (argObj.fineLogs) {
-        LogManager.getLogManager().readConfiguration(
-            TestMain.class.getResourceAsStream("/logging.properties"));
-    }
-
+    setUpLogs(argObj);
     execTask(argObj);
   }
 }
