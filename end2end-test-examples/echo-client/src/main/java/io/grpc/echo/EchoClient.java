@@ -3,6 +3,7 @@ package io.grpc.echo;
 import io.grpc.Channel;
 import io.grpc.ClientInterceptor;
 import io.grpc.ClientInterceptors;
+import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -93,8 +94,18 @@ public class EchoClient {
     return builder;
   }
 
+  private static void watchStateChange(ManagedChannel channel, ConnectivityState currentState, int i) {
+    channel.notifyWhenStateChanged(currentState, () -> {
+      ConnectivityState newState = channel.getState(false);
+      logger.fine(String.format("Channel %d state changed: %s -> %s", i, currentState, newState));
+      watchStateChange(channel, newState, i);
+    });
+  }
+
   private Channel createChannel(int i) throws SSLException {
     ManagedChannel managedChannel = getChannelBuilder().build();
+    ConnectivityState currentState = managedChannel.getState(false);
+    watchStateChange(managedChannel, currentState, i);
     channels[i] = managedChannel;
     Channel channel = managedChannel;
     if (HeaderClientInterceptor.needsInterception(args)) {
