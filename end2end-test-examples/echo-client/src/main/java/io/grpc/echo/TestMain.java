@@ -1,9 +1,12 @@
 package io.grpc.echo;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
@@ -122,7 +125,13 @@ public class TestMain {
   }
 
   private static void setUpLogs(Args args) throws IOException {
-    if (!args.fineLogs && args.logFilename.isEmpty()) {
+    if (!args.fineLogs && args.logFilename.isEmpty() && args.logConfig.isEmpty()) {
+      return;
+    }
+    if (!args.logConfig.isEmpty()) {
+      File configFile = new File(args.logConfig);
+      InputStream configStream = new FileInputStream(configFile);
+      LogManager.getLogManager().readConfiguration(configStream);
       return;
     }
     String handlers = "java.util.logging.ConsoleHandler";

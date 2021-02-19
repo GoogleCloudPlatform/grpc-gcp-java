@@ -73,6 +73,8 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 
 `--debugHeader`: Request debug headers from the server. Default: false.
 
+`--logConfig`: Logging configuration file in the format of logging.properties. If specified, the following logging flags have no effect.
+
 `--fineLogs`: Extensive logging of network operations. Default: false.
 
 `--logFilename`: Filename to log to. Default: empty, will log to console only.

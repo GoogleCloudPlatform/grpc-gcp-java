@@ -34,6 +34,7 @@ public class Args {
   final boolean dropChannel;
   final int timeout;
   final boolean stream;
+  final String logConfig;
   final boolean fineLogs;
   final boolean debugHeader;
   final String logFilename;
@@ -71,6 +72,7 @@ public class Args {
     parser.addArgument("--dropChannel").type(Boolean.class).setDefault(false);
     parser.addArgument("--timeout").type(Integer.class).setDefault(3600000);
     parser.addArgument("--stream").type(Boolean.class).setDefault(false);
+    parser.addArgument("--logConfig").type(String.class).setDefault("");
     parser.addArgument("--fineLogs").type(Boolean.class).setDefault(false);
     parser.addArgument("--debugHeader").type(Boolean.class).setDefault(false);
     parser.addArgument("--logFilename").type(String.class).setDefault("");
@@ -104,6 +106,7 @@ public class Args {
     dropChannel = ns.getBoolean("dropChannel");
     timeout = ns.getInt("timeout");
     stream = ns.getBoolean("stream");
+    logConfig = ns.getString("logConfig");
     fineLogs = ns.getBoolean("fineLogs");
     debugHeader = ns.getBoolean("debugHeader");
     logFilename = ns.getString("logFilename");
