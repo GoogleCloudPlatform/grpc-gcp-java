@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'com.google.protobuf' version '0.8.8'
+    id 'maven'
 }
 
 group 'io.grpc'
@@ -74,4 +75,21 @@ task run(type: JavaExec) {
     main = 'io.grpc.echo.TestMain'
     //jvmArgs = ['-Djava.util.logging.config.file=./logging.properties']
     //jvmArgs = ['-Xlint:deprecation']
+}
+
+task writePom {
+    doLast {
+        pom {
+            project {
+                inceptionYear '2019'
+                licenses {
+                    license {
+                        name 'The Apache Software License, Version 2.0'
+                        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        distribution 'manual'
+                    }
+                }
+            }
+        }.writeTo("pom.xml")
+    }
 }
