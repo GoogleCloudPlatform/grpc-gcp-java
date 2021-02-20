@@ -47,7 +47,7 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 
 `--interval`: Interval in ms between gRPC calls. For finite number of requests the default value is 0, 1000 ms otherwise.
 
-`--dropChannel`: Re-create the channel before each request. Not applicable with --async.
+`--recreateChannelSeconds`: Re-create the channel after n seconds. This will not cancel an ongoing request. Not applicable with --async. Default: -1 = do not recreate the channel.
 
 `--timeout`: Timeout for each request in ms. (Default 60 minutes).
 

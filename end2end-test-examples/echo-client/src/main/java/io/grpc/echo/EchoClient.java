@@ -35,6 +35,7 @@ public class EchoClient {
 
   //  private final ManagedChannel originalChannel;
   private final ManagedChannel[] channels;
+  private long blockingChannelCreated;
 
   private GrpcCloudapiBlockingStub blockingStub;
   private final GrpcCloudapiStub[] asyncStubs;
@@ -111,6 +112,9 @@ public class EchoClient {
     if (HeaderClientInterceptor.needsInterception(args)) {
       ClientInterceptor interceptor = new HeaderClientInterceptor(args);
       channel = ClientInterceptors.intercept(channel, interceptor);
+    }
+    if (i == 0) {
+      blockingChannelCreated = System.currentTimeMillis();
     }
     return channel;
   }
@@ -210,7 +214,7 @@ public class EchoClient {
             .setResponseSize(args.resSize)
             .build();
         start = System.currentTimeMillis();
-        if (args.dropChannel) {
+        if (args.recreateChannelSeconds >= 0 && blockingChannelCreated < start - args.recreateChannelSeconds * 1000) {
           reCreateBlockingStub();
         }
         blockingStub
