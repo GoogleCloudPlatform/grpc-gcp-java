@@ -30,6 +30,17 @@ public class Args {
   final int resType;
   final String token;
   final PoissonDistribution distrib;
+  final int interval;
+  final int recreateChannelSeconds;
+  final int timeout;
+  final boolean stream;
+  final String logConfig;
+  final boolean fineLogs;
+  final boolean debugHeader;
+  final String logFilename;
+  final int logMaxSize;
+  final int logMaxFiles;
+  final boolean disableConsoleLog;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -57,6 +68,17 @@ public class Args {
     parser.addArgument("--resSize").type(Integer.class).setDefault(1);
     parser.addArgument("--resType").type(Integer.class).setDefault(0);
     parser.addArgument("--token").type(String.class).setDefault("");
+    parser.addArgument("--interval").type(Integer.class).setDefault(0);
+    parser.addArgument("--recreateChannelSeconds").type(Integer.class).setDefault(-1);
+    parser.addArgument("--timeout").type(Integer.class).setDefault(3600000);
+    parser.addArgument("--stream").type(Boolean.class).setDefault(false);
+    parser.addArgument("--logConfig").type(String.class).setDefault("");
+    parser.addArgument("--fineLogs").type(Boolean.class).setDefault(false);
+    parser.addArgument("--debugHeader").type(Boolean.class).setDefault(false);
+    parser.addArgument("--logFilename").type(String.class).setDefault("");
+    parser.addArgument("--logMaxSize").type(Integer.class).setDefault(0);
+    parser.addArgument("--logMaxFiles").type(Integer.class).setDefault(0);
+    parser.addArgument("--disableConsoleLog").type(Boolean.class).setDefault(false);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -80,6 +102,17 @@ public class Args {
     resSize = ns.getInt("resSize");
     resType = ns.getInt("resType");
     token = ns.getString("token");
+    interval = ns.getInt("interval");
+    recreateChannelSeconds = ns.getInt("recreateChannelSeconds");
+    timeout = ns.getInt("timeout");
+    stream = ns.getBoolean("stream");
+    logConfig = ns.getString("logConfig");
+    fineLogs = ns.getBoolean("fineLogs");
+    debugHeader = ns.getBoolean("debugHeader");
+    logFilename = ns.getString("logFilename");
+    logMaxSize = ns.getInt("logMaxSize");
+    logMaxFiles = ns.getInt("logMaxFiles");
+    disableConsoleLog = ns.getBoolean("disableConsoleLog");
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }

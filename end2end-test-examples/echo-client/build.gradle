@@ -1,14 +1,15 @@
 plugins {
     id 'java'
     id 'com.google.protobuf' version '0.8.8'
+    id 'maven'
 }
 
 group 'io.grpc'
-version '2.1-SNAPSHOT'
+version '2.2-SNAPSHOT'
 
 sourceCompatibility = 1.8
 
-def grpcVersion = '1.24.0'
+def grpcVersion = '1.34.1'
 def protobufVersion = '3.9.0'
 def protocVersion = protobufVersion
 
@@ -21,6 +22,7 @@ dependencies {
     implementation "io.grpc:grpc-stub:${grpcVersion}"
     implementation "io.grpc:grpc-testing:${grpcVersion}"
     implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    implementation "io.grpc:grpc-census:${grpcVersion}"
     implementation "net.sourceforge.argparse4j:argparse4j:0.8.1"
     implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
     implementation "org.hdrhistogram:HdrHistogram:2.1.11"
@@ -75,3 +77,19 @@ task run(type: JavaExec) {
     //jvmArgs = ['-Xlint:deprecation']
 }
 
+task writePom {
+    doLast {
+        pom {
+            project {
+                inceptionYear '2019'
+                licenses {
+                    license {
+                        name 'The Apache Software License, Version 2.0'
+                        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        distribution 'manual'
+                    }
+                }
+            }
+        }.writeTo("pom.xml")
+    }
+}

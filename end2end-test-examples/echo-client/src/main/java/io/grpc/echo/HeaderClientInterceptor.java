@@ -17,6 +17,7 @@ public class HeaderClientInterceptor implements ClientInterceptor {
   private String cookie;
   private String resComp;
   private String token;
+  private boolean debugHeader;
 
   private static final Logger logger = Logger.getLogger(HeaderClientInterceptor.class.getName());
 
@@ -25,6 +26,11 @@ public class HeaderClientInterceptor implements ClientInterceptor {
     this.header = args.header;
     this.resComp = args.resComp;
     this.token = args.token;
+    this.debugHeader = args.debugHeader;
+  }
+
+  public static boolean needsInterception(Args args) {
+    return args.header || args.debugHeader || !args.cookie.isEmpty() || !args.token.isEmpty() || !args.resComp.isEmpty();
   }
 
   /**
@@ -51,7 +57,7 @@ public class HeaderClientInterceptor implements ClientInterceptor {
       public void start(Listener<RespT> responseListener, Metadata headers) {
         if (counter == 10 && !cookie.isEmpty()) {
           //only add cookie header to the 11th request
-          logger.info("Adding cookier to header: " + cookie);
+          logger.info("Adding cookie to header: " + cookie);
           headers.put(Metadata.Key.of("Cookie", Metadata.ASCII_STRING_MARSHALLER), cookie);
         }
 
@@ -61,6 +67,10 @@ public class HeaderClientInterceptor implements ClientInterceptor {
 
         if (!token.isEmpty()) {
           headers.put(Metadata.Key.of("x-custom-auth-ticket", Metadata.ASCII_STRING_MARSHALLER), token);
+        }
+
+        if (debugHeader) {
+          headers.put(Metadata.Key.of("x-return-encrypted-headers", Metadata.ASCII_STRING_MARSHALLER), "true");
         }
 
         logger.info("Header from client: " + headers);
