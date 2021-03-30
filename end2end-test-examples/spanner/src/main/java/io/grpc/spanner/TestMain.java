@@ -50,7 +50,7 @@ public class TestMain {
     }
 
     // use sync operation to measure the latency
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 100; ++i) {
       long start = System.currentTimeMillis();
       try {
         spannerClient.singleRead();
@@ -62,10 +62,11 @@ public class TestMain {
     Collections.sort(latencyList);
     logger.log(
         Level.INFO,
-        "Warm up complete. In total {0} sync read RPCs. Median latency is {1} ms, maximum latency"
-            + " is {2} ms.",
+        "Warm up complete. In total {0} sync read RPCs. Minimal latency is {1}, median latency is {2} ms, maximum latency"
+            + " is {3} ms.",
         new Object[] {
           latencyList.size(),
+          latencyList.get(0),
           latencyList.get(latencyList.size() / 2),
           latencyList.get(latencyList.size() - 1)
         });
@@ -83,7 +84,7 @@ public class TestMain {
     logger.log(Level.INFO, "Async read starts");
     for (int i = 0; i < argsObj.numRpcs; ++i) {
       readFutureList.add(spannerClient.singleReadAsync());
-      Thread.sleep(sampleExpDist(argsObj.timeoutMs));
+      Thread.sleep(sampleExpDist(argsObj.intervalMs));
     }
     for (int i = 0; i < readFutureList.size(); ++i) {
       try {
@@ -116,9 +117,9 @@ public class TestMain {
             + " {3}.",
         new Object[] {
           numTotalRPC,
-          String.format("%.3f", (numDeadlineErr / numTotalRPC)),
-          String.format("%.3f", (numInternalErr / numTotalRPC)),
-          String.format("%.3f", (numOtherErr / numTotalRPC))
+          String.format("%.4f", (numDeadlineErr / numTotalRPC)),
+          String.format("%.4f", (numInternalErr / numTotalRPC)),
+          String.format("%.4f", (numOtherErr / numTotalRPC))
         });
 
     spannerClient.cleanUp();
@@ -139,7 +140,14 @@ public class TestMain {
 
     @Override
     public void run() {
-      logger.log(Level.FINE, "Side thread start. Log file is {0}", logFilename);
+      logger.log(Level.FINE, "Side thread: start, log file is {0}", logFilename);
+      try {
+        String cmd = "sudo killall tcpkill";
+        Process process = Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", cmd});
+        process.waitFor();
+        logger.log(Level.INFO, "Side thread: killall tcpkill");
+      } catch (IOException | InterruptedException e) {
+      }
       while (!isExit) {
         TcpKillThread tcpKillThread = new TcpKillThread(logFilename);
         tcpKillThread.start();
@@ -149,7 +157,7 @@ public class TestMain {
         }
         tcpKillThread.interrupt();
       }
-      logger.log(Level.FINE, "Side thread exit.");
+      logger.log(Level.FINE, "Side thread: exit.");
     }
   }
 
