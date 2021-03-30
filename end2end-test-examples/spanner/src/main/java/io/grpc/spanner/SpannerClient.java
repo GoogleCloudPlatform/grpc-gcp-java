@@ -5,6 +5,7 @@ import static com.google.common.base.Preconditions.checkState;
 import com.google.api.core.ApiFuture;
 import com.google.api.gax.longrunning.OperationFuture;
 import com.google.api.gax.retrying.RetrySettings;
+import com.google.api.gax.rpc.StatusCode.Code;
 import com.google.cloud.spanner.AsyncResultSet;
 import com.google.cloud.spanner.AsyncResultSet.CallbackResponse;
 import com.google.cloud.spanner.AsyncResultSet.ReadyCallback;
@@ -64,6 +65,7 @@ public class SpannerClient {
         SpannerOptions.newBuilder()
             .setAutoThrottleAdministrativeRequests()
             .setTrackTransactionStarter()
+            .setCompressorName("gzip")
             .setHost(args.endpoint)
             .setNumChannels(args.numChannels);
 
@@ -97,7 +99,10 @@ public class SpannerClient {
             });
     */
 
-    builder.getSpannerStubSettingsBuilder().streamingReadSettings().setRetrySettings(retrySettings);
+    builder.getSpannerStubSettingsBuilder()
+        .streamingReadSettings()
+        .setRetryableCodes(Code.UNAVAILABLE)
+        .setRetrySettings(retrySettings);
 
     SpannerOptions spannerOptions = builder.build();
     spClient = spannerOptions.getService();
@@ -178,8 +183,8 @@ public class SpannerClient {
             .to(READ_KEY)
             // .to(uniqueString())
             .set("StringValue")
-            .to("uber test")
-            // .to(generatePayload(args.payloadKb * 1024))
+            //.to("uber test")
+             .to(generatePayload(60 * 1024))
             .build());
     dbClient.write(mutations);
   }
@@ -229,7 +234,7 @@ public class SpannerClient {
     InstanceConfig instanceConfig =
         Iterators.get(
             spClient.getInstanceAdminClient().listInstanceConfigs().iterateAll().iterator(),
-            0,
+            32, // us-east1
             null);
     checkState(instanceConfig != null, "No instance configs found");
 

@@ -50,7 +50,7 @@ public class TestMain {
     }
 
     // use sync operation to measure the latency
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 100; ++i) {
       long start = System.currentTimeMillis();
       try {
         spannerClient.singleRead();
@@ -62,10 +62,11 @@ public class TestMain {
     Collections.sort(latencyList);
     logger.log(
         Level.INFO,
-        "Warm up complete. In total {0} sync read RPCs. Median latency is {1} ms, maximum latency"
-            + " is {2} ms.",
+        "Warm up complete. In total {0} sync read RPCs. Minimal latency is {1}, median latency is {2} ms, maximum latency"
+            + " is {3} ms.",
         new Object[] {
           latencyList.size(),
+          latencyList.get(0),
           latencyList.get(latencyList.size() / 2),
           latencyList.get(latencyList.size() - 1)
         });
