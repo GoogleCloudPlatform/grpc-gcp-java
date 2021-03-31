@@ -101,7 +101,7 @@ public class SpannerClient {
 
     builder.getSpannerStubSettingsBuilder()
         .streamingReadSettings()
-        .setRetryableCodes(Code.UNAVAILABLE)
+        .setRetryableCodes()
         .setRetrySettings(retrySettings);
 
     SpannerOptions spannerOptions = builder.build();
@@ -146,6 +146,10 @@ public class SpannerClient {
             .singleUse(TimestampBound.strong())
             .readRow(TABLE_NAME, Key.of(READ_KEY), ALL_COLUMNS);
     // logger.log(Level.INFO, "read value = {0}", row.getString(1));
+  }
+  
+  public void singleQuery() {
+     
   }
 
   public ApiFuture<Void> singleReadAsync() {
