@@ -22,6 +22,7 @@ import com.google.cloud.spanner.InstanceInfo;
 import com.google.cloud.spanner.Key;
 import com.google.cloud.spanner.KeySet;
 import com.google.cloud.spanner.Mutation;
+import com.google.cloud.spanner.ResultSet;
 import com.google.cloud.spanner.Spanner;
 import com.google.cloud.spanner.SpannerException;
 import com.google.cloud.spanner.SpannerExceptionFactory;
@@ -99,9 +100,10 @@ public class SpannerClient {
             });
     */
 
-    builder.getSpannerStubSettingsBuilder()
-        .streamingReadSettings()
-        .setRetryableCodes()
+    builder
+        .getSpannerStubSettingsBuilder()
+        .executeStreamingSqlSettings()
+        .setRetryableCodes(Code.DATA_LOSS)
         .setRetrySettings(retrySettings);
 
     SpannerOptions spannerOptions = builder.build();
@@ -147,9 +149,16 @@ public class SpannerClient {
             .readRow(TABLE_NAME, Key.of(READ_KEY), ALL_COLUMNS);
     // logger.log(Level.INFO, "read value = {0}", row.getString(1));
   }
-  
+
   public void singleQuery() {
-     
+    ResultSet rs =
+        dbClient
+            .singleUse()
+            .executeQuery(Statement.of("SELECT Key,StringValue FROM " + TABLE_NAME));
+    while (rs.next()) {
+      // System.out.println("executeSQL: " + rs.getString(0));
+      // System.out.println("executeSQL: " + rs.getString(1));
+    }
   }
 
   public ApiFuture<Void> singleReadAsync() {
@@ -179,6 +188,35 @@ public class SpannerClient {
     return readFuture;
   }
 
+  public ApiFuture<Void> singleQueryAsync() {
+    final AsyncResultSet asyncResultSet =
+        dbClient
+            .singleUse()
+            .executeQueryAsync(Statement.of("SELECT Key,StringValue FROM " + TABLE_NAME));
+    final ApiFuture<Void> queryFuture =
+        asyncResultSet.setCallback(
+            executor,
+            new ReadyCallback() {
+              @Override
+              public CallbackResponse cursorReady(AsyncResultSet resultSet) {
+                while (true) {
+                  switch (resultSet.tryNext()) {
+                    case OK:
+                      // System.out.println(resultSet.getString("StringValue"));
+                      break;
+                    case NOT_READY:
+                      return CallbackResponse.CONTINUE;
+                    case DONE:
+                      return CallbackResponse.DONE;
+                    default:
+                      throw new IllegalStateException();
+                  }
+                }
+              }
+            });
+    return queryFuture;
+  }
+
   public void singleWrite() {
     List<Mutation> mutations = new ArrayList<>();
     mutations.add(
@@ -187,8 +225,8 @@ public class SpannerClient {
             .to(READ_KEY)
             // .to(uniqueString())
             .set("StringValue")
-            //.to("uber test")
-             .to(generatePayload(60 * 1024))
+            // .to("uber test")
+            .to(generatePayload(60 * 1024))
             .build());
     dbClient.write(mutations);
   }
@@ -307,7 +345,7 @@ public class SpannerClient {
         logger.log(Level.SEVERE, "Failed to delete test instance " + instanceId, e);
       }
     }
-    executor.shutdown();
     spClient.close();
+    executor.shutdown();
   }
 }

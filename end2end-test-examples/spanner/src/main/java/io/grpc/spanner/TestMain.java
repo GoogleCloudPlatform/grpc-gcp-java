@@ -12,7 +12,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -21,10 +20,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
+import org.HdrHistogram.Histogram;
 
 public class TestMain {
   private static final Logger logger = Logger.getLogger(TestMain.class.getName());
-  private static List<Integer> latencyList = new ArrayList<Integer>();
+  private static Histogram histogram = new Histogram(6000L, 1);
 
   public static void main(String[] args) throws Exception {
     Args argsObj = new Args(args);
@@ -44,33 +44,37 @@ public class TestMain {
     }
     for (int i = 0; i < 10; ++i) {
       try {
-        spannerClient.singleRead();
+        spannerClient.singleQuery();
       } catch (SpannerException e) {
       }
     }
 
     // use sync operation to measure the latency
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 50; ++i) {
       long start = System.currentTimeMillis();
       try {
-        spannerClient.singleRead();
+        spannerClient.singleQuery();
       } catch (SpannerException e) {
       }
       int latency = (int) (System.currentTimeMillis() - start);
-      latencyList.add(latency);
+      histogram.recordValue(latency);
     }
-    Collections.sort(latencyList);
     logger.log(
         Level.INFO,
-        "Warm up complete. In total {0} sync read RPCs. Minimal latency is {1}, median latency is {2} ms, maximum latency"
-            + " is {3} ms.",
+        "Warm up complete. In total {0} RPCs. "
+            + "\n         Min  p10  p25  p50  p90  p99  p99.9  Max"
+            + "\nTime(ms) {1}   {2}   {3}   {4}   {5}   {6}   {7}   {8}",
         new Object[] {
-          latencyList.size(),
-          latencyList.get(0),
-          latencyList.get(latencyList.size() / 2),
-          latencyList.get(latencyList.size() - 1)
+          histogram.getTotalCount(),
+          histogram.getMinValue(),
+          histogram.getValueAtPercentile(10),
+          histogram.getValueAtPercentile(25),
+          histogram.getValueAtPercentile(50),
+          histogram.getValueAtPercentile(90),
+          histogram.getValueAtPercentile(99),
+          histogram.getValueAtPercentile(99.9),
+          histogram.getMaxValue()
         });
-
     // use async method to measure error rate
     int numSucceed = 0;
     int numDeadlineErr = 0;
@@ -83,7 +87,7 @@ public class TestMain {
     }
     logger.log(Level.INFO, "Async read starts");
     for (int i = 0; i < argsObj.numRpcs; ++i) {
-      readFutureList.add(spannerClient.singleReadAsync());
+      readFutureList.add(spannerClient.singleQueryAsync());
       Thread.sleep(sampleExpDist(argsObj.intervalMs));
     }
     for (int i = 0; i < readFutureList.size(); ++i) {
