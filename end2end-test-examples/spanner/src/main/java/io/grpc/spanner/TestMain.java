@@ -186,7 +186,7 @@ public class TestMain {
         String grep_cmd =
             "grep 'OUTBOUND HEADERS' "
                 + logFilename
-                + " | grep 'StreamingRead' | tail -1 | awk '{print $4}' | awk '{print"
+                + " | grep 'ExecuteStreamingSql' | tail -1 | awk '{print $4}' | awk '{print"
                 + " substr($0,length($0)-4)}'";
         Process grep_process = Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", grep_cmd});
         grep_process.waitFor();
