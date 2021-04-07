@@ -5,7 +5,6 @@ import static com.google.common.base.Preconditions.checkState;
 import com.google.api.core.ApiFuture;
 import com.google.api.gax.longrunning.OperationFuture;
 import com.google.api.gax.retrying.RetrySettings;
-import com.google.api.gax.rpc.StatusCode.Code;
 import com.google.cloud.spanner.AsyncResultSet;
 import com.google.cloud.spanner.AsyncResultSet.CallbackResponse;
 import com.google.cloud.spanner.AsyncResultSet.ReadyCallback;
@@ -103,7 +102,7 @@ public class SpannerClient {
     builder
         .getSpannerStubSettingsBuilder()
         .executeStreamingSqlSettings()
-        .setRetryableCodes(Code.DATA_LOSS)
+        .setRetryableCodes()
         .setRetrySettings(retrySettings);
 
     SpannerOptions spannerOptions = builder.build();
@@ -139,7 +138,7 @@ public class SpannerClient {
   }
 
   private static String uniqueString() {
-    return String.format("k%08d", seq++);
+    return String.format("%08d", seq++);
   }
 
   public void singleRead() {
@@ -154,7 +153,12 @@ public class SpannerClient {
     ResultSet rs =
         dbClient
             .singleUse()
-            .executeQuery(Statement.of("SELECT Key,StringValue FROM " + TABLE_NAME));
+            .executeQuery(
+                Statement.of(
+                    "SELECT Key,StringValue FROM "
+                        + TABLE_NAME
+                        + " WHERE -123  != "
+                        + uniqueString()));
     while (rs.next()) {
       // System.out.println("executeSQL: " + rs.getString(0));
       // System.out.println("executeSQL: " + rs.getString(1));
@@ -192,7 +196,12 @@ public class SpannerClient {
     final AsyncResultSet asyncResultSet =
         dbClient
             .singleUse()
-            .executeQueryAsync(Statement.of("SELECT Key,StringValue FROM " + TABLE_NAME));
+            .executeQueryAsync(
+                Statement.of(
+                    "SELECT Key,StringValue FROM "
+                        + TABLE_NAME
+                        + " WHERE -123  != "
+                        + uniqueString()));
     final ApiFuture<Void> queryFuture =
         asyncResultSet.setCallback(
             executor,

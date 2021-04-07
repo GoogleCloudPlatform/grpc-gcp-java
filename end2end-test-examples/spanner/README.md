@@ -5,7 +5,11 @@ This is a simple E2E test client for java-spanner over GFE. The spanner client w
 2. create or use a database (/google.spanner.admin.database.v1.DatabaseAdmin/CreateDatabase);
 3. evenly create sessions on channels (/google.spanner.v1.Spanner/BatchCreateSessions);
 4. do warm up by performing 10 write RPCs (/google.spanner.v1.Spanner/BeginTransaction and /google.spanner.v1.Spanner/Commit) and 50 read RPCs (/google.spanner.v1.Spanner/StreamingRead) synchronously, and measure the median and maximum latency of read RPCs;
-5. do real operation by performing `numRpcs` times of read RPCs asynchronously, so that there could be multiple RPCs in flight at the same time. The time interval between two neighboring RPCs obeys the exponential distribution, whose expectation is `intervalMs`. QPS can be estimated as the reciprocal of `intervalMs`. A side threshold will run `tcpkill` to break the TCP connection between the client and GFE every `tcpkillMs` ms. In the end the client will calculate the DEADLINE EXCEED error rate, INTERNAL error rate, and other error rate of all read RPCs;
+5. do real operation by performing `numRpcs` times of read RPCs asynchronously. The time interval between two neighboring RPCs obeys the exponential distribution, whose expectation is `intervalMs`. QPS can be estimated as the reciprocal of `intervalMs`. There are three cases:
+    a). Only run RPCs;
+    b). Run RPCs with `tcpkill`: A side thread will run `tcpkill` to break the TCP connection between the client and GFE every `tcpkillMs` ms;
+    c). Run RPCs with `iptables`: A side thread will run `iptables` to blackhole
+    packets from GFE;
 6. delete the instance if it is created in step 1 (/google.spanner.admin.instance.v1.InstanceAdmin/DeleteInstance), which implicitly delete the created database;
 7. delete the created sessions (/google.spanner.v1.Spanner/DeleteSession).
 
@@ -25,7 +29,14 @@ This is a simple E2E test client for java-spanner over GFE. The spanner client w
 
 `--intervalMs`: int, the expectation of the expoenential distribution. Default value: 0.
 
-`--tcpkillMs`: int, the interval between two `tcpkill` running in a side thread. If not set, `tcpkill` will not be run. Also notice `fineLogs` must be set to true and `logFilename` must be given to use `tckkill`. Default value: 0.
+`--tcpkillMs`: int, the interval between two `tcpkill` operations. If not set, `tcpkill` will not be run. Also notice `fineLogs` must be set to true and `logFilename` must be given to use `tcpkill`. Default value: 0.
+
+`--iptablesMs`: int, the interval between two `iptables` operations. If not
+set, `iptables` will not be run. Also notice `fineLogs` must be set to true and `logFilename` must be given to use `iptables`. Default value: 0.
+
+`--iptablesDurationMs`: int, the duration that `iptables` will blackhole a port,
+  after that the port will be whitelisted again. The minimal value is 5s. Only
+  work if `iptableMs` has been set.
 
 `--timeoutMs`: int, timeout of a RPC in ms. Default value: 1000.
 

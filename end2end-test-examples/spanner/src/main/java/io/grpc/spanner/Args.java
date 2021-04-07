@@ -16,6 +16,8 @@ public class Args {
   final int numRpcs;
   final int intervalMs;
   final int tcpkillMs;
+  final int iptablesMs;
+  final int iptablesDurationMs;
   final int timeoutMs;
   final String operation;
   final int payloadKb;
@@ -43,6 +45,8 @@ public class Args {
     parser.addArgument("--numRpcs").type(Integer.class).setDefault(1);
     parser.addArgument("--intervalMs").type(Integer.class).setDefault(0);
     parser.addArgument("--tcpkillMs").type(Integer.class).setDefault(0);
+    parser.addArgument("--iptablesMs").type(Integer.class).setDefault(0);
+    parser.addArgument("--iptablesDurationMs").type(Integer.class).setDefault(5000);
     parser.addArgument("--timeoutMs").type(Integer.class).setDefault(1000);
     parser.addArgument("--operation").type(String.class).setDefault("read");
     parser.addArgument("--payloadKb").type(Integer.class).setDefault(1);
@@ -63,6 +67,8 @@ public class Args {
     numRpcs = ns.getInt("numRpcs");
     intervalMs = ns.getInt("intervalMs");
     tcpkillMs = ns.getInt("tcpkillMs");
+    iptablesMs = ns.getInt("iptablesMs");
+    iptablesDurationMs = ns.getInt("iptablesDurationMs");
     timeoutMs = ns.getInt("timeoutMs");
     operation = ns.getString("operation");
     payloadKb = ns.getInt("payloadKb");

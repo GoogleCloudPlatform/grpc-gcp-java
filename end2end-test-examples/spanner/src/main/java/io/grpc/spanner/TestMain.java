@@ -50,7 +50,7 @@ public class TestMain {
     }
 
     // use sync operation to measure the latency
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 10; ++i) {
       long start = System.currentTimeMillis();
       try {
         spannerClient.singleQuery();
@@ -62,8 +62,9 @@ public class TestMain {
     logger.log(
         Level.INFO,
         "Warm up complete. In total {0} RPCs. "
-            + "\n         Min  p10  p25  p50  p90  p99  p99.9  Max"
-            + "\nTime(ms) {1}   {2}   {3}   {4}   {5}   {6}   {7}   {8}",
+            + "\n         Min  p10  p25  p50  p90  p99  p99.5  p99.9  Max"
+            + "\nTime(ms) {1}   {2}   {3}   {4}   {5}   {6}   {7}    {8}    {9}"
+            + "\n {10}% samples has < 2x median RTT",
         new Object[] {
           histogram.getTotalCount(),
           histogram.getMinValue(),
@@ -72,20 +73,32 @@ public class TestMain {
           histogram.getValueAtPercentile(50),
           histogram.getValueAtPercentile(90),
           histogram.getValueAtPercentile(99),
+          histogram.getValueAtPercentile(99.5),
           histogram.getValueAtPercentile(99.9),
-          histogram.getMaxValue()
+          histogram.getMaxValue(),
+          histogram.getPercentileAtOrBelowValue(histogram.getValueAtPercentile(50) * 2)
         });
+
     // use async method to measure error rate
     int numSucceed = 0;
     int numDeadlineErr = 0;
     int numInternalErr = 0;
     int numOtherErr = 0;
     List<ApiFuture<Void>> readFutureList = new ArrayList<>();
-    SideThread sideThread = new SideThread(argsObj.logFilename + ".log", argsObj.tcpkillMs);
-    if (argsObj.tcpkillMs > 0) {
-      sideThread.start();
-    }
     logger.log(Level.INFO, "Async read starts");
+
+    TcpkillManageThread tcpkillManageThread =
+        new TcpkillManageThread(argsObj.logFilename + ".log", argsObj.tcpkillMs);
+    if (argsObj.tcpkillMs > 0) {
+      tcpkillManageThread.start();
+    }
+    IptablesManageThread iptablesManageThread =
+        new IptablesManageThread(
+            argsObj.logFilename + ".log", argsObj.iptablesMs, argsObj.iptablesDurationMs);
+    if (argsObj.iptablesMs > 0) {
+      iptablesManageThread.start();
+    }
+
     for (int i = 0; i < argsObj.numRpcs; ++i) {
       readFutureList.add(spannerClient.singleQueryAsync());
       Thread.sleep(sampleExpDist(argsObj.intervalMs));
@@ -112,7 +125,6 @@ public class TestMain {
     }
 
     // print result
-    sideThread.isExit = true;
     double numTotalRPC = numSucceed + numDeadlineErr + numInternalErr + numOtherErr;
     logger.log(
         Level.INFO,
@@ -126,60 +138,58 @@ public class TestMain {
           String.format("%.4f", (numOtherErr / numTotalRPC))
         });
 
+    tcpkillManageThread.isExit = true;
+    iptablesManageThread.isExit = true;
     spannerClient.cleanUp();
   }
 
   /*
-   * A side thread used to do tcpkill or iptables
+   * This thread manages iptables operation
    */
-  private static class SideThread extends Thread {
+  private static class IptablesManageThread extends Thread {
     public volatile boolean isExit = false;
-    private int tcpkillMs;
+    private int iptablesMs;
+    private int iptablesDurationMs;
     private String logFilename;
 
-    SideThread(String name, int interval) {
+    IptablesManageThread(String name, int interval, int duration) {
       logFilename = name;
-      tcpkillMs = interval;
+      iptablesMs = interval;
+      iptablesDurationMs = duration;
     }
 
     @Override
     public void run() {
-      logger.log(Level.FINE, "Side thread: start, log file is {0}", logFilename);
-      try {
-        String cmd = "sudo killall tcpkill";
-        Process process = Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", cmd});
-        process.waitFor();
-        logger.log(Level.INFO, "Side thread: killall tcpkill");
-      } catch (IOException | InterruptedException e) {
-      }
+      logger.log(Level.FINE, "Iptables manage thread: start, log file is {0}", logFilename);
       while (!isExit) {
-        TcpKillThread tcpKillThread = new TcpKillThread(logFilename);
-        tcpKillThread.start();
+        IptablesThread iptablesThread = new IptablesThread(logFilename, iptablesDurationMs);
+        iptablesThread.start();
         try {
-          Thread.sleep(tcpkillMs);
+          Thread.sleep(iptablesMs + iptablesDurationMs);
         } catch (InterruptedException e) {
         }
-        tcpKillThread.interrupt();
       }
-      logger.log(Level.FINE, "Side thread: exit.");
+      logger.log(Level.FINE, "Iptables manage thread: exit.");
     }
   }
 
   /*
-   * A thread that run tcpkill
+   * This thread use iptables to blackhole a port
    */
-  private static class TcpKillThread extends Thread {
+  private static class IptablesThread extends Thread {
     private String logFilename;
-    private int lastPort = -1;
+    private int iptablesDurationMs;
 
-    TcpKillThread(String name) {
+    IptablesThread(String name, int duration) {
       logFilename = name;
+      iptablesDurationMs = Math.max(duration, 5000);
     }
 
     @Override
     public void run() {
-      logger.log(Level.FINE, "TcpKill thread: start");
+      logger.log(Level.FINE, "Iptables thread: start");
       if (logFilename.isEmpty()) {
+        logger.log(Level.FINE, "Please specify logFilename and enable fineLog");
         return;
       }
       try {
@@ -187,23 +197,110 @@ public class TestMain {
             "grep 'OUTBOUND HEADERS' "
                 + logFilename
                 + " | grep 'ExecuteStreamingSql' | tail -1 | awk '{print $4}' | awk '{print"
-                + " substr($0,length($0)-4)}'";
+                + " substr($0,length($0)-4)}' | tr '\n' ' '";
         Process grep_process = Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", grep_cmd});
         grep_process.waitFor();
         String port =
             CharStreams.toString(new InputStreamReader(grep_process.getInputStream(), "UTF-8"));
         if (port.isEmpty()) {
-          logger.log(Level.INFO, "TcpKill thread: could not find a valid port");
+          logger.log(Level.INFO, "Iptables thread: could not find a valid port");
           return;
         }
-        logger.log(Level.INFO, "TcpKill thread: kill port " + port);
+
+        String blackhole_cmd = "sudo iptables -I INPUT -p tcp --dport " + port + " -j DROP";
+        logger.log(Level.FINE, "Iptables thread: blockhole port " + port);
+        Process blackhole_process =
+            Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", blackhole_cmd});
+        blackhole_process.waitFor();
+
+        Thread.sleep(iptablesDurationMs);
+
+        String whitelist_cmd = "sudo iptables -I INPUT -p tcp --dport " + port + " -j ACCEPT";
+        logger.log(Level.FINE, "Iptables thread: whitelist port " + port);
+        Process whitelist_process =
+            Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", whitelist_cmd});
+        whitelist_process.waitFor();
+      } catch (IOException | InterruptedException e) {
+      }
+      logger.log(Level.FINE, "Iptables thread: exit");
+    }
+  }
+
+  /*
+   * This thread manages tcpkill operation
+   */
+  private static class TcpkillManageThread extends Thread {
+    public volatile boolean isExit = false;
+    private int tcpkillMs;
+    private String logFilename;
+
+    TcpkillManageThread(String name, int interval) {
+      logFilename = name;
+      tcpkillMs = interval;
+    }
+
+    @Override
+    public void run() {
+      logger.log(Level.FINE, "Tcpkill manage thread: start, log file is {0}", logFilename);
+      try {
+        String cmd = "sudo killall tcpkill";
+        Process process = Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", cmd});
+        process.waitFor();
+        logger.log(Level.INFO, "Tcpkill manage thread: killall tcpkill");
+      } catch (IOException | InterruptedException e) {
+      }
+      while (!isExit) {
+        TcpkillThread tcpKillThread = new TcpkillThread(logFilename);
+        tcpKillThread.start();
+        try {
+          Thread.sleep(tcpkillMs);
+        } catch (InterruptedException e) {
+        }
+        tcpKillThread.interrupt();
+      }
+      logger.log(Level.FINE, "Tcpkill manage thread: exit.");
+    }
+  }
+
+  /*
+   * This thread use tcpkill to kill a port
+   */
+  private static class TcpkillThread extends Thread {
+    private String logFilename;
+
+    TcpkillThread(String name) {
+      logFilename = name;
+    }
+
+    @Override
+    public void run() {
+      logger.log(Level.FINE, "Tcpkill thread: start");
+      if (logFilename.isEmpty()) {
+        logger.log(Level.FINE, "Please specify logFilename and enable fineLog");
+        return;
+      }
+      try {
+        String grep_cmd =
+            "grep 'OUTBOUND HEADERS' "
+                + logFilename
+                + " | grep 'ExecuteStreamingSql' | tail -1 | awk '{print $4}' | awk '{print"
+                + " substr($0,length($0)-4)}' | tr '\n' ' '";
+        Process grep_process = Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", grep_cmd});
+        grep_process.waitFor();
+        String port =
+            CharStreams.toString(new InputStreamReader(grep_process.getInputStream(), "UTF-8"));
+        if (port.isEmpty()) {
+          logger.log(Level.INFO, "Tcpkill thread: could not find a valid port");
+          return;
+        }
+        logger.log(Level.INFO, "Tcpkill thread: kill port " + port);
         String tcpkill_cmd = "sudo tcpkill port " + port;
         Process tcpkill_process =
             Runtime.getRuntime().exec(new String[] {"/bin/sh", "-c", tcpkill_cmd});
         tcpkill_process.waitFor();
       } catch (IOException | InterruptedException e) {
       }
-      logger.log(Level.FINE, "TcpKill thread: exit");
+      logger.log(Level.FINE, "Tcpkill thread: exit");
     }
   }
 
