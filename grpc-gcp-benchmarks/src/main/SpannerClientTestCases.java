@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import com.google.api.core.ApiFunction;
-import com.google.api.gax.grpc.InstantiatingGrpcChannelProvider;
 import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.DatabaseId;
 import com.google.cloud.spanner.KeySet;
@@ -23,9 +21,6 @@ import com.google.cloud.spanner.Mutation;
 import com.google.cloud.spanner.ResultSet;
 import com.google.cloud.spanner.Spanner;
 import com.google.cloud.spanner.SpannerOptions;
-import com.google.grpc.gcp.GcpManagedChannelBuilder;
-import io.grpc.ManagedChannelBuilder;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,9 +34,9 @@ import java.util.logging.Logger;
  */
 final class SpannerClientTestCases {
 
-  private static final Logger logger = Logger.getLogger(SpannerTestCases.class.getName());
+  private static final Logger logger = Logger.getLogger(SpannerClientTestCases.class.getName());
 
-  // project: grpc-prober-testing, use default credentials.
+  // project: cloudprober-test, use default credentials.
   private static final String INSTANCE_ID = "test-instance";
   private static final String DATABASE_ID = "test-db";
   private static final String LARGE_TABLE = "large_table";
@@ -53,31 +48,16 @@ final class SpannerClientTestCases {
   // This should be the same as channelpool-maxsize in the ApiConfig JSON file.
   private static final int DEFAULT_CHANNEL_POOL = 4;
 
-  private final boolean isGrpcGcp;
   private final int numOfRpcs;
   private final int numOfThreads;
 
   private final SpannerOptions spannerOptions;
   private final String colContent;
 
-  SpannerClientTestCases(boolean isGrpcGcp, int payload, int numOfRpcs, int numOfThreads) {
-    this.isGrpcGcp = isGrpcGcp;
+  SpannerClientTestCases(int payload, int numOfRpcs, int numOfThreads) {
     this.numOfRpcs = numOfRpcs;
     this.numOfThreads = numOfThreads;
-
-    InstantiatingGrpcChannelProvider.Builder channelBuilder =
-        InstantiatingGrpcChannelProvider.newBuilder().setPoolSize(DEFAULT_CHANNEL_POOL);
-    if (isGrpcGcp) {
-      File configFile =
-          new File(SpannerTestCases.class.getClassLoader().getResource(API_FILE).getFile());
-      ApiFunction<ManagedChannelBuilder, ManagedChannelBuilder> apiFunction =
-          (ManagedChannelBuilder builder) ->
-              (GcpManagedChannelBuilder.forDelegateBuilder(builder)
-                  .withApiConfigJsonFile(configFile));
-      channelBuilder = channelBuilder.setPoolSize(1).setChannelConfigurator(apiFunction);
-    }
-    this.spannerOptions =
-        SpannerOptions.newBuilder().setChannelProvider(channelBuilder.build()).build();
+    this.spannerOptions = SpannerOptions.newBuilder().build();
 
     int columnBytes = Integer.min(payload, MAX_SIZE_PER_COLUMN);
     if (payload > columnBytes) {
@@ -90,8 +70,8 @@ final class SpannerClientTestCases {
   }
 
   private DatabaseClient getDbClient(Spanner spanner) {
-    return spanner.getDatabaseClient(
-        DatabaseId.of(spannerOptions.getProjectId(), INSTANCE_ID, DATABASE_ID));
+    System.out.println("Project id:" + spannerOptions.getProjectId().toString());
+    return spanner.getDatabaseClient(DatabaseId.of("cloudprober-test", INSTANCE_ID, DATABASE_ID));
   }
 
   public void prepareTestData() throws InterruptedException {

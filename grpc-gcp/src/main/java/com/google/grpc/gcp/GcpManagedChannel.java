@@ -68,8 +68,12 @@ public class GcpManagedChannel extends ManagedChannel {
    * @param delegateChannelBuilder the underlying delegate ManagedChannelBuilder.
    * @param apiConfig the ApiConfig object for configuring GcpManagedChannel.
    */
-  public GcpManagedChannel(ManagedChannelBuilder delegateChannelBuilder, ApiConfig apiConfig) {
+  public GcpManagedChannel(
+      ManagedChannelBuilder delegateChannelBuilder, ApiConfig apiConfig, int poolSize) {
     loadApiConfig(apiConfig);
+    if (poolSize != 0) {
+      this.maxSize = poolSize;
+    }
     this.delegateChannelBuilder = delegateChannelBuilder;
     // Initialize the first delegate channel.
     getChannelRef(null);
@@ -96,7 +100,6 @@ public class GcpManagedChannel extends ManagedChannel {
   protected ChannelRef getChannelRef(@Nullable String key) {
 
     if (key != null && key != "") {
-      // System.out.println("affinity");
       synchronized (bindLock) {
         return affinityKeyToChannelRef.get(key);
       }
@@ -255,7 +258,10 @@ public class GcpManagedChannel extends ManagedChannel {
     }
   }
 
-  /** Unbind channel with affinity key, and delete the affinitykey if necassary */
+  /**
+   * Unbind channel with affinity key. If one ChannelRef has zero affinity key bound with it, delete
+   * all the <affinityKey, channel> maps.
+   */
   protected void unbind(List<String> affinityKeys) {
     synchronized (bindLock) {
       if (affinityKeys != null) {

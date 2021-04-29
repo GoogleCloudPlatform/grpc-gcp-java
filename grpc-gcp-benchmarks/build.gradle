@@ -1,0 +1,65 @@
+plugins {
+    id 'java'
+    id 'maven'
+    id 'com.github.sherter.google-java-format' version '0.8'
+}
+
+repositories {
+    maven { // The google mirror is less flaky than mavenCentral()
+        url "https://maven-central.storage-download.googleapis.com/maven2/" }
+    mavenCentral()
+    mavenLocal()
+}
+
+def spannerVersion = '6.1.0' // Offical Spanner package
+// def spannerVersion = '6.2.1-SNAPSHOT' // Local tests
+def gcpExtensionVersion = '1.0.0' 
+
+dependencies {
+    implementation "com.google.cloud:google-cloud-spanner:${spannerVersion}"
+    implementation "grpc.gcp.extension:grpc-gcp-extension:${gcpExtensionVersion}"
+
+    compileOnly "org.apache.tomcat:annotations-api:6.0.53" // necessary for Java 9+
+
+    implementation "com.google.cloud:google-cloud-bigtable:0.107.0"
+    implementation "com.google.auth:google-auth-library-credentials:0.13.0"
+    implementation "com.google.api.grpc:proto-google-cloud-bigtable-v2:0.39.0"
+    implementation "com.google.api.grpc:grpc-google-cloud-bigtable-v2:0.39.0"
+    implementation "com.google.auth:google-auth-library-oauth2-http:0.9.0"
+
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated/source/proto/main/java'
+        }
+    }
+    benchmarkTest {
+        java.srcDir file('src/benchmarkTest/java')
+        resources.srcDir file('src/benchmarkTest/resources')
+        compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+task bigtableLoadTest(type: JavaExec) {
+    classpath = sourceSets.benchmarkTest.runtimeClasspath
+    main = 'BigtableLoadTest'
+}
+
+task spannerLoadTest(type: JavaExec) {
+    classpath = sourceSets.benchmarkTest.runtimeClasspath
+    main = 'SpannerLoadTest'
+}
+
+task spannerBenchmark(type: JavaExec) {
+    classpath = sourceSets.benchmarkTest.runtimeClasspath
+    main = 'SpannerBenchmark'
+}
+
+
+task spannerClientBenchmark(type: JavaExec) {
+    classpath = classpath = sourceSets.main.runtimeClasspath
+    main = 'SpannerBenchmark'
+}

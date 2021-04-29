@@ -35,7 +35,6 @@ import com.google.cloud.bigtable.admin.v2.BigtableTableAdminClient;
 import com.google.cloud.bigtable.admin.v2.models.CreateInstanceRequest;
 import com.google.cloud.bigtable.admin.v2.models.CreateTableRequest;
 import com.google.cloud.bigtable.admin.v2.models.StorageType;
-import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannelBuilder;
@@ -79,7 +78,6 @@ public class BigtableIntegrationTest {
   private static final String TABLE_NAME =
       String.format("projects/%s/instances/%s/tables/%s", GCP_PROJECT_ID, INSTANCE_ID, TABLE_ID);
   private static final String COLUMN_NAME = "col-";
-  private static final String OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 
   private GcpManagedChannel gcpChannel;
   private ManagedChannelBuilder builder;
@@ -118,8 +116,6 @@ public class BigtableIntegrationTest {
     } catch (Exception e) {
       return null;
     }
-    ImmutableList<String> requiredScopes = ImmutableList.of(OAUTH_SCOPE);
-    creds = creds.createScoped(requiredScopes);
     return creds;
   }
 

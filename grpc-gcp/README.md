@@ -45,8 +45,13 @@ Initialize `GcpManagedChannel` based on this API config file.
 ```java
 String API_CONFIG_FILE = "api_config_file.json"
 String SPANNER_TARGET = "spanner.googleapis.com";
+...
+
 ManagedChannelBuilder delegateChannelBuilder = ManagedChannelBuilder.forAddress(SPANNER_TARGET, 443);
-GcpManagedChannel gcpChannel = new GcpManagedChannel(delegateChannelBuilder, API_CONFIG_FILE);
+GcpManagedChannelBuilder gcpBuilder = 
+  GcpManagedChannelBuilder.forDelegateBuilder(delegateChannelBuilder)
+                          .withApiConfigJsonFile(jsonApiConfig);
+ManagedChannel gcpChannel = gcpBuilder.build();
 ```
 
 Create Cloud API stub using `GcpManagedChannel`.
@@ -66,10 +71,10 @@ Download source.
 git clone https://github.com/GoogleCloudPlatform/grpc-gcp-java.git && cd grpc-gcp-java/grpc-gcp
 ```
 
-Build project without tests.
+Build project with unit tests.
 
 ```sh
-./gradlew build -x test
+./gradlew build
 ```
 
 ## Test
@@ -87,25 +92,7 @@ export GCP_PROJECT_ID=project_id
 Run unit tests and integration tests:
 
 ```sh
-./gradlew test
-```
-
-Run Bigtable load test:
-
-```sh
-./gradlew bigtableLoadTest
-```
-
-Run Spanner load test:
-
-```sh
-./gradlew spannerLoadTest
-```
-
-Run Spanner benchmark tests:
-
-```sh
-./gradlew spannerBenchmark --args="--gcp=true --thread=3 --rpc=100"
+./gradlew allTests
 ```
 
 ## Code Format

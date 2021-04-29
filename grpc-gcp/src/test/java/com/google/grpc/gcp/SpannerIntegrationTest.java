@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Google LLC
+ * Copyright 2021 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import com.google.cloud.spanner.Mutation;
 import com.google.cloud.spanner.Spanner;
 import com.google.cloud.spanner.SpannerExceptionFactory;
 import com.google.cloud.spanner.SpannerOptions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
@@ -46,17 +45,24 @@ import com.google.spanner.v1.BatchCreateSessionsRequest;
 import com.google.spanner.v1.BatchCreateSessionsResponse;
 import com.google.spanner.v1.CreateSessionRequest;
 import com.google.spanner.v1.DeleteSessionRequest;
+import com.google.spanner.v1.ExecuteBatchDmlRequest;
+import com.google.spanner.v1.ExecuteBatchDmlRequest.Statement;
+import com.google.spanner.v1.ExecuteBatchDmlResponse;
 import com.google.spanner.v1.ExecuteSqlRequest;
 import com.google.spanner.v1.GetSessionRequest;
 import com.google.spanner.v1.ListSessionsRequest;
 import com.google.spanner.v1.ListSessionsResponse;
 import com.google.spanner.v1.PartialResultSet;
+import com.google.spanner.v1.PartitionQueryRequest;
+import com.google.spanner.v1.PartitionResponse;
 import com.google.spanner.v1.ResultSet;
 import com.google.spanner.v1.Session;
 import com.google.spanner.v1.SpannerGrpc;
 import com.google.spanner.v1.SpannerGrpc.SpannerBlockingStub;
 import com.google.spanner.v1.SpannerGrpc.SpannerFutureStub;
 import com.google.spanner.v1.SpannerGrpc.SpannerStub;
+import com.google.spanner.v1.TransactionOptions;
+import com.google.spanner.v1.TransactionSelector;
 import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -92,7 +98,6 @@ public final class SpannerIntegrationTest {
   private static final String INSTANCE_ID = "grpc-gcp-test-instance";
   private static final String DB_NAME = "grpc-gcp-test-db";
 
-  private static final String OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
   private static final String SPANNER_TARGET = "spanner.googleapis.com";
   private static final String USERNAME = "test_user";
   private static final String DATABASE_PATH =
@@ -209,8 +214,6 @@ public final class SpannerIntegrationTest {
     } catch (Exception e) {
       return null;
     }
-    ImmutableList<String> requiredScopes = ImmutableList.of(OAUTH_SCOPE);
-    creds = creds.createScoped(requiredScopes);
     return creds;
   }
 
@@ -235,6 +238,15 @@ public final class SpannerIntegrationTest {
     SpannerStub stub =
         SpannerGrpc.newStub(gcpChannel).withCallCredentials(MoreCallCredentials.from(creds));
     return stub;
+  }
+
+  /** A wrapper of checking the status of each channelRef in the gcpChannel. */
+  private void checkChannelRefs(int channels, int streams, int affinities) {
+    assertEquals(channels, gcpChannel.channelRefs.size());
+    for (int i = 0; i < channels; i++) {
+      assertEquals(streams, gcpChannel.channelRefs.get(i).getActiveStreamsCount());
+      assertEquals(affinities, gcpChannel.channelRefs.get(i).getAffinityCount());
+    }
   }
 
   private List<String> createAsyncSessions(SpannerStub stub) throws Exception {
@@ -266,7 +278,13 @@ public final class SpannerIntegrationTest {
     for (String respName : respNames) {
       AsyncResponseObserver<Empty> resp = new AsyncResponseObserver<>();
       stub.deleteSession(DeleteSessionRequest.newBuilder().setName(respName).build(), resp);
+      // The ChannelRef which is bound with the current affinity key.
+      GcpManagedChannel.ChannelRef currentChannel =
+          gcpChannel.affinityKeyToChannelRef.get(respName);
+      // Verify the channel is in use.
+      assertEquals(1, currentChannel.getActiveStreamsCount());
       resp.get();
+      assertEquals(0, currentChannel.getActiveStreamsCount());
     }
     checkChannelRefs(MAX_CHANNEL, 0, 0);
     assertEquals(0, gcpChannel.affinityKeyToChannelRef.size());
@@ -308,19 +326,16 @@ public final class SpannerIntegrationTest {
     for (String futureName : futureNames) {
       ListenableFuture<Empty> future =
           stub.deleteSession(DeleteSessionRequest.newBuilder().setName(futureName).build());
+      // The ChannelRef which is bound with the current affinity key.
+      GcpManagedChannel.ChannelRef currentChannel =
+          gcpChannel.affinityKeyToChannelRef.get(futureName);
+      // Verify the channel is in use.
+      assertEquals(1, currentChannel.getActiveStreamsCount());
       future.get();
+      assertEquals(0, currentChannel.getActiveStreamsCount());
     }
     checkChannelRefs(MAX_CHANNEL, 0, 0);
     assertEquals(0, gcpChannel.affinityKeyToChannelRef.size());
-  }
-
-  /** A wrapper of checking the status of each channelRef in the gcpChannel. */
-  private void checkChannelRefs(int channels, int streams, int affinities) {
-    assertEquals(channels, gcpChannel.channelRefs.size());
-    for (int i = 0; i < channels; i++) {
-      assertEquals(streams, gcpChannel.channelRefs.get(i).getActiveStreamsCount());
-      assertEquals(affinities, gcpChannel.channelRefs.get(i).getAffinityCount());
-    }
   }
 
   @Rule public ExpectedException expectedEx = ExpectedException.none();
@@ -369,6 +384,7 @@ public final class SpannerIntegrationTest {
             .setDatabase(DATABASE_PATH)
             .setSessionCount(sessionCount)
             .build();
+    // All the sessions created will share one ManagedChannel.
     for (int i = 0; i < MAX_CHANNEL * 2; i++) {
       BatchCreateSessionsResponse resp = stub.batchCreateSessions(req);
       assertThat(resp.getSessionCount()).isEqualTo(sessionCount);
@@ -408,21 +424,27 @@ public final class SpannerIntegrationTest {
     SpannerFutureStub stub = getSpannerFutureStub();
     List<String> futureNames = createFutureSessions(stub);
     for (String futureName : futureNames) {
-      ResultSet response =
+      ListenableFuture<ResultSet> responseFuture =
           stub.executeSql(
-                  ExecuteSqlRequest.newBuilder()
-                      .setSession(futureName)
-                      .setSql("select * FROM Users")
-                      .build())
-              .get();
+              ExecuteSqlRequest.newBuilder()
+                  .setSession(futureName)
+                  .setSql("select * FROM Users")
+                  .build());
+      // The ChannelRef which is bound with the current affinity key.
+      GcpManagedChannel.ChannelRef currentChannel =
+          gcpChannel.affinityKeyToChannelRef.get(futureName);
+      // Verify the channel is in use.
+      assertEquals(1, currentChannel.getActiveStreamsCount());
+      ResultSet response = responseFuture.get();
       assertEquals(1, response.getRowsCount());
       assertEquals(USERNAME, response.getRows(0).getValuesList().get(1).getStringValue());
+      assertEquals(0, currentChannel.getActiveStreamsCount());
     }
     deleteFutureSessions(stub, futureNames);
   }
 
   @Test
-  public void testExecuteSqlAsync() throws Exception {
+  public void testExecuteStreamingSqlAsync() throws Exception {
     SpannerStub stub = getSpannerStub();
     List<String> respNames = createAsyncSessions(stub);
     for (String respName : respNames) {
@@ -430,9 +452,74 @@ public final class SpannerIntegrationTest {
       stub.executeStreamingSql(
           ExecuteSqlRequest.newBuilder().setSession(respName).setSql("select * FROM Users").build(),
           resp);
+      // The ChannelRef which is bound with the current affinity key.
+      GcpManagedChannel.ChannelRef currentChannel =
+          gcpChannel.affinityKeyToChannelRef.get(respName);
+      // Verify the channel is in use.
+      assertEquals(1, currentChannel.getActiveStreamsCount());
+      PartialResultSet response = resp.get();
       assertEquals(USERNAME, resp.get().getValues(1).getStringValue());
+      assertEquals(0, currentChannel.getActiveStreamsCount());
     }
     deleteAsyncSessions(stub, respNames);
+  }
+
+  @Test
+  public void testPartitionQueryAsync() throws Exception {
+    SpannerStub stub = getSpannerStub();
+    List<String> respNames = createAsyncSessions(stub);
+    for (String respName : respNames) {
+      TransactionOptions options =
+          TransactionOptions.newBuilder()
+              .setReadOnly(TransactionOptions.ReadOnly.getDefaultInstance())
+              .build();
+      TransactionSelector selector = TransactionSelector.newBuilder().setBegin(options).build();
+      AsyncResponseObserver<PartitionResponse> resp = new AsyncResponseObserver<>();
+      stub.partitionQuery(
+          PartitionQueryRequest.newBuilder()
+              .setSession(respName)
+              .setSql("select * FROM Users")
+              .setTransaction(selector)
+              .build(),
+          resp);
+      // The ChannelRef which is bound with the current affinity key.
+      GcpManagedChannel.ChannelRef currentChannel =
+          gcpChannel.affinityKeyToChannelRef.get(respName);
+      // Verify the channel is in use.
+      assertEquals(1, currentChannel.getActiveStreamsCount());
+      PartitionResponse response = resp.get();
+      assertEquals(0, currentChannel.getActiveStreamsCount());
+    }
+    deleteAsyncSessions(stub, respNames);
+  }
+
+  @Test
+  public void testExecuteBatchDmlFuture() throws Exception {
+    SpannerFutureStub stub = getSpannerFutureStub();
+    List<String> futureNames = createFutureSessions(stub);
+    for (String futureName : futureNames) {
+      TransactionOptions options =
+          TransactionOptions.newBuilder()
+              .setReadWrite(TransactionOptions.ReadWrite.getDefaultInstance())
+              .build();
+      TransactionSelector selector = TransactionSelector.newBuilder().setBegin(options).build();
+      // Will use only one session for the whole batch.
+      ListenableFuture<ExecuteBatchDmlResponse> responseFuture =
+          stub.executeBatchDml(
+              ExecuteBatchDmlRequest.newBuilder()
+                  .setSession(futureName)
+                  .setTransaction(selector)
+                  .addStatements(Statement.newBuilder().setSql("select * FROM Users").build())
+                  .build());
+      // The ChannelRef which is bound with the current affinity key.
+      GcpManagedChannel.ChannelRef currentChannel =
+          gcpChannel.affinityKeyToChannelRef.get(futureName);
+      // Verify the channel is in use.
+      assertEquals(1, currentChannel.getActiveStreamsCount());
+      ExecuteBatchDmlResponse response = responseFuture.get();
+      assertEquals(0, currentChannel.getActiveStreamsCount());
+    }
+    deleteFutureSessions(stub, futureNames);
   }
 
   @Test
@@ -442,6 +529,7 @@ public final class SpannerIntegrationTest {
     Session session = stub.createSession(req);
     expectedEx.expect(StatusRuntimeException.class);
     expectedEx.expectMessage("INVALID_ARGUMENT: Invalid GetSession request.");
+    // No channel bound with the key "invalid_session", will use the least busy one.
     stub.getSession(GetSessionRequest.newBuilder().setName("invalid_session").build());
   }
 
@@ -452,6 +540,7 @@ public final class SpannerIntegrationTest {
     Session session = stub.createSession(req);
     expectedEx.expect(StatusRuntimeException.class);
     expectedEx.expectMessage("INVALID_ARGUMENT: Invalid DeleteSession request.");
+    // No channel bound with the key "invalid_session", will use the least busy one.
     stub.deleteSession(DeleteSessionRequest.newBuilder().setName("invalid_session").build());
   }
 

@@ -32,6 +32,7 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
   private static final Logger logger = Logger.getLogger(GcpManagedChannelBuilder.class.getName());
 
   private final ManagedChannelBuilder delegate;
+  private int poolSize = 0;
 
   @VisibleForTesting ApiConfig apiConfig;
 
@@ -56,6 +57,12 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
     return new GcpManagedChannelBuilder(delegate);
   }
 
+  /** Sets the channel pool size. This will override the pool size configuration in ApiConfig. */
+  public GcpManagedChannelBuilder setPoolSize(int poolSize) {
+    this.poolSize = poolSize;
+    return this;
+  }
+
   public GcpManagedChannelBuilder withApiConfig(ApiConfig apiConfig) {
     this.apiConfig = apiConfig;
     return this;
@@ -63,6 +70,19 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
 
   public GcpManagedChannelBuilder withApiConfigJsonFile(File file) {
     this.apiConfig = parseConfigFromJsonFile(file);
+    return this;
+  }
+
+  public GcpManagedChannelBuilder withApiConfigJsonString(String jsonString) {
+    JsonFormat.Parser parser = JsonFormat.parser();
+    ApiConfig.Builder apiConfig = ApiConfig.newBuilder();
+    try {
+      parser.merge(jsonString, apiConfig);
+    } catch (IOException e) {
+      logger.severe(e.getMessage());
+      return null;
+    }
+    this.apiConfig = apiConfig.build();
     return this;
   }
 
@@ -78,6 +98,6 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
    */
   @Override
   public ManagedChannel build() {
-    return new GcpManagedChannel(delegate, apiConfig);
+    return new GcpManagedChannel(delegate, apiConfig, poolSize);
   }
 }
