@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.logging.Logger;
+import javax.annotation.Nullable;
 
 public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManagedChannelBuilder> {
 
@@ -33,11 +34,13 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
 
   private final ManagedChannelBuilder delegate;
   private int poolSize = 0;
+  private GcpManagedChannelOptions options;
 
   @VisibleForTesting ApiConfig apiConfig;
 
   private GcpManagedChannelBuilder(ManagedChannelBuilder delegate) {
     this.delegate = delegate;
+    this.options = new GcpManagedChannelOptions();
   }
 
   private ApiConfig parseConfigFromJsonFile(File file) {
@@ -86,6 +89,13 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
     return this;
   }
 
+  public GcpManagedChannelBuilder withOptions(@Nullable GcpManagedChannelOptions options) {
+    if (options != null) {
+      this.options = options;
+    }
+    return this;
+  }
+
   /** Returns the delegated {@code ManagedChannelBuilder}. */
   @Override
   protected ManagedChannelBuilder<?> delegate() {
@@ -98,6 +108,6 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
    */
   @Override
   public ManagedChannel build() {
-    return new GcpManagedChannel(delegate, apiConfig, poolSize);
+    return new GcpManagedChannel(delegate, apiConfig, poolSize, options);
   }
 }
