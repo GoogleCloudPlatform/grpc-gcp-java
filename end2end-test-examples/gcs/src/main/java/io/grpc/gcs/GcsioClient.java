@@ -39,6 +39,7 @@ public class GcsioClient {
     this.gcsOpts = GoogleCloudStorageOptions.builder()
             .setAppName("weiranf-app")
             .setGrpcEnabled(grpcEnabled)
+            .setDirectPathPreffered(args.dp)
             .setReadChannelOptions(GoogleCloudStorageReadOptions.builder().setGrpcChecksumsEnabled(args.checksum).build())
             .setWriteChannelOptions(AsyncWriteChannelOptions.builder().setGrpcChecksumsEnabled(args.checksum).build())
             .build();
