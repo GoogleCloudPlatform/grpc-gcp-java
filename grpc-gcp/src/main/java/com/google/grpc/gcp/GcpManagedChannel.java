@@ -192,8 +192,6 @@ public class GcpManagedChannel extends ManagedChannel {
       this.maxSize = poolSize;
     }
     this.delegateChannelBuilder = delegateChannelBuilder;
-    // Initialize the first delegate channel.
-    getChannelRef(null);
     this.options = options;
     initOptions();
     if (options.getResiliencyOptions() != null) {
@@ -887,7 +885,13 @@ public class GcpManagedChannel extends ManagedChannel {
 
   @Override
   public synchronized String authority() {
-    return channelRefs.get(0).getChannel().authority();
+    if (channelRefs.size() > 0) {
+      return channelRefs.get(0).getChannel().authority();
+    }
+    final ManagedChannel channel = delegateChannelBuilder.build();
+    final String authority = channel.authority();
+    channel.shutdownNow();
+    return authority;
   }
 
   /**
@@ -997,7 +1001,8 @@ public class GcpManagedChannel extends ManagedChannel {
     } else if (shutdown > 0) {
       return ConnectivityState.SHUTDOWN;
     }
-    return null;
+    // When no channels are created yet it is also IDLE.
+    return ConnectivityState.IDLE;
   }
 
   /**
