@@ -36,6 +36,7 @@ public class Args {
   final boolean checksum;
   final boolean verboseLog;
   final boolean verboseResult;
+  final int zeroCopy; // 0=auto, 1=on, -1=off
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -63,6 +64,7 @@ public class Args {
     parser.addArgument("--checksum").type(Boolean.class).setDefault(false);
     parser.addArgument("--verboseLog").type(Boolean.class).setDefault(false);
     parser.addArgument("--verboseResult").type(Boolean.class).setDefault(false);
+    parser.addArgument("--zeroCopy").type(Integer.class).setDefault(0);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -86,5 +88,6 @@ public class Args {
     checksum = ns.getBoolean("checksum");
     verboseLog = ns.getBoolean("verboseLog");
     verboseResult = ns.getBoolean("verboseResult");
+    zeroCopy = ns.getInt("zeroCopy");
   }
 }
