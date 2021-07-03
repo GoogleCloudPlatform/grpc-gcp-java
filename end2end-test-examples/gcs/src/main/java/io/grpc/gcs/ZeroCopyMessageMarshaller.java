@@ -85,7 +85,8 @@ class ZeroCopyMessageMarshaller<T extends MessageLite> implements PrototypeMarsh
         message = parseFrom(cis);
       } catch (InvalidProtocolBufferException ipbe) {
         throw Status.INTERNAL.withDescription("Invalid protobuf byte sequence").withCause(ipbe).asRuntimeException();
-      }edStreams.put(message, stream);
+      }
+      unclosedStreams.put(message, stream);
       return message;
     } else {
       // slow path
