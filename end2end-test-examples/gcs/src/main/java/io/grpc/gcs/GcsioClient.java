@@ -34,11 +34,19 @@ public class GcsioClient {
 
   public GcsioClient(Args args, boolean grpcEnabled) throws IOException {
     this.args = args;
-    this.creds = GoogleCredential.getApplicationDefault().createScoped(Arrays.asList(SCOPE));
+    if (args.access_token == "") {
+      this.creds = GoogleCredential.getApplicationDefault().createScoped(Arrays.asList(SCOPE));
+    } else if (args.access_token == "-") {
+      this.creds = null;
+    } else {
+      logger.warning("Please provide valie --access_token");
+    }
 
     this.gcsOpts = GoogleCloudStorageOptions.builder()
             .setAppName("weiranf-app")
             .setGrpcEnabled(grpcEnabled)
+            .setStorageRootUrl("https://" + args.host)
+            .setStorageServicePath(args.service_path)
             .setDirectPathPreffered(args.dp)
             .setReadChannelOptions(GoogleCloudStorageReadOptions.builder().setGrpcChecksumsEnabled(args.checksum).build())
             .setWriteChannelOptions(AsyncWriteChannelOptions.builder().setGrpcChecksumsEnabled(args.checksum).build())
