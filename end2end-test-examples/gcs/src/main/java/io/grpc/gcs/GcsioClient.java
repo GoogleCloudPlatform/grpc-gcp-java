@@ -34,12 +34,12 @@ public class GcsioClient {
 
   public GcsioClient(Args args, boolean grpcEnabled) throws IOException {
     this.args = args;
-    if (args.access_token == "") {
+    if (args.access_token.equals("")) {
       this.creds = GoogleCredential.getApplicationDefault().createScoped(Arrays.asList(SCOPE));
-    } else if (args.access_token == "-") {
+    } else if (args.access_token.equals("-")) {
       this.creds = null;
     } else {
-      logger.warning("Please provide valie --access_token");
+      logger.warning("Please provide valid --access_token");
     }
 
     this.gcsOpts = GoogleCloudStorageOptions.builder()
