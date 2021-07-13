@@ -24,19 +24,31 @@ import io.grpc.alts.ComputeEngineChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import io.grpc.MethodDescriptor;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
+import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.Iterator;
+import java.util.List;
 import java.util.logging.Logger;
+import java.util.NoSuchElementException;
+import java.util.Random;
 
 public class GrpcClient {
   private static final Logger logger = Logger.getLogger(GrpcClient.class.getName());
+
+  // ZeroCopy version of GetObjectMedia Method
+  private static final ZeroCopyMessageMarshaller getObjectMediaResponseMarshaller =
+    new ZeroCopyMessageMarshaller(GetObjectMediaResponse.getDefaultInstance());
+  private static final MethodDescriptor<GetObjectMediaRequest, GetObjectMediaResponse> getObjectMediaMethod =
+    StorageGrpc.getGetObjectMediaMethod()
+      .toBuilder().setResponseMarshaller(getObjectMediaResponseMarshaller)
+      .build();
+  private final boolean useZeroCopy;
 
   private ManagedChannel[] channels;
   private Args args;
@@ -50,7 +62,7 @@ public class GrpcClient {
       this.creds = GoogleCredentials.getApplicationDefault();
     } catch (IOException e) {
       e.printStackTrace();
-      return;
+      throw new RuntimeException(e);
     }
 
     ManagedChannelBuilder channelBuilder;
@@ -95,6 +107,13 @@ public class GrpcClient {
     for (int i = 0; i < args.threads; i++) {
       channels[i] = channelBuilder.build();
     }
+
+    if (args.zeroCopy == 0) {
+      useZeroCopy = ZeroCopyReadinessChecker.isReady();
+    } else {
+      useZeroCopy = args.zeroCopy > 0;
+    }
+    logger.info("useZeroCopy: " + useZeroCopy);
   }
 
   public void startCalls(ResultTable results) throws InterruptedException {
@@ -162,6 +181,7 @@ public class GrpcClient {
   }
 
   private void makeMediaRequest(ManagedChannel channel, ResultTable results) {
+
     StorageGrpc.StorageBlockingStub blockingStub =
         StorageGrpc.newBlockingStub(channel).withCallCredentials(
             MoreCallCredentials.from(creds.createScoped(SCOPE)));
@@ -172,12 +192,35 @@ public class GrpcClient {
 
     GetObjectMediaRequest mediaRequest =
         GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj).build();
-
+    byte[] scratch = new byte[4*1024*1024];
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
-      Iterator<GetObjectMediaResponse> resIterator = blockingStub.getObjectMedia(mediaRequest);
-      while (resIterator.hasNext()) {
-        GetObjectMediaResponse res = resIterator.next();
+      Iterator<GetObjectMediaResponse> resIterator;
+      if (useZeroCopy) {
+        resIterator = io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          blockingStub.getChannel(), getObjectMediaMethod, blockingStub.getCallOptions(), mediaRequest);
+      } else {
+        resIterator = blockingStub.getObjectMedia(mediaRequest);
+      }
+      try {
+        while (true) {
+          GetObjectMediaResponse res = resIterator.next();
+          InputStream stream = getObjectMediaResponseMarshaller.popStream(res);
+          // Just copy to scratch memory to ensure its data is consumed.
+          ByteString content = res.getChecksummedData().getContent();
+          content.copyTo(scratch, 0);
+          // When zero-copy mashaller is used, the stream that backs GetObjectMediaResponse
+          // should be closed when the mssage is no longed needed so that all buffers in the
+          // stream can be reclaimed.
+          if (stream != null) {
+            try {
+              stream.close();
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+          }
+        }
+      } catch (NoSuchElementException e) {
       }
       long dur = System.currentTimeMillis() - start;
       results.reportResult(dur);
