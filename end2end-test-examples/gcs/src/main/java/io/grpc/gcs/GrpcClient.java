@@ -56,13 +56,14 @@ public class GrpcClient {
 
   private static final String SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 
-  public GrpcClient(Args args) {
+  public GrpcClient(Args args) throws IOException {
     this.args = args;
-    try {
-      this.creds = GoogleCredentials.getApplicationDefault();
-    } catch (IOException e) {
-      e.printStackTrace();
-      throw new RuntimeException(e);
+    if (args.access_token.equals("")) {
+      this.creds = GoogleCredentials.getApplicationDefault().createScoped(SCOPE);
+    } else if (args.access_token.equals("-")) {
+      this.creds = null;
+    } else {
+      logger.warning("Please provide valid --access_token");
     }
 
     ManagedChannelBuilder channelBuilder;
@@ -181,14 +182,12 @@ public class GrpcClient {
   }
 
   private void makeMediaRequest(ManagedChannel channel, ResultTable results) {
-
     StorageGrpc.StorageBlockingStub blockingStub =
-        StorageGrpc.newBlockingStub(channel).withCallCredentials(
-            MoreCallCredentials.from(creds.createScoped(SCOPE)));
-      if (args.host.equals(Args.DEFAULT_HOST)) {
-        blockingStub = blockingStub.withCallCredentials(
-            MoreCallCredentials.from(creds.createScoped(SCOPE)));
-      }
+        StorageGrpc.newBlockingStub(channel);
+    if (creds != null) {
+      blockingStub = blockingStub.withCallCredentials(
+          MoreCallCredentials.from(creds));
+    }
 
     GetObjectMediaRequest mediaRequest =
         GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj).build();
@@ -229,8 +228,11 @@ public class GrpcClient {
 
   private void makeRandomMediaRequest(ManagedChannel channel, ResultTable results) {
     StorageGrpc.StorageBlockingStub blockingStub =
-        StorageGrpc.newBlockingStub(channel).withCallCredentials(
-            MoreCallCredentials.from(creds.createScoped(SCOPE)));
+        StorageGrpc.newBlockingStub(channel);
+    if (creds != null) {
+      blockingStub = blockingStub.withCallCredentials(
+          MoreCallCredentials.from(creds));
+    }
 
     GetObjectMediaRequest.Builder reqBuilder =
         GetObjectMediaRequest.newBuilder().setBucket(args.bkt).setObject(args.obj);
@@ -263,11 +265,10 @@ public class GrpcClient {
   }
 
   private void makeInsertRequest(ManagedChannel channel, ResultTable results, int idx) throws InterruptedException {
-    StorageGrpc.StorageStub asyncStub = StorageGrpc.newStub(channel).withCallCredentials(
-        MoreCallCredentials.from(creds.createScoped(SCOPE)));
-    if (args.host.equals(Args.DEFAULT_HOST)) {
+    StorageGrpc.StorageStub asyncStub = StorageGrpc.newStub(channel);
+    if (creds != null) {
       asyncStub = asyncStub.withCallCredentials(
-          MoreCallCredentials.from(creds.createScoped(SCOPE)));
+          MoreCallCredentials.from(creds));
     }
 
     int totalBytes = args.size * 1024;

@@ -22,6 +22,8 @@ public class Args {
   final String cookie;
   final String host;
   final int port;
+  final String service_path;
+  final String access_token;
   final String bkt, obj;
   final boolean dp;
   final int size;
@@ -49,6 +51,8 @@ public class Args {
     parser.addArgument("--cookie").type(String.class).setDefault("");
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
     parser.addArgument("--port").type(Integer.class).setDefault(PORT);
+    parser.addArgument("--service_path").type(String.class).setDefault("storage/v1/");
+    parser.addArgument("--access_token").type(String.class).setDefault("");
     parser.addArgument("--bkt").type(String.class).setDefault("gcs-grpc-team-weiranf");
     parser.addArgument("--obj").type(String.class).setDefault("a");
     parser.addArgument("--dp").type(Boolean.class).setDefault(false);
@@ -73,6 +77,8 @@ public class Args {
     cookie = ns.getString("cookie");
     host = ns.getString("host");
     port = ns.getInt("port");
+    service_path = ns.getString("service_path");
+    access_token = ns.getString("access_token");
     bkt = ns.getString("bkt");
     obj = ns.getString("obj");
     dp = ns.getBoolean("dp");
