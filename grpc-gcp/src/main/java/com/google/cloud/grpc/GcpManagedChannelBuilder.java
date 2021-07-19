@@ -16,6 +16,8 @@
 
 package com.google.cloud.grpc;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.google.cloud.grpc.proto.ApiConfig;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.util.JsonFormat;
@@ -23,8 +25,9 @@ import io.grpc.ForwardingChannelBuilder;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.Reader;
+import java.nio.file.Files;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
 
@@ -32,13 +35,13 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
 
   private static final Logger logger = Logger.getLogger(GcpManagedChannelBuilder.class.getName());
 
-  private final ManagedChannelBuilder delegate;
+  private final ManagedChannelBuilder<?> delegate;
   private int poolSize = 0;
   private GcpManagedChannelOptions options;
 
   @VisibleForTesting ApiConfig apiConfig;
 
-  private GcpManagedChannelBuilder(ManagedChannelBuilder delegate) {
+  private GcpManagedChannelBuilder(ManagedChannelBuilder<?> delegate) {
     this.delegate = delegate;
     this.options = new GcpManagedChannelOptions();
   }
@@ -47,7 +50,7 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
     JsonFormat.Parser parser = JsonFormat.parser();
     ApiConfig.Builder apiConfig = ApiConfig.newBuilder();
     try {
-      FileReader reader = new FileReader(file);
+      Reader reader = Files.newBufferedReader(file.toPath(), UTF_8);
       parser.merge(reader, apiConfig);
     } catch (IOException e) {
       logger.severe(e.getMessage());
@@ -56,7 +59,7 @@ public class GcpManagedChannelBuilder extends ForwardingChannelBuilder<GcpManage
     return apiConfig.build();
   }
 
-  public static final GcpManagedChannelBuilder forDelegateBuilder(ManagedChannelBuilder delegate) {
+  public static GcpManagedChannelBuilder forDelegateBuilder(ManagedChannelBuilder<?> delegate) {
     return new GcpManagedChannelBuilder(delegate);
   }
 
