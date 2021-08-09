@@ -123,8 +123,8 @@ public class GcsioClient {
 
     ByteBuffer buff = ByteBuffer.allocate(size);
     for (int i = 0; i < args.calls; i++) {
-      ReadableByteChannel readChannel = gcsfs.open(uri);
       long start = System.currentTimeMillis();
+      ReadableByteChannel readChannel = gcsfs.open(uri);
       readChannel.read(buff);
       long dur = System.currentTimeMillis() - start;
       if (buff.remaining() > 0) {
@@ -153,9 +153,9 @@ public class GcsioClient {
 
     URI uri = URI.create("gs://" + args.bkt + "/" + args.obj + "_" + idx);
     for (int i = 0; i < args.calls; i++) {
+      long start = System.currentTimeMillis();
       WritableByteChannel writeChannel = gcsfs.create(uri);
       ByteBuffer buff = ByteBuffer.wrap(randBytes);
-      long start = System.currentTimeMillis();
       writeChannel.write(buff);
       writeChannel.close();
       // write operation is async, need to call close() to wait for finish.
