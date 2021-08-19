@@ -204,18 +204,21 @@ public class GrpcClient {
       try {
         while (true) {
           GetObjectMediaResponse res = resIterator.next();
-          InputStream stream = getObjectMediaResponseMarshaller.popStream(res);
-          // Just copy to scratch memory to ensure its data is consumed.
-          ByteString content = res.getChecksummedData().getContent();
-          content.copyTo(scratch, 0);
           // When zero-copy mashaller is used, the stream that backs GetObjectMediaResponse
           // should be closed when the mssage is no longed needed so that all buffers in the
-          // stream can be reclaimed.
-          if (stream != null) {
-            try {
-              stream.close();
-            } catch (IOException e) {
-              throw new RuntimeException(e);
+          // stream can be reclaimed. If zero-copy is not used, stream will be null.
+          InputStream stream = getObjectMediaResponseMarshaller.popStream(res);
+          try {
+            // Just copy to scratch memory to ensure its data is consumed.
+            ByteString content = res.getChecksummedData().getContent();
+            content.copyTo(scratch, 0);
+          } finally {
+            if (stream != null) {
+              try {
+                stream.close();
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
             }
           }
         }
