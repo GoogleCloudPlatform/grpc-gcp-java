@@ -79,7 +79,9 @@ public class GrpcClient {
     ManagedChannelBuilder channelBuilder;
     if (args.dp) {
       ComputeEngineChannelBuilder gceChannelBuilder =
-          ComputeEngineChannelBuilder.forAddress(target, args.port);
+          args.td
+              ? ComputeEngineChannelBuilder.forTarget(target)
+              : ComputeEngineChannelBuilder.forAddress(target, args.port);
 
       if (!args.td) {
         ImmutableMap<String, java.lang.Object> pickFirstStrategy =
