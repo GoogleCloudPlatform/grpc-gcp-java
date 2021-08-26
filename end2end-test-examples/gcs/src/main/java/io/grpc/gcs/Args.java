@@ -26,6 +26,7 @@ public class Args {
   final String access_token;
   final String bkt, obj;
   final boolean dp;
+  final boolean td;
   final int size;
   final int buffSize;
   final String method;
@@ -56,6 +57,7 @@ public class Args {
     parser.addArgument("--bkt").type(String.class).setDefault("gcs-grpc-team-weiranf");
     parser.addArgument("--obj").type(String.class).setDefault("a");
     parser.addArgument("--dp").type(Boolean.class).setDefault(false);
+    parser.addArgument("--td").type(Boolean.class).setDefault(false);
     parser.addArgument("--size").type(Integer.class).setDefault(0);
     parser.addArgument("--buffSize").type(Integer.class).setDefault(0);
     parser.addArgument("--method").type(String.class).setDefault(METHOD_READ);
@@ -82,6 +84,7 @@ public class Args {
     bkt = ns.getString("bkt");
     obj = ns.getString("obj");
     dp = ns.getBoolean("dp");
+    td = ns.getBoolean("td");
     size = ns.getInt("size");
     buffSize = ns.getInt("buffSize");
     method = ns.getString("method");
