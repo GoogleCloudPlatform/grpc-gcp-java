@@ -1,17 +1,11 @@
 package io.grpc.gcs;
 
 import com.google.gson.Gson;
-import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.security.Security;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.logging.LogManager;
-import java.util.logging.Logger;
-import org.conscrypt.Conscrypt;
-
 
 public class ResultTable {
   private Args args;
@@ -32,7 +26,7 @@ public class ResultTable {
 
   public void stop() {
     synchronized (this) {
-      endTime = System.currentTimeMillis();  
+      endTime = System.currentTimeMillis();
     }
   }
 
@@ -77,27 +71,28 @@ public class ResultTable {
         gson.toJson(benchmarkResult, writer);
         writer.close();
       }
-      System.out.println(String.format(
-          "****** Test Results [client: %s, method: %s, size: %d, threads: %d, dp: %s, calls: %d]: \n"
-              + "\t\tMin\tp5\tp10\tp25\tp50\tp75\tp90\tp99\tMax\tTotal\n"
-              + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
-          args.client,
-          args.method,
-          args.size,
-          args.threads,
-          args.dp,
-          n,
-          results.get(0),
-          results.get((int) (n * 0.05)),
-          results.get((int) (n * 0.1)),
-          results.get((int) (n * 0.25)),
-          results.get((int) (n * 0.50)),
-          results.get((int) (n * 0.75)),
-          results.get((int) (n * 0.90)),
-          results.get((int) (n * 0.99)),
-          results.get(n - 1),
-          totalDur
-      ));
-    } 
+      System.out.println(
+          String.format(
+              "****** Test Results [client: %s, method: %s, size: %d, threads: %d, dp: %s, calls:"
+                  + " %d]: \n"
+                  + "\t\tMin\tp5\tp10\tp25\tp50\tp75\tp90\tp99\tMax\tTotal\n"
+                  + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+              args.client,
+              args.method,
+              args.size,
+              args.threads,
+              args.dp,
+              n,
+              results.get(0),
+              results.get((int) (n * 0.05)),
+              results.get((int) (n * 0.1)),
+              results.get((int) (n * 0.25)),
+              results.get((int) (n * 0.50)),
+              results.get((int) (n * 0.75)),
+              results.get((int) (n * 0.90)),
+              results.get((int) (n * 0.99)),
+              results.get(n - 1),
+              totalDur));
+    }
   }
 }
