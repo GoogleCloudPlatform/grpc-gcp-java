@@ -27,6 +27,7 @@ dependencies {
     compile "io.grpc:grpc-netty-shaded:${grpcVersion}"
     compile "io.grpc:grpc-auth:${grpcVersion}"
     compile "io.grpc:grpc-alts:${grpcVersion}"
+    compile "io.grpc:grpc-xds:${grpcVersion}"
     compile "org.conscrypt:conscrypt-openjdk-uber:${conscryptVersion}"
     compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
     compile "com.google.api.grpc:grpc-google-cloud-storage-v2:latest.release"
