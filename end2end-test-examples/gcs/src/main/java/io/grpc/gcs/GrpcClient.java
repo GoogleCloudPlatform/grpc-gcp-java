@@ -113,7 +113,10 @@ public class GrpcClient {
       }
       channelBuilder = gceChannelBuilder;
     } else {
-      NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(target, args.port);
+      NettyChannelBuilder nettyChannelBuilder =
+          args.td
+              ? NettyChannelBuilder.forTarget(target)
+              : NettyChannelBuilder.forAddress(target, args.port);
       if (args.flowControlWindow > 0) {
         nettyChannelBuilder.flowControlWindow(args.flowControlWindow);
       }
