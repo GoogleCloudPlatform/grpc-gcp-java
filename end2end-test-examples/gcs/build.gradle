@@ -29,6 +29,7 @@ dependencies {
     compile "io.grpc:grpc-alts:${grpcVersion}"
     compile "org.conscrypt:conscrypt-openjdk-uber:${conscryptVersion}"
     compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    compile "com.google.api.grpc:grpc-google-cloud-storage-v2:latest.release"
     compile "com.google.api.grpc:proto-google-iam-v1:latest.release"
     compile "com.google.api.grpc:proto-google-common-protos:latest.release"
     compile "net.sourceforge.argparse4j:argparse4j:0.8.1"
