@@ -3,24 +3,19 @@ package io.grpc.gcs;
 import static io.grpc.gcs.Args.METHOD_RANDOM;
 import static io.grpc.gcs.Args.METHOD_READ;
 import static io.grpc.gcs.Args.METHOD_WRITE;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
-import com.google.cloud.storage.Bucket;
-import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-
 
 public class HttpClient {
   private static final Logger logger = Logger.getLogger(HttpClient.class.getName());
@@ -73,11 +68,11 @@ public class HttpClient {
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
       byte[] content = client.readAllBytes(blobId);
-      //String contentString = new String(content, UTF_8);
-      //logger.info("contentString: " + contentString);
+      // String contentString = new String(content, UTF_8);
+      // logger.info("contentString: " + contentString);
       long dur = System.currentTimeMillis() - start;
-      //logger.info("time cost for readAllBytes: " + dur + "ms");
-      //logger.info("total KB received: " + content.length/1024);
+      // logger.info("time cost for readAllBytes: " + dur + "ms");
+      // logger.info("total KB received: " + content.length/1024);
       results.reportResult(dur);
     }
   }
@@ -98,7 +93,7 @@ public class HttpClient {
       if (buff.remaining() > 0) {
         logger.warning("Got remaining bytes: " + buff.remaining());
       }
-      logger.info("total KB received: " + buff.position()/1024);
+      logger.info("total KB received: " + buff.position() / 1024);
       logger.info("time cost for random reading: " + dur + "ms");
       buff.clear();
       results.reportResult(dur);
@@ -112,10 +107,7 @@ public class HttpClient {
     BlobId blobId = BlobId.of(args.bkt, args.obj);
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
-      client.create(
-          BlobInfo.newBuilder(blobId).build(),
-          data
-      );
+      client.create(BlobInfo.newBuilder(blobId).build(), data);
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for creating blob: " + dur + "ms");
       results.reportResult(dur);
