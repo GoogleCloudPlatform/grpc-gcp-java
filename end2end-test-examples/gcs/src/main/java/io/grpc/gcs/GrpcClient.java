@@ -71,23 +71,31 @@ public class GrpcClient {
       logger.warning("Please provide valid --access_token");
     }
 
+    String target = args.host;
+    if (args.td) {
+      target = "google-c2p:///" + target;
+    }
+
     ManagedChannelBuilder channelBuilder;
     if (args.dp) {
       ComputeEngineChannelBuilder gceChannelBuilder =
-          ComputeEngineChannelBuilder.forAddress(args.host, args.port);
+          args.td
+              ? ComputeEngineChannelBuilder.forTarget(target)
+              : ComputeEngineChannelBuilder.forAddress(target, args.port);
 
-      ImmutableMap<String, java.lang.Object> pickFirstStrategy =
-          ImmutableMap.<String, java.lang.Object>of("pick_first", ImmutableMap.of());
-      ImmutableMap<String, java.lang.Object> childPolicy =
-          ImmutableMap.<String, java.lang.Object>of(
-              "childPolicy", ImmutableList.of(pickFirstStrategy));
-      ImmutableMap<String, java.lang.Object> grpcLbPolicy =
-          ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
-      ImmutableMap<String, java.lang.Object> loadBalancingConfig =
-          ImmutableMap.<String, java.lang.Object>of(
-              "loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
-
-      gceChannelBuilder.defaultServiceConfig(loadBalancingConfig);
+      if (!args.td) {
+        ImmutableMap<String, java.lang.Object> pickFirstStrategy =
+            ImmutableMap.<String, java.lang.Object>of("pick_first", ImmutableMap.of());
+        ImmutableMap<String, java.lang.Object> childPolicy =
+            ImmutableMap.<String, java.lang.Object>of(
+                "childPolicy", ImmutableList.of(pickFirstStrategy));
+        ImmutableMap<String, java.lang.Object> grpcLbPolicy =
+            ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
+        ImmutableMap<String, java.lang.Object> loadBalancingConfig =
+            ImmutableMap.<String, java.lang.Object>of(
+                "loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
+        gceChannelBuilder.defaultServiceConfig(loadBalancingConfig);
+      }
 
       if (args.flowControlWindow > 0) {
         Field delegateField = null;
@@ -106,7 +114,9 @@ public class GrpcClient {
       channelBuilder = gceChannelBuilder;
     } else {
       NettyChannelBuilder nettyChannelBuilder =
-          NettyChannelBuilder.forAddress(args.host, args.port);
+          args.td
+              ? NettyChannelBuilder.forTarget(target)
+              : NettyChannelBuilder.forAddress(target, args.port);
       if (args.flowControlWindow > 0) {
         nettyChannelBuilder.flowControlWindow(args.flowControlWindow);
       }

@@ -10,7 +10,7 @@ version '1.0-SNAPSHOT'
 sourceCompatibility = 1.8
 
 def gcsioVersion = '2.2.3-SNAPSHOT'
-def grpcVersion = '1.39.0'
+def grpcVersion = '1.40.1'
 def protobufVersion = '3.17.3'
 def protocVersion = protobufVersion
 def conscryptVersion = '2.5.1'
@@ -27,6 +27,7 @@ dependencies {
     compile "io.grpc:grpc-netty-shaded:${grpcVersion}"
     compile "io.grpc:grpc-auth:${grpcVersion}"
     compile "io.grpc:grpc-alts:${grpcVersion}"
+    compile "io.grpc:grpc-xds:${grpcVersion}"
     compile "org.conscrypt:conscrypt-openjdk-uber:${conscryptVersion}"
     compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
     compile "com.google.api.grpc:grpc-google-cloud-storage-v2:latest.release"
