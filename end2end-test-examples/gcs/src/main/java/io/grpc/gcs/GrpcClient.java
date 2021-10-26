@@ -83,7 +83,7 @@ public class GrpcClient {
               ? ComputeEngineChannelBuilder.forTarget(target)
               : ComputeEngineChannelBuilder.forAddress(target, args.port);
 
-      if (!args.td) {
+      if (!args.td && !args.rr) {
         ImmutableMap<String, java.lang.Object> pickFirstStrategy =
             ImmutableMap.<String, java.lang.Object>of("pick_first", ImmutableMap.of());
         ImmutableMap<String, java.lang.Object> childPolicy =
@@ -125,8 +125,17 @@ public class GrpcClient {
 
     // Create the same number of channels as the number of threads.
     this.channels = new ManagedChannel[args.threads];
-    for (int i = 0; i < args.threads; i++) {
-      channels[i] = channelBuilder.build();
+    if (args.rr) {
+      // For round-robin, all threads share the same channel.
+      ManagedChannel singleChannel = channelBuilder.build();
+      for (int i = 0; i < args.threads; i++) {
+        channels[i] = singleChannel;
+      }
+    } else {
+      // For pick-first, each thread has its own unique channel.
+      for (int i = 0; i < args.threads; i++) {
+        channels[i] = channelBuilder.build();
+      }
     }
 
     if (args.zeroCopy == 0) {
