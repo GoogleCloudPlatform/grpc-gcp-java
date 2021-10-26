@@ -139,18 +139,19 @@ public class GrpcClient {
 
     // Create the same number of channels as the number of threads.
     this.channels = new ManagedChannel[args.threads];
+    /*
     if (args.rr) {
       // For round-robin, all threads share the same channel.
       ManagedChannel singleChannel = channelBuilder.build();
       for (int i = 0; i < args.threads; i++) {
         channels[i] = singleChannel;
       }
-    } else {
+    } else {*/
       // For pick-first, each thread has its own unique channel.
       for (int i = 0; i < args.threads; i++) {
         channels[i] = channelBuilder.build();
       }
-    }
+    //}
 
     if (args.zeroCopy == 0) {
       useZeroCopy = ZeroCopyReadinessChecker.isReady();
