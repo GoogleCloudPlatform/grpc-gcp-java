@@ -84,11 +84,12 @@ public class GrpcClient {
               : ComputeEngineChannelBuilder.forAddress(target, args.port);
 
       if (!args.td) {
-        ImmutableMap<String, java.lang.Object> pickFirstStrategy =
-            ImmutableMap.<String, java.lang.Object>of("pick_first", ImmutableMap.of());
+        String policy = args.rr ? "round_robin" : "pick_first";
+        ImmutableMap<String, java.lang.Object> policyStrategy =
+            ImmutableMap.<String, java.lang.Object>of(policy, ImmutableMap.of());
         ImmutableMap<String, java.lang.Object> childPolicy =
             ImmutableMap.<String, java.lang.Object>of(
-                "childPolicy", ImmutableList.of(pickFirstStrategy));
+                "childPolicy", ImmutableList.of(policyStrategy));
         ImmutableMap<String, java.lang.Object> grpcLbPolicy =
             ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
         ImmutableMap<String, java.lang.Object> loadBalancingConfig =
@@ -125,8 +126,17 @@ public class GrpcClient {
 
     // Create the same number of channels as the number of threads.
     this.channels = new ManagedChannel[args.threads];
-    for (int i = 0; i < args.threads; i++) {
-      channels[i] = channelBuilder.build();
+    if (args.rr) {
+      // For round-robin, all threads share the same channel.
+      ManagedChannel singleChannel = channelBuilder.build();
+      for (int i = 0; i < args.threads; i++) {
+        channels[i] = singleChannel;
+      }
+    } else {
+      // For pick-first, each thread has its own unique channel.
+      for (int i = 0; i < args.threads; i++) {
+        channels[i] = channelBuilder.build();
+      }
     }
 
     if (args.zeroCopy == 0) {
