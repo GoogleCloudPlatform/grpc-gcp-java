@@ -84,31 +84,18 @@ public class GrpcClient {
               : ComputeEngineChannelBuilder.forAddress(target, args.port);
 
       if (!args.td) {
-        if (args.rr) {
-          ImmutableMap<String, java.lang.Object> pickFirstStrategy =
-              ImmutableMap.<String, java.lang.Object>of("round_robin", ImmutableMap.of());
-          ImmutableMap<String, java.lang.Object> childPolicy =
-              ImmutableMap.<String, java.lang.Object>of(
-                  "childPolicy", ImmutableList.of(pickFirstStrategy));
-          ImmutableMap<String, java.lang.Object> grpcLbPolicy =
-              ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
-          ImmutableMap<String, java.lang.Object> loadBalancingConfig =
-              ImmutableMap.<String, java.lang.Object>of(
-                  "loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
-          gceChannelBuilder.defaultServiceConfig(loadBalancingConfig);
-        } else {
-          ImmutableMap<String, java.lang.Object> pickFirstStrategy =
-              ImmutableMap.<String, java.lang.Object>of("pick_first", ImmutableMap.of());
-          ImmutableMap<String, java.lang.Object> childPolicy =
-              ImmutableMap.<String, java.lang.Object>of(
-                  "childPolicy", ImmutableList.of(pickFirstStrategy));
-          ImmutableMap<String, java.lang.Object> grpcLbPolicy =
-              ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
-          ImmutableMap<String, java.lang.Object> loadBalancingConfig =
-              ImmutableMap.<String, java.lang.Object>of(
-                  "loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
-          gceChannelBuilder.defaultServiceConfig(loadBalancingConfig);
-        }
+        String policy = args.rr ? "round_robin" : "pick_first";
+        ImmutableMap<String, java.lang.Object> policyStrategy =
+            ImmutableMap.<String, java.lang.Object>of(policy, ImmutableMap.of());
+        ImmutableMap<String, java.lang.Object> childPolicy =
+            ImmutableMap.<String, java.lang.Object>of(
+                "childPolicy", ImmutableList.of(policyStrategy));
+        ImmutableMap<String, java.lang.Object> grpcLbPolicy =
+            ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
+        ImmutableMap<String, java.lang.Object> loadBalancingConfig =
+            ImmutableMap.<String, java.lang.Object>of(
+                "loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
+        gceChannelBuilder.defaultServiceConfig(loadBalancingConfig);
       }
 
       if (args.flowControlWindow > 0) {
@@ -139,19 +126,18 @@ public class GrpcClient {
 
     // Create the same number of channels as the number of threads.
     this.channels = new ManagedChannel[args.threads];
-    /*
     if (args.rr) {
       // For round-robin, all threads share the same channel.
       ManagedChannel singleChannel = channelBuilder.build();
       for (int i = 0; i < args.threads; i++) {
         channels[i] = singleChannel;
       }
-    } else {*/
+    } else {
       // For pick-first, each thread has its own unique channel.
       for (int i = 0; i < args.threads; i++) {
         channels[i] = channelBuilder.build();
       }
-    //}
+    }
 
     if (args.zeroCopy == 0) {
       useZeroCopy = ZeroCopyReadinessChecker.isReady();
