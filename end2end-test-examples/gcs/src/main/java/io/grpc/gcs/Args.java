@@ -21,6 +21,7 @@ public class Args {
   final int calls;
   final String cookie;
   final String host;
+  final String host2;
   final int port;
   final String service_path;
   final String access_token;
@@ -52,6 +53,7 @@ public class Args {
     parser.addArgument("--calls").type(Integer.class).setDefault(1);
     parser.addArgument("--cookie").type(String.class).setDefault("");
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
+    parser.addArgument("--host2").type(String.class).setDefault("");
     parser.addArgument("--port").type(Integer.class).setDefault(PORT);
     parser.addArgument("--service_path").type(String.class).setDefault("storage/v1/");
     parser.addArgument("--access_token").type(String.class).setDefault("");
@@ -80,6 +82,7 @@ public class Args {
     calls = ns.getInt("calls");
     cookie = ns.getString("cookie");
     host = ns.getString("host");
+    host2 = ns.getString("host2");
     port = ns.getInt("port");
     service_path = ns.getString("service_path");
     access_token = ns.getString("access_token");
