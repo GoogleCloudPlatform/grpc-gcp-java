@@ -10,6 +10,7 @@ import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
 import com.google.cloud.hadoop.util.AsyncWriteChannelOptions;
+import com.google.common.base.Strings;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -50,6 +51,7 @@ public class GcsioClient {
             .setDirectPathPreffered(args.dp)
             .setReadChannelOptions(
                 GoogleCloudStorageReadOptions.builder()
+                    .setGrpcServerAddress(Strings.isNullOrEmpty(args.host2) ? null : args.host2)
                     .setGrpcChecksumsEnabled(args.checksum)
                     .build())
             .setWriteChannelOptions(
