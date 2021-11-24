@@ -9,8 +9,8 @@ version '1.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 
-def gcsioVersion = '2.2.3'
-def grpcVersion = '1.40.1'
+def gcsioVersion = '2.2.5-SNAPSHOT'
+def grpcVersion = '1.42.1'
 def protobufVersion = '3.17.3'
 def protocVersion = protobufVersion
 def conscryptVersion = '2.5.1'
@@ -21,24 +21,27 @@ repositories {
 }
 
 dependencies {
+    compile "io.grpc:grpc-alts:${grpcVersion}"
+    compile "io.grpc:grpc-api:${grpcVersion}"
+    compile "io.grpc:grpc-auth:${grpcVersion}"
+    compile "io.grpc:grpc-context:${grpcVersion}"
+    compile "io.grpc:grpc-netty-shaded:${grpcVersion}"
     compile "io.grpc:grpc-protobuf:${grpcVersion}"
+    compile "io.grpc:grpc-protobuf-lite:${grpcVersion}"
     compile "io.grpc:grpc-stub:${grpcVersion}"
     compile "io.grpc:grpc-testing:${grpcVersion}"
-    compile "io.grpc:grpc-netty-shaded:${grpcVersion}"
-    compile "io.grpc:grpc-auth:${grpcVersion}"
-    compile "io.grpc:grpc-alts:${grpcVersion}"
     compile "io.grpc:grpc-xds:${grpcVersion}"
     compile "org.conscrypt:conscrypt-openjdk-uber:${conscryptVersion}"
     compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
     compile "com.google.api.grpc:grpc-google-cloud-storage-v2:latest.release"
     compile "com.google.api.grpc:proto-google-iam-v1:latest.release"
     compile "com.google.api.grpc:proto-google-common-protos:latest.release"
-    compile "net.sourceforge.argparse4j:argparse4j:0.8.1"
-    compile "com.google.auth:google-auth-library-oauth2-http:0.22.2"
-    compile "com.google.cloud:google-cloud-storage:1.113.9"
+    compile "com.google.auth:google-auth-library-oauth2-http:latest.release"
+    compile "com.google.cloud:google-cloud-storage:latest.release"
     compile "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
     compile "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
     compile "com.google.guava:guava:31.0.1-jre"
+    compile "net.sourceforge.argparse4j:argparse4j:0.9.0"
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
