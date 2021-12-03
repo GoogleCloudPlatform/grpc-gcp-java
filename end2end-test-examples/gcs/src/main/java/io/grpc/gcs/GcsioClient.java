@@ -48,7 +48,7 @@ public class GcsioClient {
             .setGrpcEnabled(grpcEnabled)
             .setStorageRootUrl("https://" + args.host)
             .setStorageServicePath(args.service_path)
-            .setDirectPathPreffered(args.dp)
+            .setDirectPathPreferred(args.dp)
             .setReadChannelOptions(
                 GoogleCloudStorageReadOptions.builder()
                     .setGrpcServerAddress(Strings.isNullOrEmpty(args.host2) ? null : args.host2)
