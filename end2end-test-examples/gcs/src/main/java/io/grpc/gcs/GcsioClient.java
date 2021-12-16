@@ -42,11 +42,10 @@ public class GcsioClient {
       logger.warning("Please provide valid --access_token");
     }
 
-    this.gcsOpts =
+    GoogleCloudStorageOptions.Builder optsBuilder =
         GoogleCloudStorageOptions.builder()
             .setAppName("weiranf-app")
             .setGrpcEnabled(grpcEnabled)
-            .setGrpcServerAddress(Strings.isNullOrEmpty(args.host2) ? null : args.host2)
             .setStorageRootUrl("https://" + args.host)
             .setStorageServicePath(args.service_path)
             .setTrafficDirectorEnabled(args.td)
@@ -56,8 +55,11 @@ public class GcsioClient {
                     .setGrpcChecksumsEnabled(args.checksum)
                     .build())
             .setWriteChannelOptions(
-                AsyncWriteChannelOptions.builder().setGrpcChecksumsEnabled(args.checksum).build())
-            .build();
+                AsyncWriteChannelOptions.builder().setGrpcChecksumsEnabled(args.checksum).build());
+    if (!Strings.isNullOrEmpty(args.host2)) {
+      optsBuilder.setGrpcServerAddress(args.host2);
+    }
+    this.gcsOpts = optsBuilder.build();
   }
 
   public void startCalls(ResultTable results) throws InterruptedException, IOException {
