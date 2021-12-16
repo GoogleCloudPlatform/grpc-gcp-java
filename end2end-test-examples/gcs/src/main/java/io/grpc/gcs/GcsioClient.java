@@ -46,12 +46,12 @@ public class GcsioClient {
         GoogleCloudStorageOptions.builder()
             .setAppName("weiranf-app")
             .setGrpcEnabled(grpcEnabled)
+            .setGrpcServerAddress(Strings.isNullOrEmpty(args.host2) ? null : args.host2)
             .setStorageRootUrl("https://" + args.host)
             .setStorageServicePath(args.service_path)
             .setDirectPathPreferred(args.dp)
             .setReadChannelOptions(
                 GoogleCloudStorageReadOptions.builder()
-                    .setGrpcServerAddress(Strings.isNullOrEmpty(args.host2) ? null : args.host2)
                     .setGrpcChecksumsEnabled(args.checksum)
                     .build())
             .setWriteChannelOptions(
