@@ -8,25 +8,25 @@ Client sends out `numRpcs` number of unary requests to `host` sequentially
 with request payload size of `reqSize`, and expected response payload size of `rspSize`:
 
 ```sh
-./gradlew run --args="--numRpcs=100 --reqSize=100 --resSize=100 --host=grpc-cloudapi1.googleapis.com"
+./gradlew run --args="--numRpcs=100 --reqSize=100 --resSize=100 --host=grpc-cloudapi.googleapis.com"
 ```
 
 Enable gRPC compression for both request and response with gzip:
 
 ```sh
-./gradlew run --args="--numRpcs=100 --reqSize=100 --resSize=100 --reqComp=gzip --resComp=gzip --host=grpc-cloudapi1.googleapis.com"
+./gradlew run --args="--numRpcs=100 --reqSize=100 --resSize=100 --reqComp=gzip --resComp=gzip --host=grpc-cloudapi.googleapis.com"
 ```
 
 Sending requests infinitely with 10 seconds interval between requests.
 
 ```sh
-./gradlew run --args="--numRpcs=0 --interval=10000 --reqSize=100 --resSize=100 --host=grpc-cloudapi1.googleapis.com"
+./gradlew run --args="--numRpcs=0 --interval=10000 --reqSize=100 --resSize=100 --host=grpc-cloudapi.googleapis.com"
 ```
 
 Receive server-streaming responses with 10 seconds interval. Re-create the stream after each 10 responses.
 
 ```sh
-./gradlew run --args="--stream=true --numRpcs=10 --interval=10000 --host=grpc-cloudapi1.googleapis.com"
+./gradlew run --args="--stream=true --numRpcs=10 --interval=10000 --host=grpc-cloudapi.googleapis.com"
 ```
 
 Example results:
