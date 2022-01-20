@@ -73,7 +73,8 @@ public class GrpcClient {
 
     String target = args.host;
     if (args.td) {
-      target = "google-c2p:///" + target;
+      // TODO(veblush): Remove experimental suffix once this code is proven stable.
+      target = "google-c2p-experimental:///" + target;
     }
 
     ManagedChannelBuilder channelBuilder;

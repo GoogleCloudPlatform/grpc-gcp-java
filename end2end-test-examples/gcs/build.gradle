@@ -10,10 +10,10 @@ version '1.0-SNAPSHOT'
 sourceCompatibility = 1.8
 
 def gcsioVersion = '2.2.5-SNAPSHOT'
-def grpcVersion = '1.42.1'
-def protobufVersion = '3.17.3'
+def grpcVersion = '1.43.2'
+def protobufVersion = '3.19.2'
 def protocVersion = protobufVersion
-def conscryptVersion = '2.5.1'
+def conscryptVersion = '2.5.2'
 
 repositories {
     mavenLocal()
