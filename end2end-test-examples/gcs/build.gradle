@@ -10,7 +10,7 @@ version '1.0-SNAPSHOT'
 sourceCompatibility = 1.8
 
 def gcsioVersion = '2.2.5'
-def grpcVersion = '1.43.2'
+def grpcVersion = '1.44.0'
 def protobufVersion = '3.19.2'
 def protocVersion = protobufVersion
 def conscryptVersion = '2.5.2'
