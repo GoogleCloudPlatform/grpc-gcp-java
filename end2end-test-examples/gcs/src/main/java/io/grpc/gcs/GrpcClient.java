@@ -18,11 +18,13 @@ import com.google.storage.v2.StorageGrpc.StorageBlockingStub;
 import com.google.storage.v2.WriteObjectRequest;
 import com.google.storage.v2.WriteObjectResponse;
 import com.google.storage.v2.WriteObjectSpec;
+import io.grpc.Grpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
 import io.grpc.alts.ComputeEngineChannelBuilder;
+import io.grpc.alts.GoogleDefaultChannelCredentials;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -71,33 +73,28 @@ public class GrpcClient {
       logger.warning("Please provide valid --access_token");
     }
 
-    String target = args.host;
+    ManagedChannelBuilder channelBuilder;
     if (args.td) {
       // TODO(veblush): Remove experimental suffix once this code is proven stable.
-      target = "google-c2p-experimental:///" + target;
-    }
-
-    ManagedChannelBuilder channelBuilder;
-    if (args.dp) {
+      String target = "google-c2p-experimental:///" + args.host;
+      channelBuilder =
+          Grpc.newChannelBuilder(target, GoogleDefaultChannelCredentials.newBuilder().build());
+    } else if (args.dp) {
       ComputeEngineChannelBuilder gceChannelBuilder =
-          args.td
-              ? ComputeEngineChannelBuilder.forTarget(target)
-              : ComputeEngineChannelBuilder.forAddress(target, args.port);
+          ComputeEngineChannelBuilder.forAddress(args.host, args.port);
 
-      if (!args.td) {
-        String policy = args.rr ? "round_robin" : "pick_first";
-        ImmutableMap<String, java.lang.Object> policyStrategy =
-            ImmutableMap.<String, java.lang.Object>of(policy, ImmutableMap.of());
-        ImmutableMap<String, java.lang.Object> childPolicy =
-            ImmutableMap.<String, java.lang.Object>of(
-                "childPolicy", ImmutableList.of(policyStrategy));
-        ImmutableMap<String, java.lang.Object> grpcLbPolicy =
-            ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
-        ImmutableMap<String, java.lang.Object> loadBalancingConfig =
-            ImmutableMap.<String, java.lang.Object>of(
-                "loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
-        gceChannelBuilder.defaultServiceConfig(loadBalancingConfig);
-      }
+      String policy = args.rr ? "round_robin" : "pick_first";
+      ImmutableMap<String, java.lang.Object> policyStrategy =
+          ImmutableMap.<String, java.lang.Object>of(policy, ImmutableMap.of());
+      ImmutableMap<String, java.lang.Object> childPolicy =
+          ImmutableMap.<String, java.lang.Object>of(
+              "childPolicy", ImmutableList.of(policyStrategy));
+      ImmutableMap<String, java.lang.Object> grpcLbPolicy =
+          ImmutableMap.<String, java.lang.Object>of("grpclb", childPolicy);
+      ImmutableMap<String, java.lang.Object> loadBalancingConfig =
+          ImmutableMap.<String, java.lang.Object>of(
+              "loadBalancingConfig", ImmutableList.of(grpcLbPolicy));
+      gceChannelBuilder.defaultServiceConfig(loadBalancingConfig);
 
       if (args.flowControlWindow > 0) {
         Field delegateField = null;
@@ -115,10 +112,7 @@ public class GrpcClient {
       }
       channelBuilder = gceChannelBuilder;
     } else {
-      NettyChannelBuilder nettyChannelBuilder =
-          args.td
-              ? NettyChannelBuilder.forTarget(target)
-              : NettyChannelBuilder.forAddress(target, args.port);
+      NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(args.host, args.port);
       if (args.flowControlWindow > 0) {
         nettyChannelBuilder.flowControlWindow(args.flowControlWindow);
       }
