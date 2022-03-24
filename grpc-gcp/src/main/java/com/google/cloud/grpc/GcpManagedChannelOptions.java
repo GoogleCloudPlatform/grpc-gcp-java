@@ -20,6 +20,8 @@ import com.google.common.base.Preconditions;
 import io.opencensus.metrics.LabelKey;
 import io.opencensus.metrics.LabelValue;
 import io.opencensus.metrics.MetricRegistry;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
@@ -332,12 +334,92 @@ public class GcpManagedChannelOptions {
     private final boolean unresponsiveDetectionEnabled;
     private final int unresponsiveDetectionMs;
     private final int unresponsiveDetectionDroppedCount;
+    private final List<GcpMultiEndpointOptions> multiEndpoints;
+
+    public static class GcpMultiEndpointOptions {
+      private final String name;
+      private final List<String> endpoints;
+      private final Duration recoveryTimeout;
+
+      public static String DEFAULT_NAME = "default";
+
+      public GcpMultiEndpointOptions(Builder builder) {
+        this.name = builder.name;
+        this.endpoints = builder.endpoints;
+        this.recoveryTimeout = builder.recoveryTimeout;
+      }
+
+      public static Builder newBuilder(List<String> endpoints) {
+        return new Builder(endpoints);
+      }
+
+      public static Builder newBuilder(GcpMultiEndpointOptions options) {
+        return new Builder(options);
+      }
+
+      public String getName() {
+        return name;
+      }
+
+      public List<String> getEndpoints() {
+        return endpoints;
+      }
+
+      public Duration getRecoveryTimeout() {
+        return recoveryTimeout;
+      }
+
+      public static class Builder {
+        private String name = GcpMultiEndpointOptions.DEFAULT_NAME;
+        private List<String> endpoints;
+        private Duration recoveryTimeout = Duration.ZERO;
+
+        public Builder(List<String> endpoints) {
+          setEndpoints(endpoints);
+        }
+
+        public Builder(GcpMultiEndpointOptions options) {
+          this.name = options.getName();
+          this.endpoints = options.getEndpoints();
+          this.recoveryTimeout = options.getRecoveryTimeout();
+        }
+
+        public GcpMultiEndpointOptions build() {
+          return new GcpMultiEndpointOptions(this);
+        }
+
+        private void setEndpoints(List<String> endpoints) {
+          Preconditions.checkNotNull(endpoints);
+          Preconditions.checkArgument(
+                  !endpoints.isEmpty(), "At least one endpoint must be specified.");
+          Preconditions.checkArgument(
+                  endpoints.stream().noneMatch(s -> s.trim().isEmpty()), "No empty endpoints allowed.");
+          this.endpoints = endpoints;
+        }
+
+        public Builder withName(String name) {
+          this.name = name;
+          return this;
+        }
+
+        public Builder withEndpoints(List<String> endpoints) {
+          this.setEndpoints(endpoints);
+          return this;
+        }
+
+        public Builder withRecoveryTimeout(Duration recoveryTimeout) {
+          this.recoveryTimeout = recoveryTimeout;
+          return this;
+        }
+      }
+    }
 
     public GcpResiliencyOptions(Builder builder) {
       notReadyFallbackEnabled = builder.notReadyFallbackEnabled;
       unresponsiveDetectionEnabled = builder.unresponsiveDetectionEnabled;
       unresponsiveDetectionMs = builder.unresponsiveDetectionMs;
       unresponsiveDetectionDroppedCount = builder.unresponsiveDetectionDroppedCount;
+      multiEndpoints = builder.multiEndpoints;
     }
 
     /** Creates a new GcpResiliencyOptions.Builder. */
@@ -366,11 +448,16 @@ public class GcpManagedChannelOptions {
       return unresponsiveDetectionDroppedCount;
     }
 
+    public List<GcpMultiEndpointOptions> getMultiEndpoints() {
+      return multiEndpoints;
+    }
+
     public static class Builder {
       private boolean notReadyFallbackEnabled = false;
       private boolean unresponsiveDetectionEnabled = false;
       private int unresponsiveDetectionMs = 0;
       private int unresponsiveDetectionDroppedCount = 0;
+      private List<GcpMultiEndpointOptions> multiEndpoints = new ArrayList<>();
 
       public Builder() {}
 
@@ -379,6 +466,7 @@ public class GcpManagedChannelOptions {
         this.unresponsiveDetectionEnabled = options.isUnresponsiveDetectionEnabled();
         this.unresponsiveDetectionMs = options.getUnresponsiveDetectionMs();
         this.unresponsiveDetectionDroppedCount = options.getUnresponsiveDetectionDroppedCount();
+        this.multiEndpoints = options.getMultiEndpoints();
       }
 
       public GcpResiliencyOptions build() {
@@ -428,6 +516,33 @@ public class GcpManagedChannelOptions {
       /** Disable unresponsive connection detection. */
       public Builder disableUnresponsiveConnectionDetection() {
         unresponsiveDetectionEnabled = false;
+        return this;
+      }
+
+      /**
+       * Enable/disable multi-endpoint feature.
+       *
+       * <p>For each item of the {@link GcpMultiEndpointOptions} list provided a named MultiEndpoint
+       * will be created.
+       *
+       * <p>Any call by default will use the first MultiEndpoint if the name of the desired
+       * MultiEndpoint is not specified in {@link io.grpc.CallOptions}.
+       *
+       * <p>Each MultiEndpoint is a list of endpoints. A channel pool will be created for each
+       * endpoint and for each channel in a pool the endpoint from a {@link
+       * io.grpc.ManagedChannelBuilder} will be overridden by the endpoint from MultiEndpoint.
+       *
+       * <p>The first endpoint in the MultiEndpoint list will be used for calls as long as there is
+       * a healthy (ready) connection in the pool for this endpoint. If no connection is healthy and
+       * {@code recoveryTimeout} has passed then the next endpoint will be used for new calls and so
+       * on. If a connection from a previous endpoint recovers then new calls will use the previous
+       * endpoint.
+       *
+       * <p>To disable previously enabled multi-endpoint feature provide an empty list.
+       */
+      public Builder withMultiEndpoints(List<GcpMultiEndpointOptions> multiEndpoints) {
+        Preconditions.checkNotNull(multiEndpoints);
+        this.multiEndpoints = multiEndpoints;
         return this;
       }
     }
