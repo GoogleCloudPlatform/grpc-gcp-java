@@ -41,6 +41,9 @@ public class Args {
   final int logMaxSize;
   final int logMaxFiles;
   final boolean disableConsoleLog;
+  final String metricName;
+  final String metricTaskPrefix;
+  final String metricProbeName;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -79,6 +82,9 @@ public class Args {
     parser.addArgument("--logMaxSize").type(Integer.class).setDefault(0);
     parser.addArgument("--logMaxFiles").type(Integer.class).setDefault(0);
     parser.addArgument("--disableConsoleLog").type(Boolean.class).setDefault(false);
+    parser.addArgument("--metricName").type(String.class).setDefault("");
+    parser.addArgument("--metricTaskPrefix").type(String.class).setDefault("");
+    parser.addArgument("--metricProbeName").type(String.class).setDefault("");
 
     Namespace ns = parser.parseArgs(args);
 
@@ -113,6 +119,10 @@ public class Args {
     logMaxSize = ns.getInt("logMaxSize");
     logMaxFiles = ns.getInt("logMaxFiles");
     disableConsoleLog = ns.getBoolean("disableConsoleLog");
+    metricName = ns.getString("metricName");
+    metricTaskPrefix = ns.getString("metricTaskPrefix");
+    metricProbeName = ns.getString("metricProbeName");
+
     distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
   }
 }

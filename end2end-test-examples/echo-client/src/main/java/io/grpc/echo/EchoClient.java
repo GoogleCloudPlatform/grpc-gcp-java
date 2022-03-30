@@ -1,12 +1,6 @@
 package io.grpc.echo;
 
-import io.grpc.Channel;
-import io.grpc.ClientInterceptor;
-import io.grpc.ClientInterceptors;
-import io.grpc.ConnectivityState;
-import io.grpc.ManagedChannel;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
+import io.grpc.*;
 import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.BatchEchoRequest;
 import io.grpc.echo.Echo.BatchEchoResponse;
@@ -18,15 +12,20 @@ import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
+
+import io.opencensus.metrics.*;
 import org.HdrHistogram.Histogram;
 
 public class EchoClient {
@@ -44,8 +43,14 @@ public class EchoClient {
 
   private int rr;
 
+  private MetricRegistry metricRegistry;
+  private Map<String, Map<Boolean, AtomicLong>> errorCounts = new ConcurrentHashMap<>();
+  final private String OTHER_STATUS = "OTHER";
+
   public EchoClient(Args args) throws SSLException {
     this.args = args;
+
+    setUpMetrics();
 
     channels = new ManagedChannel[args.numChannels];
     asyncStubs = new GrpcCloudapiStub[args.numChannels];
@@ -75,6 +80,78 @@ public class EchoClient {
           blockingStub = blockingStub.withCompression(args.reqComp);
         }
         asyncStubs[i] = asyncStubs[i].withCompression(args.reqComp);
+      }
+    }
+  }
+
+  private void setUpMetrics() {
+    if (args.metricName.isEmpty()) {
+      return;
+    }
+    metricRegistry = Metrics.getMetricRegistry();
+
+    String hostname = "unknown";
+    try {
+      hostname = InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException e) {
+      logger.log(Level.WARNING, "Cannot get hostname", e);
+    }
+
+    Map<LabelKey, LabelValue> labels = new HashMap<>();
+    labels.put(
+            LabelKey.create("prober_task", "Prober task identifier"),
+            LabelValue.create(args.metricTaskPrefix + ProcessHandle.current().pid() + "@" + hostname)
+    );
+    if (!args.metricProbeName.isEmpty()) {
+      labels.put(
+              LabelKey.create("probe_name", "Prober name"),
+              LabelValue.create(args.metricProbeName)
+      );
+    }
+
+    final DerivedLongGauge presenceMetric =
+            metricRegistry.addDerivedLongGauge(args.metricName + "/presence", MetricOptions.builder()
+                    .setDescription("Number of prober instances running")
+                    .setUnit("1")
+                    .setConstantLabels(labels)
+                    .build());
+
+    final List<LabelKey> errorKeys = new ArrayList<>();
+    errorKeys.add(LabelKey.create("code", "The gRPC error code"));
+    errorKeys.add(LabelKey.create("sawGfe", "Whether Google load balancer response headers were present"));
+
+    final DerivedLongCumulative errorsMetric =
+            metricRegistry.addDerivedLongCumulative(args.metricName + "/error-count", MetricOptions.builder()
+                    .setDescription("Number of RPC errors")
+                    .setUnit("1")
+                    .setConstantLabels(labels)
+                    .setLabelKeys(errorKeys)
+                    .build());
+
+    final List<LabelValue> emptyValues = new ArrayList<>();
+    presenceMetric.removeTimeSeries(emptyValues);
+    presenceMetric.createTimeSeries(emptyValues, this, echoClient -> 1L);
+
+    final List<String> reportedStatuses = new ArrayList<>();
+    reportedStatuses.add(Status.Code.DEADLINE_EXCEEDED.toString());
+    reportedStatuses.add(Status.Code.UNAVAILABLE.toString());
+    reportedStatuses.add(Status.Code.CANCELLED.toString());
+    reportedStatuses.add(Status.Code.ABORTED.toString());
+    reportedStatuses.add(Status.Code.INTERNAL.toString());
+    reportedStatuses.add(OTHER_STATUS);
+
+    for (String status : reportedStatuses) {
+      errorCounts.putIfAbsent(status, new ConcurrentHashMap<>());
+      errorCounts.get(status).putIfAbsent(false, new AtomicLong());
+      errorCounts.get(status).putIfAbsent(true, new AtomicLong());
+
+      for (boolean sawGfe : Arrays.asList(false, true)) {
+        final List<LabelValue> errorValues = new ArrayList<>();
+        errorValues.add(LabelValue.create(status));
+        errorValues.add(LabelValue.create(String.valueOf(sawGfe)));
+
+        errorsMetric.removeTimeSeries(errorValues);
+        errorsMetric.createTimeSeries(errorValues, this, echoClient -> echoClient.reportRpcErrors(status, sawGfe));
       }
     }
   }
@@ -111,6 +188,10 @@ public class EchoClient {
     Channel channel = managedChannel;
     if (HeaderClientInterceptor.needsInterception(args)) {
       ClientInterceptor interceptor = new HeaderClientInterceptor(args);
+      channel = ClientInterceptors.intercept(channel, interceptor);
+    }
+    if (MetricsClientInterceptor.needsInterception(args)) {
+      ClientInterceptor interceptor = new MetricsClientInterceptor(this);
       channel = ClientInterceptors.intercept(channel, interceptor);
     }
     if (i == 0) {
@@ -259,5 +340,26 @@ public class EchoClient {
       blockingEcho(histogram);
     }
     //logger.info("Sync request: sent rpc#: " + rpcIndex);
+  }
+
+  private String statusToMetricLabel(Status status) {
+    switch (status.getCode()) {
+      case ABORTED:
+      case CANCELLED:
+      case DEADLINE_EXCEEDED:
+      case UNAVAILABLE:
+      case INTERNAL:
+        return status.getCode().toString();
+      default:
+        return OTHER_STATUS;
+    }
+  }
+
+  void registerRpcError(Status status, boolean sawGfe) {
+    errorCounts.get(statusToMetricLabel(status)).get(sawGfe).incrementAndGet();
+  }
+
+  private long reportRpcErrors(String status, boolean sawGfe) {
+    return errorCounts.get(status).get(sawGfe).get();
   }
 }
