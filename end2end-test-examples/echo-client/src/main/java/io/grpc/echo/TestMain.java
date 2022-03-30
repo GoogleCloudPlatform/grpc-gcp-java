@@ -111,7 +111,7 @@ public class TestMain {
     printResult(args, totalPayloadSize, totalRecvTime, histogram);
   }
 
-  private static void execTask(Args argObj) throws InterruptedException, SSLException {
+  private static void execTask(Args argObj) throws InterruptedException, IOException {
     EchoClient client = new EchoClient(argObj);
     try {
       logger.info("Start warm up...");

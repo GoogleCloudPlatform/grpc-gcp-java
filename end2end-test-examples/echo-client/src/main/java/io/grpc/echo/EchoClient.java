@@ -13,6 +13,7 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.sql.Timestamp;
@@ -25,6 +26,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
 import io.opencensus.metrics.*;
 import org.HdrHistogram.Histogram;
 
@@ -47,7 +49,7 @@ public class EchoClient {
   private Map<String, Map<Boolean, AtomicLong>> errorCounts = new ConcurrentHashMap<>();
   final private String OTHER_STATUS = "OTHER";
 
-  public EchoClient(Args args) throws SSLException {
+  public EchoClient(Args args) throws IOException {
     this.args = args;
 
     setUpMetrics();
@@ -84,7 +86,7 @@ public class EchoClient {
     }
   }
 
-  private void setUpMetrics() {
+  private void setUpMetrics() throws IOException {
     if (args.metricName.isEmpty()) {
       return;
     }
@@ -153,6 +155,18 @@ public class EchoClient {
         errorsMetric.removeTimeSeries(errorValues);
         errorsMetric.createTimeSeries(errorValues, this, echoClient -> echoClient.reportRpcErrors(status, sawGfe));
       }
+    }
+    try {
+      // Enable OpenCensus exporters to export metrics to Stackdriver Monitoring.
+      // Exporters use Application Default Credentials to authenticate.
+      // See https://developers.google.com/identity/protocols/application-default-credentials
+      // for more details.
+      // The minimum reporting period for Stackdriver is 1 minute.
+      StackdriverStatsExporter.createAndRegister();
+      logger.log(Level.INFO, "Stackdriver metrics enabled!");
+    } catch (IOException e) {
+      logger.log(Level.SEVERE, "StackdriverStatsExporter.createAndRegister()", e);
+      throw e;
     }
   }
 
