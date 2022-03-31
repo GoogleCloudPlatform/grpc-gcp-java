@@ -85,6 +85,12 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
  
 `--disableConsoleLog`: If logging to a file do not log to console. Default: false.
 
+`--metricName`: Ship metrics to Google Cloud Monitoring with this prefix for metric names.
+
+`--metricTaskPrefix`: Prefix for the process label for metrics.
+
+`--metricProbeName`: Additional label for metrics.
+
 ## Deployment
 
 Build the jar using maven (`mvn clean package`) or docker:
