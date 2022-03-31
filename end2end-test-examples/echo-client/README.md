@@ -84,3 +84,35 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 `--logMaxFiles`: If log file size is limited rotate log files and keep this number of files. Default: unlimited.
  
 `--disableConsoleLog`: If logging to a file do not log to console. Default: false.
+
+`--metricName`: Ship metrics to Google Cloud Monitoring with this prefix for metric names.
+
+`--metricTaskPrefix`: Prefix for the process label for metrics.
+
+`--metricProbeName`: Additional label for metrics.
+
+## Deployment
+
+Build the jar using maven (`mvn clean package`) or docker:
+
+```shell
+docker run -it --rm -v "$(pwd)":/usr/src/mymaven -w /usr/src/mymaven maven mvn clean package
+```
+
+Deploy the `target/echo-client-2.3-SNAPSHOT.jar` or build a docker image with the jar:
+
+```shell
+docker build -t echo-client:2.3 .
+```
+
+Run the jar:
+
+```shell
+java -jar echo-client-2.3-SNAPSHOT.jar --numRpcs=1 --reqSize=100 --resSize=100 --host=grpc-cloudapi.googleapis.com
+```
+
+Or run a container:
+
+```shell
+docker run -it --rm echo-client:2.3 --numRpcs=1 --reqSize=100 --resSize=100 --host=grpc-cloudapi.googleapis.com
+```
