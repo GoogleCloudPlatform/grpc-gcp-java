@@ -6,7 +6,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.grpc</groupId>
   <artifactId>echo-client</artifactId>
-  <version>2.2-SNAPSHOT</version>
+  <version>2.3-SNAPSHOT</version>
   <inceptionYear>2019</inceptionYear>
   <licenses>
     <license>
