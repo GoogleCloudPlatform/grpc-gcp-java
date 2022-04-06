@@ -7,8 +7,8 @@ plugins {
 group 'io.grpc'
 version '2.3-SNAPSHOT'
 
-sourceCompatibility = 1.9
-targetCompatibility = 1.9
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
 
 def grpcVersion = '1.34.1'
 def protobufVersion = '3.9.0'
