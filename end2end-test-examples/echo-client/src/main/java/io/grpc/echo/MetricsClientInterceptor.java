@@ -15,13 +15,13 @@ public class MetricsClientInterceptor implements ClientInterceptor {
 
     @Override
     public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(MethodDescriptor<ReqT, RespT> method, CallOptions callOptions, Channel next) {
-        return new ForwardingClientCall.SimpleForwardingClientCall<>(next.newCall(method, callOptions)) {
+        return new ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
             private boolean sawGfe = false;
 
             @Override
             public void start(Listener<RespT> responseListener, Metadata headers) {
                 headers.put(Metadata.Key.of("x-return-encrypted-headers", Metadata.ASCII_STRING_MARSHALLER), "true");
-                super.start(new ForwardingClientCallListener.SimpleForwardingClientCallListener<>(responseListener) {
+                super.start(new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
                     @Override
                     public void onHeaders(Metadata headers) {
                         if (!sawGfe) {
