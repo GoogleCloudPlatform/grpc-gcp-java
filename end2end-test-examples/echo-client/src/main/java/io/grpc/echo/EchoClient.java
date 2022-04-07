@@ -13,6 +13,7 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -99,10 +100,12 @@ public class EchoClient {
       logger.log(Level.WARNING, "Cannot get hostname", e);
     }
 
+    final String pid = new File("/proc/self").getCanonicalFile().getName();
+
     Map<LabelKey, LabelValue> labels = new HashMap<>();
     labels.put(
             LabelKey.create("prober_task", "Prober task identifier"),
-            LabelValue.create(args.metricTaskPrefix + ProcessHandle.current().pid() + "@" + hostname)
+            LabelValue.create(args.metricTaskPrefix + pid + "@" + hostname)
     );
     if (!args.metricProbeName.isEmpty()) {
       labels.put(
