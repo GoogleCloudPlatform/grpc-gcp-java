@@ -1,5 +1,6 @@
 package io.grpc.echo;
 
+import com.google.api.MonitoredResource;
 import io.grpc.*;
 import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.BatchEchoRequest;
@@ -27,6 +28,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
 import io.opencensus.metrics.*;
 import org.HdrHistogram.Histogram;
@@ -165,7 +167,9 @@ public class EchoClient {
       // See https://developers.google.com/identity/protocols/application-default-credentials
       // for more details.
       // The minimum reporting period for Stackdriver is 1 minute.
-      StackdriverStatsExporter.createAndRegister();
+      StackdriverStatsExporter.createAndRegister(StackdriverStatsConfiguration.builder()
+                      .setMonitoredResource(MonitoredResource.newBuilder().setType("global").build())
+              .build());
       logger.log(Level.INFO, "Stackdriver metrics enabled!");
     } catch (IOException e) {
       logger.log(Level.SEVERE, "StackdriverStatsExporter.createAndRegister()", e);
