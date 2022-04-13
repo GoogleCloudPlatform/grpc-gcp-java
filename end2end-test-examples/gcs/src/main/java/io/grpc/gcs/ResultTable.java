@@ -11,10 +11,12 @@ public class ResultTable {
   private Args args;
   private Long startTime;
   private Long endTime;
+  private int warmupCount;
   private List<Long> results;
 
   public ResultTable(Args args) {
     this.args = args;
+    this.warmupCount = args.warmups * args.threads;
     this.results = new ArrayList<>();
   }
 
@@ -37,7 +39,9 @@ public class ResultTable {
       ord = results.size();
     }
     if (this.args.verboseResult) {
-      System.out.format("### Result: ord=%d elapsed=%d\n", ord, duration);
+      System.out.format(
+          "### Result: ord=%d elapsed=%d%s\n",
+          ord, duration, results.size() <= warmupCount ? " [WARM-UP]" : "");
       System.out.flush();
     }
   }
@@ -49,8 +53,11 @@ public class ResultTable {
 
   public void printResult() throws IOException {
     synchronized (this) {
+      results.subList(0, Math.min(results.size(), warmupCount)).clear();
+
       if (results.size() == 0) return;
       Collections.sort(results);
+
       int n = results.size();
       double totalSeconds = 0;
       long totalDur = endTime - startTime;

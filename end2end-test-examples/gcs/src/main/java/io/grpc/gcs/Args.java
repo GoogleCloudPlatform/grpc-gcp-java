@@ -19,6 +19,7 @@ public class Args {
   private static final int PORT = 443;
 
   final int calls;
+  final int warmups;
   final String cookie;
   final String host;
   final String host2;
@@ -51,6 +52,7 @@ public class Args {
             .description("GCS client java binary");
 
     parser.addArgument("--calls").type(Integer.class).setDefault(1);
+    parser.addArgument("--warmups").type(Integer.class).setDefault(0);
     parser.addArgument("--cookie").type(String.class).setDefault("");
     parser.addArgument("--host").type(String.class).setDefault(DEFAULT_HOST);
     parser.addArgument("--host2").type(String.class).setDefault("");
@@ -80,6 +82,7 @@ public class Args {
 
     // Read args
     calls = ns.getInt("calls");
+    warmups = ns.getInt("warmups");
     cookie = ns.getString("cookie");
     host = ns.getString("host");
     host2 = ns.getString("host2");
