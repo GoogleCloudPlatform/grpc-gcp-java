@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package e2e_service;
 
-option java_package = "io.grpc.echo";
-
 import "google/api/annotations.proto";
+
+option java_package = "io.grpc.echo";
 
 // Request message type for simple echo.
 message EchoRequest {
@@ -33,6 +33,7 @@ message EchoWithResponseSizeRequest {
 message StreamEchoRequest {
   int32 message_count = 1;
   int32 message_interval = 2;
+  int32 response_size_per_msg = 3;
 }
 
 // A simple service to test and debug in an E2E environment
@@ -55,7 +56,7 @@ service GrpcCloudapi {
   // A simple stream endpoint
   rpc EchoStream(StreamEchoRequest) returns (stream EchoResponse) {
     option (google.api.http) = {
-      get: "/v1/stream/{message_count}/{message_interval}"
+      get: "/v1/stream/{message_count}/{message_interval}/{response_size_per_msg}"
     };
   }
 
@@ -65,5 +66,4 @@ service GrpcCloudapi {
       get: "/v1/batch/{echo_msg}/{response_type}"
     };
   }
-
 }
