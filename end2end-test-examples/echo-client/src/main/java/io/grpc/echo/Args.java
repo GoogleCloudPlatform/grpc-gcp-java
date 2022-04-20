@@ -44,6 +44,8 @@ public class Args {
   final String metricName;
   final String metricTaskPrefix;
   final String metricProbeName;
+  final int numMsgs;
+  final int msgsInterval;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -85,6 +87,8 @@ public class Args {
     parser.addArgument("--metricName").type(String.class).setDefault("");
     parser.addArgument("--metricTaskPrefix").type(String.class).setDefault("");
     parser.addArgument("--metricProbeName").type(String.class).setDefault("");
+    parser.addArgument("--numMsgs").type(Integer.class).setDefault(1);
+    parser.addArgument("--msgsInterval").type(Integer.class).setDefault(0);
 
     Namespace ns = parser.parseArgs(args);
 
@@ -122,7 +126,9 @@ public class Args {
     metricName = ns.getString("metricName");
     metricTaskPrefix = ns.getString("metricTaskPrefix");
     metricProbeName = ns.getString("metricProbeName");
+    numMsgs = ns.getInt("numMsgs");
+    msgsInterval = ns.getInt("msgsInterval");
 
-    distrib = (qps > 0) ? new PoissonDistribution(1000/qps) : null;
+    distrib = (qps > 0) ? new PoissonDistribution(1000 / qps) : null;
   }
 }

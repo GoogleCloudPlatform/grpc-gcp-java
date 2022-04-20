@@ -2,9 +2,9 @@ package io.grpc.echo;
 
 import com.google.api.MonitoredResource;
 import io.grpc.*;
-import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.BatchEchoRequest;
 import io.grpc.echo.Echo.BatchEchoResponse;
+import io.grpc.echo.Echo.EchoResponse;
 import io.grpc.echo.Echo.EchoWithResponseSizeRequest;
 import io.grpc.echo.Echo.StreamEchoRequest;
 import io.grpc.echo.GrpcCloudapiGrpc.GrpcCloudapiBlockingStub;
@@ -13,7 +13,9 @@ import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
-
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
+import io.opencensus.metrics.*;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -27,10 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
-
-import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
-import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
-import io.opencensus.metrics.*;
 import org.HdrHistogram.Histogram;
 
 public class EchoClient {
@@ -50,7 +48,7 @@ public class EchoClient {
 
   private MetricRegistry metricRegistry;
   private Map<String, Map<Boolean, AtomicLong>> errorCounts = new ConcurrentHashMap<>();
-  final private String OTHER_STATUS = "OTHER";
+  private final String OTHER_STATUS = "OTHER";
 
   public EchoClient(Args args) throws IOException {
     this.args = args;
@@ -106,34 +104,36 @@ public class EchoClient {
 
     Map<LabelKey, LabelValue> labels = new HashMap<>();
     labels.put(
-            LabelKey.create("prober_task", "Prober task identifier"),
-            LabelValue.create(args.metricTaskPrefix + pid + "@" + hostname)
-    );
+        LabelKey.create("prober_task", "Prober task identifier"),
+        LabelValue.create(args.metricTaskPrefix + pid + "@" + hostname));
     if (!args.metricProbeName.isEmpty()) {
       labels.put(
-              LabelKey.create("probe_name", "Prober name"),
-              LabelValue.create(args.metricProbeName)
-      );
+          LabelKey.create("probe_name", "Prober name"), LabelValue.create(args.metricProbeName));
     }
 
     final DerivedLongGauge presenceMetric =
-            metricRegistry.addDerivedLongGauge(args.metricName + "/presence", MetricOptions.builder()
-                    .setDescription("Number of prober instances running")
-                    .setUnit("1")
-                    .setConstantLabels(labels)
-                    .build());
+        metricRegistry.addDerivedLongGauge(
+            args.metricName + "/presence",
+            MetricOptions.builder()
+                .setDescription("Number of prober instances running")
+                .setUnit("1")
+                .setConstantLabels(labels)
+                .build());
 
     final List<LabelKey> errorKeys = new ArrayList<>();
     errorKeys.add(LabelKey.create("code", "The gRPC error code"));
-    errorKeys.add(LabelKey.create("sawGfe", "Whether Google load balancer response headers were present"));
+    errorKeys.add(
+        LabelKey.create("sawGfe", "Whether Google load balancer response headers were present"));
 
     final DerivedLongCumulative errorsMetric =
-            metricRegistry.addDerivedLongCumulative(args.metricName + "/error-count", MetricOptions.builder()
-                    .setDescription("Number of RPC errors")
-                    .setUnit("1")
-                    .setConstantLabels(labels)
-                    .setLabelKeys(errorKeys)
-                    .build());
+        metricRegistry.addDerivedLongCumulative(
+            args.metricName + "/error-count",
+            MetricOptions.builder()
+                .setDescription("Number of RPC errors")
+                .setUnit("1")
+                .setConstantLabels(labels)
+                .setLabelKeys(errorKeys)
+                .build());
 
     final List<LabelValue> emptyValues = new ArrayList<>();
     presenceMetric.removeTimeSeries(emptyValues);
@@ -158,7 +158,8 @@ public class EchoClient {
         errorValues.add(LabelValue.create(String.valueOf(sawGfe)));
 
         errorsMetric.removeTimeSeries(errorValues);
-        errorsMetric.createTimeSeries(errorValues, this, echoClient -> echoClient.reportRpcErrors(status, sawGfe));
+        errorsMetric.createTimeSeries(
+            errorValues, this, echoClient -> echoClient.reportRpcErrors(status, sawGfe));
       }
     }
     try {
@@ -167,8 +168,9 @@ public class EchoClient {
       // See https://developers.google.com/identity/protocols/application-default-credentials
       // for more details.
       // The minimum reporting period for Stackdriver is 1 minute.
-      StackdriverStatsExporter.createAndRegister(StackdriverStatsConfiguration.builder()
-                      .setMonitoredResource(MonitoredResource.newBuilder().setType("global").build())
+      StackdriverStatsExporter.createAndRegister(
+          StackdriverStatsConfiguration.builder()
+              .setMonitoredResource(MonitoredResource.newBuilder().setType("global").build())
               .build());
       logger.log(Level.INFO, "Stackdriver metrics enabled!");
     } catch (IOException e) {
@@ -178,10 +180,12 @@ public class EchoClient {
   }
 
   private NettyChannelBuilder getChannelBuilder() throws SSLException {
-    NettyChannelBuilder builder = NettyChannelBuilder.forTarget(args.host + ":" +args.port)
-        .sslContext(GrpcSslContexts.forClient()
-            .trustManager(InsecureTrustManagerFactory.INSTANCE)
-            .build());
+    NettyChannelBuilder builder =
+        NettyChannelBuilder.forTarget(args.host + ":" + args.port)
+            .sslContext(
+                GrpcSslContexts.forClient()
+                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                    .build());
     if (!args.overrideService.isEmpty()) {
       builder.overrideAuthority(args.overrideService);
     }
@@ -193,12 +197,16 @@ public class EchoClient {
     return builder;
   }
 
-  private static void watchStateChange(ManagedChannel channel, ConnectivityState currentState, int i) {
-    channel.notifyWhenStateChanged(currentState, () -> {
-      ConnectivityState newState = channel.getState(false);
-      logger.fine(String.format("Channel %d state changed: %s -> %s", i, currentState, newState));
-      watchStateChange(channel, newState, i);
-    });
+  private static void watchStateChange(
+      ManagedChannel channel, ConnectivityState currentState, int i) {
+    channel.notifyWhenStateChanged(
+        currentState,
+        () -> {
+          ConnectivityState newState = channel.getState(false);
+          logger.fine(
+              String.format("Channel %d state changed: %s -> %s", i, currentState, newState));
+          watchStateChange(channel, newState, i);
+        });
   }
 
   private Channel createChannel(int i) throws SSLException {
@@ -244,38 +252,44 @@ public class EchoClient {
     return next;
   }
 
-
   public void asyncEcho(int id, CountDownLatch latch, Histogram histogram) {
-    EchoWithResponseSizeRequest request = EchoWithResponseSizeRequest.newBuilder()
-        .setEchoMsg(generatePayload(args.reqSize * 1024))
-        .setResponseSize(args.resSize)
-        .build();
+    EchoWithResponseSizeRequest request =
+        EchoWithResponseSizeRequest.newBuilder()
+            .setEchoMsg(generatePayload(args.reqSize * 1024))
+            .setResponseSize(args.resSize)
+            .build();
     GrpcCloudapiStub stub = getNextAsyncStub();
-    stub.withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS).echoWithResponseSize(
-        request,
-        new StreamObserver<EchoResponse>() {
-          long start = System.currentTimeMillis();
+    stub.withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS)
+        .echoWithResponseSize(
+            request,
+            new StreamObserver<EchoResponse>() {
+              long start = System.currentTimeMillis();
 
-          @Override
-          public void onNext(EchoResponse value) {}
+              @Override
+              public void onNext(EchoResponse value) {}
 
-          @Override
-          public void onError(Throwable t) {
-            if (latch != null) latch.countDown();
-            Status status = Status.fromThrowable(t);
-            long elapsed = System.currentTimeMillis() - start;
-            logger.warning(String.format("Encountered an error in %dth echo RPC (startTime: %s, elapsed: %dms). Status: %s", id, new Timestamp(start), elapsed, status));
-            t.printStackTrace();
-          }
+              @Override
+              public void onError(Throwable t) {
+                if (latch != null) latch.countDown();
+                Status status = Status.fromThrowable(t);
+                long elapsed = System.currentTimeMillis() - start;
+                logger.warning(
+                    String.format(
+                        "Encountered an error in %dth echo RPC (startTime: %s, elapsed: %dms)."
+                            + " Status: %s",
+                        id, new Timestamp(start), elapsed, status));
+                t.printStackTrace();
+              }
 
-          @Override
-          public void onCompleted() {
-            long now = System.currentTimeMillis();
-            if (histogram != null) histogram.recordValue(now - start);
-            if (latch != null) latch.countDown();
-            //logger.info(String.format("%dth echo RPC succeeded. Start time: %s. Requests left: %d", id, new Timestamp(start), latch.getCount()));
-          }
-        });
+              @Override
+              public void onCompleted() {
+                long now = System.currentTimeMillis();
+                if (histogram != null) histogram.recordValue(now - start);
+                if (latch != null) latch.countDown();
+                // logger.info(String.format("%dth echo RPC succeeded. Start time: %s. Requests
+                // left: %d", id, new Timestamp(start), latch.getCount()));
+              }
+            });
   }
 
   private String generatePayload(int numBytes) {
@@ -289,10 +303,12 @@ public class EchoClient {
   void streamingEcho() {
     long start = 0;
     try {
-      StreamEchoRequest request = StreamEchoRequest.newBuilder()
-          .setMessageCount(args.numRpcs)
-          .setMessageInterval(Math.max(args.interval, STREAMING_MIN_INTERVAL))
-          .build();
+      StreamEchoRequest request =
+          StreamEchoRequest.newBuilder()
+              .setMessageCount(args.numMsgs)
+              .setMessageInterval(args.msgsInterval)
+              .setResponseSizePerMsg(args.resSize)
+              .build();
       start = System.currentTimeMillis();
       Iterator<EchoResponse> iter = blockingStub.echoStream(request);
       for (long counter = 1; iter.hasNext(); ++counter) {
@@ -311,26 +327,28 @@ public class EchoClient {
     long start = 0;
     try {
       if (args.resType == 0) {
-        EchoWithResponseSizeRequest request = EchoWithResponseSizeRequest.newBuilder()
-            .setEchoMsg(generatePayload(args.reqSize * 1024))
-            .setResponseSize(args.resSize)
-            .build();
+        EchoWithResponseSizeRequest request =
+            EchoWithResponseSizeRequest.newBuilder()
+                .setEchoMsg(generatePayload(args.reqSize * 1024))
+                .setResponseSize(args.resSize)
+                .build();
         start = System.currentTimeMillis();
-        if (args.recreateChannelSeconds >= 0 && blockingChannelCreated < start - args.recreateChannelSeconds * 1000) {
+        if (args.recreateChannelSeconds >= 0
+            && blockingChannelCreated < start - args.recreateChannelSeconds * 1000) {
           reCreateBlockingStub();
         }
         blockingStub
             .withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS)
             .echoWithResponseSize(request);
       } else {
-        BatchEchoRequest request = BatchEchoRequest.newBuilder()
-            .setEchoMsg(generatePayload(args.reqSize * 1024))
-            .setResponseType(args.resType)
-            .build();
+        BatchEchoRequest request =
+            BatchEchoRequest.newBuilder()
+                .setEchoMsg(generatePayload(args.reqSize * 1024))
+                .setResponseType(args.resType)
+                .build();
         start = System.currentTimeMillis();
-        BatchEchoResponse response = blockingStub
-            .withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS)
-            .batchEcho(request);
+        BatchEchoResponse response =
+            blockingStub.withDeadlineAfter(args.timeout, TimeUnit.MILLISECONDS).batchEcho(request);
         List<Integer> sizeList = new ArrayList<>();
         for (EchoResponse r : response.getEchoResponsesList()) {
           sizeList.add(r.getSerializedSize());
@@ -356,11 +374,11 @@ public class EchoClient {
     }
     if (args.async) {
       asyncEcho(id, latch, histogram);
-      //logger.info("Async request: sent rpc#: " + rpcIndex);
+      // logger.info("Async request: sent rpc#: " + rpcIndex);
     } else {
       blockingEcho(histogram);
     }
-    //logger.info("Sync request: sent rpc#: " + rpcIndex);
+    // logger.info("Sync request: sent rpc#: " + rpcIndex);
   }
 
   private String statusToMetricLabel(Status status) {
