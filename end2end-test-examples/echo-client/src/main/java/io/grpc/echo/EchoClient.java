@@ -13,6 +13,7 @@ import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.StreamObserver;
+import io.opencensus.contrib.grpc.metrics.RpcViews;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
 import io.opencensus.metrics.*;
@@ -88,6 +89,9 @@ public class EchoClient {
   }
 
   private void setUpMetrics() throws IOException {
+    // Configure standard gRPC client metrics
+    RpcViews.registerClientGrpcViews();
+
     if (args.metricName.isEmpty()) {
       return;
     }

@@ -105,6 +105,11 @@
       <version>${opencensus.version}</version>
     </dependency>
     <dependency>
+      <groupId>io.opencensus</groupId>
+      <artifactId>opencensus-contrib-grpc-metrics</artifactId>
+      <version>${opencensus.version}</version>
+    </dependency>
+    <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>4.12</version>
