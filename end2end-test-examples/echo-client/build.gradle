@@ -31,6 +31,7 @@ dependencies {
     implementation "io.opencensus:opencensus-api:${opencensusVersion}"
     implementation "io.opencensus:opencensus-impl:${opencensusVersion}"
     implementation "io.opencensus:opencensus-exporter-stats-stackdriver:${opencensusVersion}"
+    implementation 'io.opencensus:opencensus-contrib-grpc-metrics:${opencensus.version}'
 
     implementation "org.apache.commons:commons-math3:3.6.1"
 
