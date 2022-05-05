@@ -5,14 +5,21 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class ResultTable {
   private Args args;
-  private Long startTime;
-  private Long endTime;
   private int warmupCount;
-  private List<Long> results;
+  private long startTime;
+  private long endTime;
+
+  private static class Result {
+    public long startTime;
+    public long duration;
+  }
+
+  private List<Result> results;
 
   public ResultTable(Args args) {
     this.args = args;
@@ -35,7 +42,10 @@ public class ResultTable {
   public void reportResult(long duration) {
     int ord;
     synchronized (this) {
-      results.add(duration);
+      Result result = new Result();
+      result.startTime = System.currentTimeMillis() - duration;
+      result.duration = duration;
+      results.add(result);
       ord = results.size();
     }
     if (this.args.verboseResult) {
@@ -56,23 +66,29 @@ public class ResultTable {
       results.subList(0, Math.min(results.size(), warmupCount)).clear();
 
       if (results.size() == 0) return;
-      Collections.sort(results);
 
       int n = results.size();
-      double totalSeconds = 0;
-      long totalDur = endTime - startTime;
-      for (Long ms : results) {
-        totalSeconds += ms / 1000.0;
-      }
+      long totalDur =
+          results.get(n - 1).startTime + results.get(n - 1).duration - results.get(0).startTime;
+      double totalSec = totalDur / 1000.0;
+
+      Collections.sort(
+          results,
+          new Comparator<Result>() {
+            @Override
+            public int compare(Result o1, Result o2) {
+              return Long.compare(o1.duration, o2.duration);
+            }
+          });
 
       Gson gson = new Gson();
       BenchmarkResult benchmarkResult = new BenchmarkResult();
-      benchmarkResult.min = results.get(0);
-      benchmarkResult.p50 = results.get((int) (n * 0.05));
-      benchmarkResult.p90 = results.get((int) (n * 0.90));
-      benchmarkResult.p99 = results.get((int) (n * 0.99));
-      benchmarkResult.p999 = results.get((int) (n * 0.999));
-      benchmarkResult.qps = n / totalSeconds;
+      benchmarkResult.min = results.get(0).duration;
+      benchmarkResult.p50 = results.get((int) (n * 0.05)).duration;
+      benchmarkResult.p90 = results.get((int) (n * 0.90)).duration;
+      benchmarkResult.p99 = results.get((int) (n * 0.99)).duration;
+      benchmarkResult.p999 = results.get((int) (n * 0.999)).duration;
+      benchmarkResult.qps = n / totalSec;
       if (!args.latencyFilename.isEmpty()) {
         FileWriter writer = new FileWriter(args.latencyFilename);
         gson.toJson(benchmarkResult, writer);
@@ -81,7 +97,7 @@ public class ResultTable {
       System.out.println(
           String.format(
               "****** Test Results [client: %s, method: %s, size: %d, threads: %d, dp: %s, calls:"
-                  + " %d]: \n"
+                  + " %d, qps: %f]: \n"
                   + "\t\tMin\tp5\tp10\tp25\tp50\tp75\tp90\tp99\tMax\tTotal\n"
                   + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
               args.client,
@@ -90,15 +106,16 @@ public class ResultTable {
               args.threads,
               args.dp,
               n,
-              results.get(0),
-              results.get((int) (n * 0.05)),
-              results.get((int) (n * 0.1)),
-              results.get((int) (n * 0.25)),
-              results.get((int) (n * 0.50)),
-              results.get((int) (n * 0.75)),
-              results.get((int) (n * 0.90)),
-              results.get((int) (n * 0.99)),
-              results.get(n - 1),
+              n / totalSec,
+              results.get(0).duration,
+              results.get((int) (n * 0.05)).duration,
+              results.get((int) (n * 0.1)).duration,
+              results.get((int) (n * 0.25)).duration,
+              results.get((int) (n * 0.50)).duration,
+              results.get((int) (n * 0.75)).duration,
+              results.get((int) (n * 0.90)).duration,
+              results.get((int) (n * 0.99)).duration,
+              results.get(n - 1).duration,
               totalDur));
     }
   }
