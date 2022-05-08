@@ -270,7 +270,7 @@ public class GrpcClient {
     Random r = new Random();
 
     long buffSize = args.buffSize * 1024;
-
+    byte[] scratch = new byte[4 * 1024 * 1024];
     for (int i = 0; i < args.calls; i++) {
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
       reqBuilder.setReadOffset(offset);
@@ -279,19 +279,12 @@ public class GrpcClient {
 
       long start = System.currentTimeMillis();
       Iterator<ReadObjectResponse> resIterator = blockingStub.readObject(req);
-      int itr = 0;
-      long bytesRead = 0;
       while (resIterator.hasNext()) {
-        itr++;
         ReadObjectResponse res = resIterator.next();
-        bytesRead += res.getChecksummedData().getSerializedSize();
-        // logger.info("result: " + res.getChecksummedData());
+        ByteString content = res.getChecksummedData().getContent();
+        content.copyTo(scratch, 0);
       }
       long dur = System.currentTimeMillis() - start;
-      logger.info("time cost for getObjectMedia: " + dur + "ms");
-      logger.info("total iterations: " + itr);
-      logger.info("start pos: " + offset + ", read lenth: " + buffSize + ", total KB read: "
-          + bytesRead / 1024);
       results.reportResult(dur);
     }
   }
