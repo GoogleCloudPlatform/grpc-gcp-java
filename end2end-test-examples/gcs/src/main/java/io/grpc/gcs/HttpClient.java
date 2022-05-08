@@ -88,7 +88,8 @@ public class HttpClient {
 
   public void makeMediaRequest(ResultTable results, int threadId) {
     for (int i = 0; i < args.calls; i++) {
-      BlobId blobId = BlobId.of(args.bkt, objectResolver.Resolve(threadId, i));
+      String object = objectResolver.Resolve(threadId, i);
+      BlobId blobId = BlobId.of(args.bkt, object);
       long start = System.currentTimeMillis();
       byte[] content = client.readAllBytes(blobId);
       // String contentString = new String(content, UTF_8);
@@ -96,14 +97,15 @@ public class HttpClient {
       long dur = System.currentTimeMillis() - start;
       // logger.info("time cost for readAllBytes: " + dur + "ms");
       // logger.info("total KB received: " + content.length/1024);
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, content.length, dur);
     }
   }
 
   public void makeRandomMediaRequest(ResultTable results, int threadId) throws IOException {
     Random r = new Random();
 
-    BlobId blobId = BlobId.of(args.bkt, objectResolver.Resolve(threadId, 0));
+    String object = objectResolver.Resolve(threadId, 0);
+    BlobId blobId = BlobId.of(args.bkt, object);
     ReadChannel reader = client.reader(blobId);
     for (int i = 0; i < args.calls; i++) {
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
@@ -119,7 +121,7 @@ public class HttpClient {
       logger.info("total KB received: " + buff.position() / 1024);
       logger.info("time cost for random reading: " + dur + "ms");
       buff.clear();
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
     }
     reader.close();
   }
@@ -128,12 +130,13 @@ public class HttpClient {
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
     for (int i = 0; i < args.calls; i++) {
-      BlobId blobId = BlobId.of(args.bkt, objectResolver.Resolve(threadId, i));
+      String object = objectResolver.Resolve(threadId, i);
+      BlobId blobId = BlobId.of(args.bkt, object);
       long start = System.currentTimeMillis();
       client.create(BlobInfo.newBuilder(blobId).build(), data);
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for creating blob: " + dur + "ms");
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, totalBytes, dur);
     }
   }
 }

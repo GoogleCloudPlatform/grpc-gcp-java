@@ -137,7 +137,8 @@ public class GcsioClient {
     ByteBuffer buff = ByteBuffer.allocate(size);
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
-      URI uri = URI.create("gs://" + args.bkt + "/" + objectResolver.Resolve(threadId, i));
+      String object = objectResolver.Resolve(threadId, i);
+      URI uri = URI.create("gs://" + args.bkt + "/" + object);
       ReadableByteChannel readChannel = gcsfs.open(uri);
       readChannel.read(buff);
       long dur = System.currentTimeMillis() - start;
@@ -146,7 +147,7 @@ public class GcsioClient {
       }
       buff.clear();
       readChannel.close();
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, size, dur);
     }
 
     gcsfs.close();
@@ -158,7 +159,8 @@ public class GcsioClient {
 
     Random r = new Random();
 
-    URI uri = URI.create("gs://" + args.bkt + "/" + objectResolver.Resolve(threadId, 0));
+    String object = objectResolver.Resolve(threadId, 0);
+    URI uri = URI.create("gs://" + args.bkt + "/" + object);
     GoogleCloudStorageReadOptions readOpts = gcsOpts.getReadChannelOptions();
 
     SeekableByteChannel reader = gcsfs.open(uri, readOpts);
@@ -172,8 +174,7 @@ public class GcsioClient {
       if (buff.remaining() > 0) {
         logger.warning("Got remaining bytes: " + buff.remaining());
       }
-      logger.info("time cost for reading bytes: " + dur + "ms");
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
     }
     reader.close();
 
@@ -192,14 +193,15 @@ public class GcsioClient {
 
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
-      URI uri = URI.create("gs://" + args.bkt + "/" + objectResolver.Resolve(threadId, i));
+      String object = objectResolver.Resolve(threadId, 0);
+      URI uri = URI.create("gs://" + args.bkt + "/" + object);
       WritableByteChannel writeChannel = gcsfs.create(uri);
       ByteBuffer buff = ByteBuffer.wrap(randBytes);
       writeChannel.write(buff);
       writeChannel.close();
       // write operation is async, need to call close() to wait for finish.
       long dur = System.currentTimeMillis() - start;
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, size, dur);
     }
 
     gcsfs.close();

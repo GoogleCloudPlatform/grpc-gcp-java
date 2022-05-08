@@ -218,11 +218,12 @@ public class GrpcClient {
 
     byte[] scratch = new byte[4 * 1024 * 1024];
     for (int i = 0; i < args.calls; i++) {
-      ReadObjectRequest readRequest =
-          ReadObjectRequest.newBuilder().setBucket(toV2BucketName(args.bkt))
-              .setObject(objectResolver.Resolve(threadId, i)).build();
+      String object = objectResolver.Resolve(threadId, i);
+      ReadObjectRequest readRequest = ReadObjectRequest.newBuilder()
+          .setBucket(toV2BucketName(args.bkt)).setObject(object).build();
 
       long start = System.currentTimeMillis();
+      long totalBytes = 0;
       Iterator<ReadObjectResponse> resIterator;
       if (useZeroCopy) {
         resIterator =
@@ -241,6 +242,7 @@ public class GrpcClient {
           try {
             // Just copy to scratch memory to ensure its data is consumed.
             ByteString content = res.getChecksummedData().getContent();
+            totalBytes += content.size();
             content.copyTo(scratch, 0);
           } finally {
             if (stream != null) {
@@ -255,7 +257,7 @@ public class GrpcClient {
       } catch (NoSuchElementException e) {
       }
       long dur = System.currentTimeMillis() - start;
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, totalBytes, dur);
     }
   }
 
@@ -265,8 +267,9 @@ public class GrpcClient {
       blockingStub = blockingStub.withCallCredentials(MoreCallCredentials.from(creds));
     }
 
-    ReadObjectRequest.Builder reqBuilder = ReadObjectRequest.newBuilder()
-        .setBucket(toV2BucketName(args.bkt)).setObject(objectResolver.Resolve(threadId, 0));
+    String object = objectResolver.Resolve(threadId, 0);
+    ReadObjectRequest.Builder reqBuilder =
+        ReadObjectRequest.newBuilder().setBucket(toV2BucketName(args.bkt)).setObject(object);
     Random r = new Random();
 
     long buffSize = args.buffSize * 1024;
@@ -285,7 +288,7 @@ public class GrpcClient {
         content.copyTo(scratch, 0);
       }
       long dur = System.currentTimeMillis() - start;
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, buffSize, dur);
     }
   }
 
@@ -322,7 +325,7 @@ public class GrpcClient {
             @Override
             public void onCompleted() {
               long dur = System.currentTimeMillis() - start;
-              results.reportResult(dur);
+              results.reportResult(args.bkt, obj, totalBytes, dur);
               finishLatch.countDown();
             }
           };
