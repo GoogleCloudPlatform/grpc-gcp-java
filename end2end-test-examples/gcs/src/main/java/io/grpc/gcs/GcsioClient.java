@@ -193,7 +193,7 @@ public class GcsioClient {
 
     for (int i = 0; i < args.calls; i++) {
       long start = System.currentTimeMillis();
-      String object = objectResolver.Resolve(threadId, 0);
+      String object = objectResolver.Resolve(threadId, i);
       URI uri = URI.create("gs://" + args.bkt + "/" + object);
       WritableByteChannel writeChannel = gcsfs.create(uri);
       ByteBuffer buff = ByteBuffer.wrap(randBytes);
