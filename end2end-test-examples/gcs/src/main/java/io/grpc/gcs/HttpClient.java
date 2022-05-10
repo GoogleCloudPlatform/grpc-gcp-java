@@ -21,10 +21,12 @@ public class HttpClient {
   private static final Logger logger = Logger.getLogger(HttpClient.class.getName());
 
   private Args args;
+  private ObjectResolver objectResolver;
   private Storage client;
 
   public HttpClient(Args args) {
     this.args = args;
+    this.objectResolver = new ObjectResolver(args.obj, args.objFormat, args.objStart, args.objStop);
     this.client = StorageOptions.getDefaultInstance().getService();
   }
 
@@ -32,13 +34,13 @@ public class HttpClient {
     if (args.threads == 0) {
       switch (args.method) {
         case METHOD_READ:
-          makeMediaRequest(results);
+          makeMediaRequest(results, /*threadId=*/ 1);
           break;
         case METHOD_RANDOM:
-          makeRandomMediaRequest(results);
+          makeRandomMediaRequest(results, /*threadId=*/ 1);
           break;
         case METHOD_WRITE:
-          makeInsertRequest(results);
+          makeInsertRequest(results, /*threadId=*/ 1);
           break;
         default:
           logger.warning("Please provide valid methods with --method");
@@ -49,7 +51,29 @@ public class HttpClient {
       switch (args.method) {
         case METHOD_READ:
           for (int i = 0; i < args.threads; i++) {
-            Runnable task = () -> makeMediaRequest(results);
+            int finalI = i;
+            Runnable task = () -> makeMediaRequest(results, finalI + 1);
+            threadPoolExecutor.execute(task);
+          }
+          break;
+        case METHOD_RANDOM:
+          for (int i = 0; i < args.threads; i++) {
+            int finalI = i;
+            Runnable task =
+                () -> {
+                  try {
+                    makeRandomMediaRequest(results, finalI + 1);
+                  } catch (IOException e) {
+                    e.printStackTrace();
+                  }
+                };
+            threadPoolExecutor.execute(task);
+          }
+          break;
+        case METHOD_WRITE:
+          for (int i = 0; i < args.threads; i++) {
+            int finalI = i;
+            Runnable task = () -> makeInsertRequest(results, finalI + 1);
             threadPoolExecutor.execute(task);
           }
           break;
@@ -63,9 +87,10 @@ public class HttpClient {
     }
   }
 
-  public void makeMediaRequest(ResultTable results) {
-    BlobId blobId = BlobId.of(args.bkt, args.obj);
+  public void makeMediaRequest(ResultTable results, int threadId) {
     for (int i = 0; i < args.calls; i++) {
+      String object = objectResolver.Resolve(threadId, i);
+      BlobId blobId = BlobId.of(args.bkt, object);
       long start = System.currentTimeMillis();
       byte[] content = client.readAllBytes(blobId);
       // String contentString = new String(content, UTF_8);
@@ -73,14 +98,15 @@ public class HttpClient {
       long dur = System.currentTimeMillis() - start;
       // logger.info("time cost for readAllBytes: " + dur + "ms");
       // logger.info("total KB received: " + content.length/1024);
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, content.length, dur);
     }
   }
 
-  public void makeRandomMediaRequest(ResultTable results) throws IOException {
+  public void makeRandomMediaRequest(ResultTable results, int threadId) throws IOException {
     Random r = new Random();
 
-    BlobId blobId = BlobId.of(args.bkt, args.obj);
+    String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
+    BlobId blobId = BlobId.of(args.bkt, object);
     ReadChannel reader = client.reader(blobId);
     for (int i = 0; i < args.calls; i++) {
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
@@ -96,21 +122,22 @@ public class HttpClient {
       logger.info("total KB received: " + buff.position() / 1024);
       logger.info("time cost for random reading: " + dur + "ms");
       buff.clear();
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
     }
     reader.close();
   }
 
-  public void makeInsertRequest(ResultTable results) {
+  public void makeInsertRequest(ResultTable results, int threadId) {
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
-    BlobId blobId = BlobId.of(args.bkt, args.obj);
     for (int i = 0; i < args.calls; i++) {
+      String object = objectResolver.Resolve(threadId, i);
+      BlobId blobId = BlobId.of(args.bkt, object);
       long start = System.currentTimeMillis();
       client.create(BlobInfo.newBuilder(blobId).build(), data);
       long dur = System.currentTimeMillis() - start;
       logger.info("time cost for creating blob: " + dur + "ms");
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, totalBytes, dur);
     }
   }
 }

@@ -52,8 +52,9 @@ public class GrpcClient {
           .build();
   private final boolean useZeroCopy;
 
-  private ManagedChannel[] channels;
   private Args args;
+  private ObjectResolver objectResolver;
+  private ManagedChannel[] channels;
   private GoogleCredentials creds;
 
   private static final String SCOPE = "https://www.googleapis.com/auth/cloud-platform";
@@ -65,6 +66,7 @@ public class GrpcClient {
 
   public GrpcClient(Args args) throws IOException {
     this.args = args;
+    this.objectResolver = new ObjectResolver(args.obj, args.objFormat, args.objStart, args.objStop);
     if (args.access_token.equals("")) {
       this.creds = GoogleCredentials.getApplicationDefault().createScoped(SCOPE);
     } else if (args.access_token.equals("-")) {
@@ -112,7 +114,8 @@ public class GrpcClient {
       }
       channelBuilder = gceChannelBuilder;
     } else {
-      NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(args.host, args.port);
+      NettyChannelBuilder nettyChannelBuilder =
+          NettyChannelBuilder.forAddress(args.host, args.port);
       if (args.flowControlWindow > 0) {
         nettyChannelBuilder.flowControlWindow(args.flowControlWindow);
       }
@@ -148,13 +151,13 @@ public class GrpcClient {
       try {
         switch (args.method) {
           case METHOD_READ:
-            makeReadObjectRequest(channel, results);
+            makeReadObjectRequest(channel, results, /*threadId=*/ 1);
             break;
           case METHOD_RANDOM:
-            makeRandomReadRequest(channel, results);
+            makeRandomReadRequest(channel, results, /*threadId=*/ 1);
             break;
           case METHOD_WRITE:
-            makeInsertRequest(channel, results, 0);
+            makeInsertRequest(channel, results, /*threadId=*/ 1);
             break;
           default:
             logger.warning("Please provide valid methods with --method");
@@ -170,14 +173,16 @@ public class GrpcClient {
           case METHOD_READ:
             for (int i = 0; i < args.threads; i++) {
               int finalI = i;
-              Runnable task = () -> makeReadObjectRequest(this.channels[finalI], results);
+              Runnable task =
+                  () -> makeReadObjectRequest(this.channels[finalI], results, finalI + 1);
               threadPoolExecutor.execute(task);
             }
             break;
           case METHOD_RANDOM:
             for (int i = 0; i < args.threads; i++) {
               int finalI = i;
-              Runnable task = () -> makeRandomReadRequest(this.channels[finalI], results);
+              Runnable task =
+                  () -> makeRandomReadRequest(this.channels[finalI], results, finalI + 1);
               threadPoolExecutor.execute(task);
             }
             break;
@@ -187,7 +192,7 @@ public class GrpcClient {
               Runnable task =
                   () -> {
                     try {
-                      makeInsertRequest(this.channels[finalI], results, finalI);
+                      makeInsertRequest(this.channels[finalI], results, finalI + 1);
                     } catch (InterruptedException e) {
                       e.printStackTrace();
                     }
@@ -207,20 +212,23 @@ public class GrpcClient {
     }
   }
 
-  private void makeReadObjectRequest(ManagedChannel channel, ResultTable results) {
+  private void makeReadObjectRequest(ManagedChannel channel, ResultTable results, int threadId) {
     StorageGrpc.StorageBlockingStub blockingStub = StorageGrpc.newBlockingStub(channel);
     if (creds != null) {
       blockingStub = blockingStub.withCallCredentials(MoreCallCredentials.from(creds));
     }
 
-    ReadObjectRequest readRequest =
-        ReadObjectRequest.newBuilder()
-            .setBucket(toV2BucketName(args.bkt))
-            .setObject(args.obj)
-            .build();
     byte[] scratch = new byte[4 * 1024 * 1024];
     for (int i = 0; i < args.calls; i++) {
+      String object = objectResolver.Resolve(threadId, i);
+      ReadObjectRequest readRequest =
+          ReadObjectRequest.newBuilder()
+              .setBucket(toV2BucketName(args.bkt))
+              .setObject(object)
+              .build();
+
       long start = System.currentTimeMillis();
+      long totalBytes = 0;
       Iterator<ReadObjectResponse> resIterator;
       if (useZeroCopy) {
         resIterator =
@@ -242,6 +250,7 @@ public class GrpcClient {
           try {
             // Just copy to scratch memory to ensure its data is consumed.
             ByteString content = res.getChecksummedData().getContent();
+            totalBytes += content.size();
             content.copyTo(scratch, 0);
           } finally {
             if (stream != null) {
@@ -256,22 +265,23 @@ public class GrpcClient {
       } catch (NoSuchElementException e) {
       }
       long dur = System.currentTimeMillis() - start;
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, totalBytes, dur);
     }
   }
 
-  private void makeRandomReadRequest(ManagedChannel channel, ResultTable results) {
+  private void makeRandomReadRequest(ManagedChannel channel, ResultTable results, int threadId) {
     StorageBlockingStub blockingStub = StorageGrpc.newBlockingStub(channel);
     if (creds != null) {
       blockingStub = blockingStub.withCallCredentials(MoreCallCredentials.from(creds));
     }
 
+    String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
     ReadObjectRequest.Builder reqBuilder =
-        ReadObjectRequest.newBuilder().setBucket(toV2BucketName(args.bkt)).setObject(args.obj);
+        ReadObjectRequest.newBuilder().setBucket(toV2BucketName(args.bkt)).setObject(object);
     Random r = new Random();
 
     long buffSize = args.buffSize * 1024;
-
+    byte[] scratch = new byte[4 * 1024 * 1024];
     for (int i = 0; i < args.calls; i++) {
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
       reqBuilder.setReadOffset(offset);
@@ -280,29 +290,17 @@ public class GrpcClient {
 
       long start = System.currentTimeMillis();
       Iterator<ReadObjectResponse> resIterator = blockingStub.readObject(req);
-      int itr = 0;
-      long bytesRead = 0;
       while (resIterator.hasNext()) {
-        itr++;
         ReadObjectResponse res = resIterator.next();
-        bytesRead += res.getChecksummedData().getSerializedSize();
-        // logger.info("result: " + res.getChecksummedData());
+        ByteString content = res.getChecksummedData().getContent();
+        content.copyTo(scratch, 0);
       }
       long dur = System.currentTimeMillis() - start;
-      logger.info("time cost for getObjectMedia: " + dur + "ms");
-      logger.info("total iterations: " + itr);
-      logger.info(
-          "start pos: "
-              + offset
-              + ", read lenth: "
-              + buffSize
-              + ", total KB read: "
-              + bytesRead / 1024);
-      results.reportResult(dur);
+      results.reportResult(args.bkt, object, buffSize, dur);
     }
   }
 
-  private void makeInsertRequest(ManagedChannel channel, ResultTable results, int idx)
+  private void makeInsertRequest(ManagedChannel channel, ResultTable results, int threadId)
       throws InterruptedException {
     StorageGrpc.StorageStub asyncStub = StorageGrpc.newStub(channel);
     if (creds != null) {
@@ -312,6 +310,8 @@ public class GrpcClient {
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
     for (int i = 0; i < args.calls; i++) {
+      String obj = objectResolver.Resolve(threadId, i);
+
       int offset = 0;
       boolean isFirst = true;
       boolean isLast = false;
@@ -333,15 +333,7 @@ public class GrpcClient {
             @Override
             public void onCompleted() {
               long dur = System.currentTimeMillis() - start;
-              results.reportResult(dur);
-              if (dur < 1000) {
-                try {
-                  Thread.sleep(1000 - dur); // Avoid limit of 1 qps for updating the same object
-                } catch (InterruptedException e) {
-                  e.printStackTrace();
-                  finishLatch.countDown();
-                }
-              }
+              results.reportResult(args.bkt, obj, totalBytes, dur);
               finishLatch.countDown();
             }
           };
@@ -360,7 +352,7 @@ public class GrpcClient {
         }
 
         WriteObjectRequest req =
-            getWriteRequest(isFirst, isLast, offset, ByteString.copyFrom(data, offset, add), idx);
+            getWriteRequest(isFirst, isLast, offset, ByteString.copyFrom(data, offset, add), obj);
         requestObserver.onNext(req);
         if (finishLatch.getCount() == 0) {
           logger.warning("Stream completed before finishing sending requests");
@@ -378,15 +370,12 @@ public class GrpcClient {
   }
 
   private WriteObjectRequest getWriteRequest(
-      boolean first, boolean last, int offset, ByteString bytes, int idx) {
+      boolean first, boolean last, int offset, ByteString bytes, String obj) {
     WriteObjectRequest.Builder builder = WriteObjectRequest.newBuilder();
     if (first) {
       builder.setWriteObjectSpec(
           WriteObjectSpec.newBuilder()
-              .setResource(
-                  Object.newBuilder()
-                      .setBucket(toV2BucketName(args.bkt))
-                      .setName(args.obj + "_" + idx))
+              .setResource(Object.newBuilder().setBucket(toV2BucketName(args.bkt)).setName(obj))
               .build());
     }
 

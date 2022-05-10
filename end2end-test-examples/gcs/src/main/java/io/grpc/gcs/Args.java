@@ -26,7 +26,11 @@ public class Args {
   final int port;
   final String service_path;
   final String access_token;
-  final String bkt, obj;
+  final String bkt;
+  final String obj;
+  final String objFormat;
+  final int objStart;
+  final int objStop;
   final boolean dp;
   final boolean rr;
   final boolean td;
@@ -45,11 +49,8 @@ public class Args {
   final int zeroCopy; // 0=auto, 1=on, -1=off
 
   Args(String[] args) throws ArgumentParserException {
-    ArgumentParser parser =
-        ArgumentParsers.newFor("GCS client test")
-            .build()
-            .defaultHelp(true)
-            .description("GCS client java binary");
+    ArgumentParser parser = ArgumentParsers.newFor("GCS client test").build().defaultHelp(true)
+        .description("GCS client java binary");
 
     parser.addArgument("--calls").type(Integer.class).setDefault(1);
     parser.addArgument("--warmups").type(Integer.class).setDefault(0);
@@ -59,8 +60,11 @@ public class Args {
     parser.addArgument("--port").type(Integer.class).setDefault(PORT);
     parser.addArgument("--service_path").type(String.class).setDefault("storage/v1/");
     parser.addArgument("--access_token").type(String.class).setDefault("");
-    parser.addArgument("--bkt").type(String.class).setDefault("gcs-grpc-team-weiranf");
-    parser.addArgument("--obj").type(String.class).setDefault("a");
+    parser.addArgument("--bkt").type(String.class).setDefault("gcs-grpc-team-veblush1");
+    parser.addArgument("--obj").type(String.class).setDefault("1G");
+    parser.addArgument("--obj_format").type(String.class).setDefault("");
+    parser.addArgument("--obj_start").type(Integer.class).setDefault(0);
+    parser.addArgument("--obj_stop").type(Integer.class).setDefault(0);
     parser.addArgument("--dp").type(Boolean.class).setDefault(false);
     parser.addArgument("--rr").type(Boolean.class).setDefault(false);
     parser.addArgument("--td").type(Boolean.class).setDefault(false);
@@ -91,6 +95,9 @@ public class Args {
     access_token = ns.getString("access_token");
     bkt = ns.getString("bkt");
     obj = ns.getString("obj");
+    objFormat = ns.getString("obj_format");
+    objStart = ns.getInt("obj_start");
+    objStop = ns.getInt("obj_stop");
     dp = ns.getBoolean("dp");
     rr = ns.getBoolean("rr");
     td = ns.getBoolean("td");
