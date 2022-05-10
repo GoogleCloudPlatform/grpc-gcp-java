@@ -34,13 +34,13 @@ public class HttpClient {
     if (args.threads == 0) {
       switch (args.method) {
         case METHOD_READ:
-          makeMediaRequest(results, 1);
+          makeMediaRequest(results, /*threadId=*/ 1);
           break;
         case METHOD_RANDOM:
-          makeRandomMediaRequest(results, 1);
+          makeRandomMediaRequest(results, /*threadId=*/ 1);
           break;
         case METHOD_WRITE:
-          makeInsertRequest(results, 1);
+          makeInsertRequest(results, /*threadId=*/ 1);
           break;
         default:
           logger.warning("Please provide valid methods with --method");
@@ -59,13 +59,14 @@ public class HttpClient {
         case METHOD_RANDOM:
           for (int i = 0; i < args.threads; i++) {
             int finalI = i;
-            Runnable task = () -> {
-              try {
-                makeRandomMediaRequest(results, finalI + 1);
-              } catch (IOException e) {
-                e.printStackTrace();
-              }
-            };
+            Runnable task =
+                () -> {
+                  try {
+                    makeRandomMediaRequest(results, finalI + 1);
+                  } catch (IOException e) {
+                    e.printStackTrace();
+                  }
+                };
             threadPoolExecutor.execute(task);
           }
           break;
@@ -104,7 +105,7 @@ public class HttpClient {
   public void makeRandomMediaRequest(ResultTable results, int threadId) throws IOException {
     Random r = new Random();
 
-    String object = objectResolver.Resolve(threadId, 0);
+    String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
     BlobId blobId = BlobId.of(args.bkt, object);
     ReadChannel reader = client.reader(blobId);
     for (int i = 0; i < args.calls; i++) {
