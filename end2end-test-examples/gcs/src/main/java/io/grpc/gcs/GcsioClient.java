@@ -143,22 +143,25 @@ public class GcsioClient {
         new GoogleCloudStorageFileSystem(
             creds,
             GoogleCloudStorageFileSystemOptions.builder().setCloudStorageOptions(gcsOpts).build());
-
-    int size = args.size * 1024;
-    ByteBuffer buff = ByteBuffer.allocate(size);
+    long totalSize = args.size * 1024L;
+    int buffSize = (args.buffSize == 0 ? 32 * 1024 : args.buffSize) * 1024;
+    ByteBuffer buff = ByteBuffer.allocate(buffSize);
     for (int i = 0; i < args.calls; i++) {
+      long receivedSize = 0;
       long start = System.currentTimeMillis();
       String object = objectResolver.Resolve(threadId, i);
       URI uri = URI.create("gs://" + args.bkt + "/" + object);
       ReadableByteChannel readChannel = gcsfs.open(uri);
-      readChannel.read(buff);
-      long dur = System.currentTimeMillis() - start;
-      if (buff.remaining() > 0) {
-        logger.warning("Got remaining bytes: " + buff.remaining());
+      while (receivedSize < totalSize) {
+        int r = readChannel.read(buff);
+        if (r < 0) break;
+        buff.clear();
+        receivedSize += r;
       }
+      long dur = System.currentTimeMillis() - start;
       buff.clear();
       readChannel.close();
-      results.reportResult(args.bkt, object, size, dur);
+      results.reportResult(args.bkt, object, receivedSize, dur);
     }
 
     gcsfs.close();
