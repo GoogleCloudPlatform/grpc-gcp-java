@@ -155,7 +155,7 @@ public class GcsioClient {
       while (receivedSize < totalSize) {
         int r = readChannel.read(buff);
         if (r < 0) break;
-        buff.rewind();
+        buff.clear();
         receivedSize += r;
       }
       long dur = System.currentTimeMillis() - start;
