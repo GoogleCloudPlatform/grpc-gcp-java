@@ -154,6 +154,7 @@ public class GcsioClient {
       ReadableByteChannel readChannel = gcsfs.open(uri);
       while (receivedSize < totalSize) {
         int r = readChannel.read(buff);
+        logger.warning("R: " + r);
         if (r < 0) break;
         buff.clear();
         receivedSize += r;
