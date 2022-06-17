@@ -79,6 +79,7 @@ public class GcpManagedChannel extends ManagedChannel {
   private final int unresponsiveMs;
   private final int unresponsiveDropCount;
   private int maxSize = DEFAULT_MAX_CHANNEL;
+  private int minSize = 0;
   private int maxConcurrentStreamsLowWatermark = DEFAULT_MAX_STREAM;
 
   @VisibleForTesting final Map<String, AffinityConfig> methodToAffinity = new HashMap<>();
@@ -179,6 +180,7 @@ public class GcpManagedChannel extends ManagedChannel {
       unresponsiveMs = 0;
       unresponsiveDropCount = 0;
     }
+    initMinChannels();
   }
 
   /**
@@ -217,11 +219,18 @@ public class GcpManagedChannel extends ManagedChannel {
     return String.format("%s: %s", metricPoolIndex, String.format(format, args));
   }
 
+  private synchronized void initMinChannels() {
+    while (minSize - getNumberOfChannels() > 0) {
+      createNewChannel();
+    }
+  }
+
   private void initOptions() {
     GcpManagedChannelOptions.GcpChannelPoolOptions poolOptions = options.getChannelPoolOptions();
     if (poolOptions != null) {
-      this.maxSize = poolOptions.getMaxSize();
-      this.maxConcurrentStreamsLowWatermark = poolOptions.getConcurrentStreamsLowWatermark();
+      maxSize = poolOptions.getMaxSize();
+      minSize = poolOptions.getMinSize();
+      maxConcurrentStreamsLowWatermark = poolOptions.getConcurrentStreamsLowWatermark();
     }
     initMetrics();
   }
@@ -885,7 +894,9 @@ public class GcpManagedChannel extends ManagedChannel {
       if (channel == null) {
         return;
       }
-      ConnectivityState newState = channel.getState(false);
+      // Keep minSize channels always connected.
+      boolean requestConnection = channelId < minSize;
+      ConnectivityState newState = channel.getState(requestConnection);
       logger.finer(
           log("Channel %d state change detected: %s -> %s", channelId, currentState, newState)
       );
@@ -923,6 +934,10 @@ public class GcpManagedChannel extends ManagedChannel {
 
   public int getMaxSize() {
     return maxSize;
+  }
+
+  public int getMinSize() {
+    return minSize;
   }
 
   public int getNumberOfChannels() {
