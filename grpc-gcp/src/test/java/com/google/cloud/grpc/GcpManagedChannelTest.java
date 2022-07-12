@@ -55,7 +55,9 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -100,7 +102,7 @@ public final class GcpManagedChannelTest {
 
   private final Handler testLogHandler = new Handler() {
     @Override
-    public void publish(LogRecord record) {
+    public synchronized void publish(LogRecord record) {
       logRecords.add(record);
     }
 
@@ -377,9 +379,10 @@ public final class GcpManagedChannelTest {
     assertEquals(2, pool.getNumberOfChannels());
     // This was a fallback from non-ready channel 0 to the newly created channel 1.
     assertThat(logRecords.size()).isEqualTo(logCount + 3);
-    assertThat(lastLogMessage(3)).isEqualTo(
-        poolIndex + ": Fallback to newly created channel");
-    assertThat(lastLogLevel(3)).isEqualTo(Level.FINEST);
+    logRecords.forEach(logRecord -> System.out.println(logRecord.getMessage()));
+    assertThat(lastLogMessage()).isEqualTo(
+        poolIndex + ": Fallback to newly created channel 1");
+    assertThat(lastLogLevel()).isEqualTo(Level.FINEST);
     assertFallbacksMetric(fakeRegistry, 1, 0);
 
     // Adding one active stream to channel 1.
@@ -1223,6 +1226,114 @@ public final class GcpManagedChannelTest {
     // But in the log it must post 0.
     assertThat(lastLogMessage()).isEqualTo(
         poolIndex + ": stat: " + GcpMetricsConstants.METRIC_NUM_UNRESPONSIVE_DETECTIONS + " = 0");
+  }
+
+  @Test
+  public void testStateNotifications() throws InterruptedException {
+    final AtomicBoolean immediateCallbackCalled = new AtomicBoolean();
+    // Test callback is called when state doesn't match.
+    gcpChannel.notifyWhenStateChanged(ConnectivityState.SHUTDOWN, () ->
+        immediateCallbackCalled.set(true));
+
+    TimeUnit.MILLISECONDS.sleep(1);
+
+    assertThat(immediateCallbackCalled.get()).isTrue();
+
+    // Subscribe for notification when leaving IDLE state.
+    final AtomicReference<ConnectivityState> newState = new AtomicReference<>();
+
+    final Runnable callback = new Runnable() {
+      @Override
+      public void run() {
+        ConnectivityState state = gcpChannel.getState(false);
+        newState.set(state);
+        if (state.equals(ConnectivityState.IDLE)) {
+          gcpChannel.notifyWhenStateChanged(ConnectivityState.IDLE, this);
+        }
+      }
+    };
+
+    gcpChannel.notifyWhenStateChanged(ConnectivityState.IDLE, callback);
+
+    // Init connection to move out of the IDLE state.
+    ConnectivityState currentState = gcpChannel.getState(true);
+    // Make sure it was IDLE;
+    assertThat(currentState).isEqualTo(ConnectivityState.IDLE);
+
+    TimeUnit.MILLISECONDS.sleep(5);
+
+    assertThat(newState.get())
+        .isAnyOf(ConnectivityState.CONNECTING, ConnectivityState.TRANSIENT_FAILURE);
+  }
+
+  @Test
+  public void testParallelGetChannelRefWontExceedMaxSize() throws InterruptedException {
+    resetGcpChannel();
+    GcpChannelPoolOptions poolOptions = GcpChannelPoolOptions.newBuilder()
+        .setMaxSize(2)
+        .setConcurrentStreamsLowWatermark(0)
+        .build();
+    GcpManagedChannelOptions options = GcpManagedChannelOptions.newBuilder()
+        .withChannelPoolOptions(poolOptions)
+        .build();
+    gcpChannel =
+        (GcpManagedChannel)
+            GcpManagedChannelBuilder.forDelegateBuilder(builder)
+                .withOptions(options)
+                .build();
+
+    assertThat(gcpChannel.getNumberOfChannels()).isEqualTo(0);
+    assertThat(gcpChannel.getStreamsLowWatermark()).isEqualTo(0);
+
+    for (int i = 0; i < gcpChannel.getMaxSize() - 1; i++) {
+      gcpChannel.getChannelRef(null);
+    }
+
+    assertThat(gcpChannel.getNumberOfChannels()).isEqualTo(gcpChannel.getMaxSize() - 1);
+
+    Runnable requestChannel = () -> gcpChannel.getChannelRef(null);
+
+    int requestCount = gcpChannel.getMaxSize() * 3;
+    ExecutorService exec = Executors.newFixedThreadPool(requestCount);
+    for (int i = 0; i < requestCount; i++) {
+      exec.execute(requestChannel);
+    }
+    exec.shutdown();
+    exec.awaitTermination(100, TimeUnit.MILLISECONDS);
+
+    assertThat(gcpChannel.getNumberOfChannels()).isEqualTo(gcpChannel.getMaxSize());
+  }
+
+  @Test
+  public void testParallelGetChannelRefWontExceedMaxSizeFromTheStart() throws InterruptedException {
+    resetGcpChannel();
+    GcpChannelPoolOptions poolOptions = GcpChannelPoolOptions.newBuilder()
+        .setMaxSize(2)
+        .setConcurrentStreamsLowWatermark(0)
+        .build();
+    GcpManagedChannelOptions options = GcpManagedChannelOptions.newBuilder()
+        .withChannelPoolOptions(poolOptions)
+        .build();
+    gcpChannel =
+        (GcpManagedChannel)
+            GcpManagedChannelBuilder.forDelegateBuilder(builder)
+                .withOptions(options)
+                .build();
+
+    assertThat(gcpChannel.getNumberOfChannels()).isEqualTo(0);
+    assertThat(gcpChannel.getStreamsLowWatermark()).isEqualTo(0);
+
+    Runnable requestChannel = () -> gcpChannel.getChannelRef(null);
+
+    int requestCount = gcpChannel.getMaxSize() * 3;
+    ExecutorService exec = Executors.newFixedThreadPool(requestCount);
+    for (int i = 0; i < requestCount; i++) {
+      exec.execute(requestChannel);
+    }
+    exec.shutdown();
+    exec.awaitTermination(100, TimeUnit.MILLISECONDS);
+
+    assertThat(gcpChannel.getNumberOfChannels()).isEqualTo(gcpChannel.getMaxSize());
   }
 
   static class FakeManagedChannel extends ManagedChannel {
