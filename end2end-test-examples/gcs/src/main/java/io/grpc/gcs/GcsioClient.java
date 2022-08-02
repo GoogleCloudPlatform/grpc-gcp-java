@@ -54,6 +54,7 @@ public class GcsioClient {
             .setDirectPathPreferred(args.dp)
             .setReadChannelOptions(
                 GoogleCloudStorageReadOptions.builder()
+                    .setFadvise(GoogleCloudStorageReadOptions.Fadvise.AUTO)
                     .setGrpcChecksumsEnabled(args.checksum)
                     .build())
             .setWriteChannelOptions(
