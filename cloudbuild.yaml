@@ -3,5 +3,5 @@ steps:
   dir: 'grpc-gcp'
   env:
   - 'GCP_PROJECT_ID=grpc-gcp-testing'
-  entrypoint: gradlew
+  entrypoint: './gradlew'
   args: ['run', 'allTests']
