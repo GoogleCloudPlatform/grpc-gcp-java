@@ -1,6 +1,5 @@
 steps:
 - name: openjdk:11.0-jre
-  dir: 'grpc-gcp'
   env:
   - 'GCP_PROJECT_ID=grpc-gcp-testing'
   entrypoint: './gradlew'
