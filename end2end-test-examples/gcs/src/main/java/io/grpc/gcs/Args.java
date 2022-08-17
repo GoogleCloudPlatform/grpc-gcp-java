@@ -12,7 +12,7 @@ public class Args {
 
   public static final String CLIENT_GRPC = "grpc";
   public static final String CLIENT_YOSHI = "yoshi";
-  public static final String CLIENT_GCSIO_HTTP = "gcsio-http";
+  public static final String CLIENT_GCSIO_JSON = "gcsio-json";
   public static final String CLIENT_GCSIO_GRPC = "gcsio-grpc";
 
   public static final String DEFAULT_HOST = "storage.googleapis.com";
