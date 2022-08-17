@@ -1,7 +1,7 @@
 package io.grpc.gcs;
 
 import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC;
-import static io.grpc.gcs.Args.CLIENT_GCSIO_HTTP;
+import static io.grpc.gcs.Args.CLIENT_GCSIO_JSON;
 import static io.grpc.gcs.Args.CLIENT_GRPC;
 import static io.grpc.gcs.Args.CLIENT_YOSHI;
 
@@ -35,10 +35,10 @@ public class TestMain {
         httpClient.startCalls(results);
         results.stop();
         break;
-      case CLIENT_GCSIO_HTTP:
-        GcsioClient gcsioHttpClient = new GcsioClient(a, false);
+      case CLIENT_GCSIO_JSON:
+        GcsioClient gcsioJsonClient = new GcsioClient(a, false);
         results.start();
-        gcsioHttpClient.startCalls(results);
+        gcsioJsonClient.startCalls(results);
         results.stop();
         break;
       case CLIENT_GCSIO_GRPC:

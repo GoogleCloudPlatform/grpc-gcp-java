@@ -1,5 +1,5 @@
 ## Args
-`--client`: Type of client to use, among `grpc`, `yoshi`, `gcsio-grpc`, `gcsio-http`
+`--client`: Type of client to use, among `grpc`, `yoshi`, `gcsio-grpc`, `gcsio-json`
 
 `--calls`: Number of calls to execute
 
