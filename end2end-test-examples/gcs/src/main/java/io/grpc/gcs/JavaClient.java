@@ -17,14 +17,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
-public class HttpClient {
-  private static final Logger logger = Logger.getLogger(HttpClient.class.getName());
+public class JavaClient {
+  private static final Logger logger = Logger.getLogger(JavaClient.class.getName());
 
   private Args args;
   private ObjectResolver objectResolver;
   private Storage client;
 
-  public HttpClient(Args args) {
+  public JavaClient(Args args) {
     this.args = args;
     this.objectResolver = new ObjectResolver(args.obj, args.objFormat, args.objStart, args.objStop);
     this.client = StorageOptions.getDefaultInstance().getService();

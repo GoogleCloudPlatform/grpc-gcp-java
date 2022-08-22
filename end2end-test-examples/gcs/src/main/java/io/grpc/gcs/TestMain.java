@@ -1,9 +1,10 @@
 package io.grpc.gcs;
 
+import static io.grpc.gcs.Args.CLIENT_GRPC;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_JSON;
-import static io.grpc.gcs.Args.CLIENT_GRPC;
-import static io.grpc.gcs.Args.CLIENT_YOSHI;
+import static io.grpc.gcs.Args.CLIENT_JAVA_GRPC;
+import static io.grpc.gcs.Args.CLIENT_JAVA_JSON;
 
 import java.io.FileInputStream;
 import java.security.Security;
@@ -22,23 +23,15 @@ public class TestMain {
     if (a.conscrypt) {
       Security.insertProviderAt(Conscrypt.newProvider(), 1);
     } else if (a.conscrypt_notm) {
-      Security.insertProviderAt(
-          Conscrypt.newProviderBuilder().provideTrustManager(false).build(), 1);
+      Security.insertProviderAt(Conscrypt.newProviderBuilder().provideTrustManager(false).build(),
+          1);
     }
     ResultTable results = new ResultTable(a);
-    long start = 0;
-    long totalDur = 0;
     switch (a.client) {
-      case CLIENT_YOSHI:
-        HttpClient httpClient = new HttpClient(a);
+      case CLIENT_GRPC:
+        GrpcClient grpcClient = new GrpcClient(a);
         results.start();
-        httpClient.startCalls(results);
-        results.stop();
-        break;
-      case CLIENT_GCSIO_JSON:
-        GcsioClient gcsioJsonClient = new GcsioClient(a, false);
-        results.start();
-        gcsioJsonClient.startCalls(results);
+        grpcClient.startCalls(results);
         results.stop();
         break;
       case CLIENT_GCSIO_GRPC:
@@ -47,10 +40,19 @@ public class TestMain {
         gcsioGrpcClient.startCalls(results);
         results.stop();
         break;
-      case CLIENT_GRPC:
-        GrpcClient grpcClient = new GrpcClient(a);
+      case CLIENT_GCSIO_JSON:
+        GcsioClient gcsioJsonClient = new GcsioClient(a, false);
         results.start();
-        grpcClient.startCalls(results);
+        gcsioJsonClient.startCalls(results);
+        results.stop();
+        break;
+      case CLIENT_JAVA_GRPC:
+        logger.warning("Not supported yet");
+        break;
+      case CLIENT_JAVA_JSON:
+        JavaClient javaClient = new JavaClient(a);
+        results.start();
+        javaClient.startCalls(results);
         results.stop();
         break;
       default:
