@@ -96,8 +96,6 @@ public class JavaClient {
       // String contentString = new String(content, UTF_8);
       // logger.info("contentString: " + contentString);
       long dur = System.currentTimeMillis() - start;
-      // logger.info("time cost for readAllBytes: " + dur + "ms");
-      // logger.info("total KB received: " + content.length/1024);
       results.reportResult(args.bkt, object, content.length, dur);
     }
   }
@@ -119,8 +117,6 @@ public class JavaClient {
       if (buff.remaining() > 0) {
         logger.warning("Got remaining bytes: " + buff.remaining());
       }
-      logger.info("total KB received: " + buff.position() / 1024);
-      logger.info("time cost for random reading: " + dur + "ms");
       buff.clear();
       results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
     }
@@ -136,7 +132,6 @@ public class JavaClient {
       long start = System.currentTimeMillis();
       client.create(BlobInfo.newBuilder(blobId).build(), data);
       long dur = System.currentTimeMillis() - start;
-      logger.info("time cost for creating blob: " + dur + "ms");
       results.reportResult(args.bkt, object, totalBytes, dur);
     }
   }
