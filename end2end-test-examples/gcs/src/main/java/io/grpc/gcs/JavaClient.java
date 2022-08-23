@@ -17,14 +17,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
-public class HttpClient {
-  private static final Logger logger = Logger.getLogger(HttpClient.class.getName());
+public class JavaClient {
+  private static final Logger logger = Logger.getLogger(JavaClient.class.getName());
 
   private Args args;
   private ObjectResolver objectResolver;
   private Storage client;
 
-  public HttpClient(Args args) {
+  public JavaClient(Args args) {
     this.args = args;
     this.objectResolver = new ObjectResolver(args.obj, args.objFormat, args.objStart, args.objStop);
     this.client = StorageOptions.getDefaultInstance().getService();
@@ -96,8 +96,6 @@ public class HttpClient {
       // String contentString = new String(content, UTF_8);
       // logger.info("contentString: " + contentString);
       long dur = System.currentTimeMillis() - start;
-      // logger.info("time cost for readAllBytes: " + dur + "ms");
-      // logger.info("total KB received: " + content.length/1024);
       results.reportResult(args.bkt, object, content.length, dur);
     }
   }
@@ -119,8 +117,6 @@ public class HttpClient {
       if (buff.remaining() > 0) {
         logger.warning("Got remaining bytes: " + buff.remaining());
       }
-      logger.info("total KB received: " + buff.position() / 1024);
-      logger.info("time cost for random reading: " + dur + "ms");
       buff.clear();
       results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
     }
@@ -136,7 +132,6 @@ public class HttpClient {
       long start = System.currentTimeMillis();
       client.create(BlobInfo.newBuilder(blobId).build(), data);
       long dur = System.currentTimeMillis() - start;
-      logger.info("time cost for creating blob: " + dur + "ms");
       results.reportResult(args.bkt, object, totalBytes, dur);
     }
   }
