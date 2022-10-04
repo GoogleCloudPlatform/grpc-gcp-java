@@ -5,6 +5,7 @@ import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_JSON;
 import static io.grpc.gcs.Args.CLIENT_JAVA_GRPC;
 import static io.grpc.gcs.Args.CLIENT_JAVA_JSON;
+import static io.grpc.gcs.Args.CLIENT_API_SERVICES_JSON;
 
 import java.io.FileInputStream;
 import java.security.Security;
@@ -55,6 +56,11 @@ public class TestMain {
         javaClient.startCalls(results);
         results.stop();
         break;
+      case CLIENT_API_SERVICES_JSON:
+        JavaApiServicesClient javaApiServicesClient = new JavaApiServicesClient(a);
+        results.start();
+        javaApiServicesClient.startCalls(results);
+        results.stop();
       default:
         logger.warning("Please provide --client");
     }
