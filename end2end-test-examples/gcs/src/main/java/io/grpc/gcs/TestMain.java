@@ -61,6 +61,7 @@ public class TestMain {
         results.start();
         javaApiServicesClient.startCalls(results);
         results.stop();
+        break;
       default:
         logger.warning("Please provide --client");
     }

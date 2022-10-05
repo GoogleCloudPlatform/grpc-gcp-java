@@ -39,7 +39,9 @@ public class JavaApiServicesClient {
     HttpTransportOptions transportOptions = (HttpTransportOptions)storageOptions.getTransportOptions();
     HttpRequestInitializer initializer = transportOptions.getHttpRequestInitializer(storageOptions);
     HttpTransport transport = transportOptions.getHttpTransportFactory().create();
-    this.client = new Storage.Builder(transport, new JacksonFactory(), initializer).build();
+    this.client = new Storage.Builder(transport, new JacksonFactory(), initializer)
+                             .setApplicationName("json-api-services-benchmark")
+                             .build();
   }
 
   public void startCalls(ResultTable results) throws InterruptedException, IOException {
@@ -123,10 +125,10 @@ public class JavaApiServicesClient {
   public void makeRandomMediaRequest(ResultTable results, int threadId) throws IOException {
     Random r = new Random();
     String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
+    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(args.buffSize * 1024);
     for (int i = 0; i < args.calls; i++) {
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
       long start = System.currentTimeMillis();
-      ByteBuffer buff = ByteBuffer.allocate(args.buffSize * 1024);
       try {
         Storage.Objects.Get req = client.objects().get(args.bkt, object);
         if(offset > 0) {
@@ -135,17 +137,15 @@ public class JavaApiServicesClient {
         req.setReturnRawInputStream(false);
         MediaHttpDownloader mediaHttpDownloader = req.getMediaHttpDownloader();
         mediaHttpDownloader.setDirectDownloadEnabled(true);
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         req.executeMedia().download(byteArrayOutputStream);
-        buff.put(byteArrayOutputStream.toByteArray());
       } catch (IOException ioException) {
         System.err.println(ioException);
       }
       long dur = System.currentTimeMillis() - start;
-      if (buff.remaining() > 0) {
-        logger.warning("Got remaining bytes: " + buff.remaining());
+      if (byteArrayOutputStream.toByteArray().length > 0) {
+        logger.warning("Got remaining bytes: " + byteArrayOutputStream.toByteArray().length);
       }
-      buff.clear();
+      byteArrayOutputStream.close();
       results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
     }
   }
