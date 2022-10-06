@@ -125,8 +125,9 @@ public class JavaApiServicesClient {
   public void makeRandomMediaRequest(ResultTable results, int threadId) throws IOException {
     Random r = new Random();
     String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
-    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(args.buffSize * 1024);
+    int expectedSize = args.buffSize * 1024;
     for (int i = 0; i < args.calls; i++) {
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
       long start = System.currentTimeMillis();
       try {
@@ -137,15 +138,16 @@ public class JavaApiServicesClient {
         req.setReturnRawInputStream(false);
         MediaHttpDownloader mediaHttpDownloader = req.getMediaHttpDownloader();
         mediaHttpDownloader.setDirectDownloadEnabled(true);
-        req.executeMedia().download(byteArrayOutputStream);
+        req.executeMedia().download(baos);
       } catch (IOException ioException) {
         System.err.println(ioException);
       }
       long dur = System.currentTimeMillis() - start;
-      if (byteArrayOutputStream.toByteArray().length > 0) {
-        logger.warning("Got remaining bytes: " + byteArrayOutputStream.toByteArray().length);
+      byte[] actual = baos.toByteArray();
+      int actualSize = actual.length;
+      if (actualSize != expectedSize) {
+        logger.warning(String.format("Actual bytes size differed from expected. expected: %d actual: %d", expectedSize, actualSize));
       }
-      byteArrayOutputStream.close();
       results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
     }
   }
