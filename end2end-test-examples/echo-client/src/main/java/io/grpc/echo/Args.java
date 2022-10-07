@@ -11,7 +11,6 @@ public class Args {
   private static final int PORT = 443;
 
   final int numRpcs;
-  final boolean enableTracer;
   final String cookie;
   final boolean header;
   final int warmup;
@@ -46,6 +45,8 @@ public class Args {
   final String metricProbeName;
   final int numMsgs;
   final int msgsInterval;
+  final boolean useTd;
+  final boolean enableTrace;
 
   Args(String[] args) throws ArgumentParserException {
     ArgumentParser parser =
@@ -55,7 +56,6 @@ public class Args {
             .description("Echo client java binary");
 
     parser.addArgument("--numRpcs").type(Integer.class).setDefault(1);
-    parser.addArgument("--tracer").type(Boolean.class).setDefault(false);
     parser.addArgument("--cookie").type(String.class).setDefault("");
     parser.addArgument("--header").type(Boolean.class).setDefault(false);
     parser.addArgument("--warmup").type(Integer.class).setDefault(0);
@@ -89,12 +89,13 @@ public class Args {
     parser.addArgument("--metricProbeName").type(String.class).setDefault("");
     parser.addArgument("--numMsgs").type(Integer.class).setDefault(1);
     parser.addArgument("--msgsInterval").type(Integer.class).setDefault(0);
+    parser.addArgument("--useTd").type(Boolean.class).setDefault(false);
+    parser.addArgument("--enableTrace").type(Boolean.class).setDefault(false);
 
     Namespace ns = parser.parseArgs(args);
 
     // Read args
     numRpcs = ns.getInt("numRpcs");
-    enableTracer = ns.getBoolean("tracer");
     cookie = ns.getString("cookie");
     header = ns.getBoolean("header");
     warmup = ns.getInt("warmup");
@@ -128,6 +129,8 @@ public class Args {
     metricProbeName = ns.getString("metricProbeName");
     numMsgs = ns.getInt("numMsgs");
     msgsInterval = ns.getInt("msgsInterval");
+    useTd = ns.getBoolean("useTd");
+    enableTrace = ns.getBoolean("enableTrace");
 
     distrib = (qps > 0) ? new PoissonDistribution(1000 / qps) : null;
   }

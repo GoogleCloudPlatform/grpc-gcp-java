@@ -2,6 +2,9 @@ package io.grpc.echo;
 
 import com.google.api.MonitoredResource;
 import io.grpc.*;
+import io.grpc.ForwardingClientCall.SimpleForwardingClientCall;
+import io.grpc.ForwardingClientCallListener.SimpleForwardingClientCallListener;
+import io.grpc.alts.ComputeEngineChannelBuilder;
 import io.grpc.echo.Echo.BatchEchoRequest;
 import io.grpc.echo.Echo.BatchEchoResponse;
 import io.grpc.echo.Echo.EchoResponse;
@@ -16,10 +19,18 @@ import io.grpc.stub.StreamObserver;
 import io.opencensus.contrib.grpc.metrics.RpcViews;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
 import io.opencensus.metrics.*;
+import io.opencensus.trace.Tracer;
+import io.opencensus.trace.Tracing;
+import io.opencensus.trace.config.TraceConfig;
+import io.opencensus.trace.samplers.Samplers;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.sql.Timestamp;
 import java.util.*;
@@ -31,6 +42,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 import org.HdrHistogram.Histogram;
+import io.opencensus.common.Scope;
 
 public class EchoClient {
   private static final int STREAMING_MIN_INTERVAL = 1000;
@@ -51,10 +63,43 @@ public class EchoClient {
   private Map<String, Map<Boolean, AtomicLong>> errorCounts = new ConcurrentHashMap<>();
   private final String OTHER_STATUS = "OTHER";
 
+  private static final Tracer tracer = Tracing.getTracer();
+
+  private final ClientInterceptor peerCheckInterceptor =
+      new ClientInterceptor() {
+        @Override
+        public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(
+            MethodDescriptor<ReqT, RespT> method, CallOptions callOptions, Channel next) {
+          final ClientCall<ReqT, RespT> clientCall = next.newCall(method, callOptions);
+          return new SimpleForwardingClientCall<ReqT, RespT>(clientCall) {
+            @Override
+            public void start(Listener<RespT> responseListener, Metadata headers) {
+              super.start(
+                  new SimpleForwardingClientCallListener<RespT>(responseListener) {
+                    @Override
+                    public void onHeaders(Metadata headers) {
+                      // Check peer IP after connection is established.
+                      SocketAddress remoteAddr =
+                          clientCall.getAttributes().get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR);
+                      String peerIP =
+                          ((InetSocketAddress) remoteAddr).getAddress().getHostAddress();
+                      System.out.println("Peer IP = " + peerIP);
+                      super.onHeaders(headers);
+                    }
+                  },
+                  headers);
+            }
+          };
+        }
+      };
+
   public EchoClient(Args args) throws IOException {
     this.args = args;
 
-    setUpMetrics();
+    setupMetrics();
+    if (args.enableTrace) {
+      EchoClient.setupOpencensusTrace();
+    }
 
     channels = new ManagedChannel[args.numChannels];
     asyncStubs = new GrpcCloudapiStub[args.numChannels];
@@ -88,7 +133,7 @@ public class EchoClient {
     }
   }
 
-  private void setUpMetrics() throws IOException {
+  private void setupMetrics() throws IOException {
     // Configure standard gRPC client metrics
     RpcViews.registerClientGrpcViews();
 
@@ -183,13 +228,30 @@ public class EchoClient {
     }
   }
 
-  private NettyChannelBuilder getChannelBuilder() throws SSLException {
-    NettyChannelBuilder builder =
-        NettyChannelBuilder.forTarget(args.host + ":" + args.port)
-            .sslContext(
-                GrpcSslContexts.forClient()
-                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                    .build());
+  private static void setupOpencensusTrace() throws IOException {
+    // Always sample
+    TraceConfig traceConfig = Tracing.getTraceConfig();
+    traceConfig.updateActiveTraceParams(
+        traceConfig.getActiveTraceParams().toBuilder().setSampler(Samplers.alwaysSample()).build());
+    // Export to Stackdriver
+    StackdriverTraceExporter.createAndRegister(
+        StackdriverTraceConfiguration.builder()
+            .setProjectId("directpath-prod-manual-testing")
+            .build());
+  }
+
+  private ManagedChannelBuilder getChannelBuilder() throws SSLException {
+    ManagedChannelBuilder<?> builder;
+    if (args.useTd) {
+      builder = ComputeEngineChannelBuilder.forTarget("google-c2p-experimental:///" + args.host);
+    } else {
+      builder =
+          NettyChannelBuilder.forTarget(args.host + ":" + args.port)
+              .sslContext(
+                  GrpcSslContexts.forClient()
+                      .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                      .build());
+    }
     if (!args.overrideService.isEmpty()) {
       builder.overrideAuthority(args.overrideService);
     }
@@ -226,6 +288,9 @@ public class EchoClient {
     if (MetricsClientInterceptor.needsInterception(args)) {
       ClientInterceptor interceptor = new MetricsClientInterceptor(this);
       channel = ClientInterceptors.intercept(channel, interceptor);
+    }
+    if (args.useTd) {
+      channel = ClientInterceptors.intercept(channel, peerCheckInterceptor);
     }
     if (i == 0) {
       blockingChannelCreated = System.currentTimeMillis();
@@ -328,6 +393,8 @@ public class EchoClient {
   }
 
   void blockingEcho(Histogram histogram) throws SSLException {
+    String traceID = "Java-E2E-traceID-" + String.valueOf((int)(Math.random() * 1000.));
+    Scope ss = EchoClient.tracer.spanBuilder(traceID).startScopedSpan();
     long start = 0;
     try {
       if (args.resType == 0) {
@@ -368,6 +435,8 @@ public class EchoClient {
       long elapsed = System.currentTimeMillis() - start;
       logger.warning(String.format("RPC failed after %d ms: %s", elapsed, e.getStatus()));
       e.printStackTrace();
+    } finally {
+      ss.close();
     }
   }
 

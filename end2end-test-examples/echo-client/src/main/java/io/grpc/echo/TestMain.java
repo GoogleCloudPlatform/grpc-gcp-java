@@ -1,5 +1,6 @@
 package io.grpc.echo;
 
+import io.opencensus.trace.Tracing;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -19,23 +20,25 @@ public class TestMain {
   private static final int INFINITE_REQUESTS_MIN_DELAY = 1000;
   private static final Logger logger = Logger.getLogger(TestMain.class.getName());
 
-  private static void printResult(Args arg, long totalPayload,
-      long duration, Histogram histogram) {
+  private static void printResult(Args arg, long totalPayload, long duration, Histogram histogram) {
 
-    String resultFileName = String.format("qps%d_chan%d_rpcs%d_size%d_%sresult.txt",
-        arg.qps, arg.numChannels, arg.numRpcs, arg.reqSize, (arg.async ? "async_" : ""));
+    String resultFileName =
+        String.format(
+            "qps%d_chan%d_rpcs%d_size%d_%sresult.txt",
+            arg.qps, arg.numChannels, arg.numRpcs, arg.reqSize, (arg.async ? "async_" : ""));
     try {
-      histogram.outputPercentileDistribution(new PrintStream(new FileOutputStream(resultFileName)), 1.0);
+      histogram.outputPercentileDistribution(
+          new PrintStream(new FileOutputStream(resultFileName)), 1.0);
     } catch (FileNotFoundException e) {
       logger.warning("File not found: " + e.getMessage());
     }
 
-
     System.out.println(
-        String.format("%d channels, %d total rpcs sent"
+        String.format(
+            "%d channels, %d total rpcs sent"
                 + "\nPayload Size per request = %dKB"
                 + "\nPer sec Payload = %.2f MB (exact amount of KB = %d)"
-                //+ "\n\t\tAvg"
+                // + "\n\t\tAvg"
                 + "\n\t\tMin"
                 + "\tp50"
                 + "\tp90"
@@ -43,10 +46,12 @@ public class TestMain {
                 + "\tp99.9"
                 + "\tMax\n"
                 + "  Time(ms)\t%d\t%d\t%d\t%d\t%d\t%d",
-            arg.numChannels, histogram.getTotalCount(),
+            arg.numChannels,
+            histogram.getTotalCount(),
             arg.reqSize,
-            (0.1 * totalPayload / duration), totalPayload,
-            //histogram.getMean(),
+            (0.1 * totalPayload / duration),
+            totalPayload,
+            // histogram.getMean(),
             histogram.getMinValue(),
             histogram.getValueAtPercentile(50),
             histogram.getValueAtPercentile(90),
@@ -57,7 +62,8 @@ public class TestMain {
     System.out.println("\n** histogram percentile distribution output file: " + resultFileName);
   }
 
-  private static void warmup(EchoClient client, Args args) throws SSLException, InterruptedException {
+  private static void warmup(EchoClient client, Args args)
+      throws SSLException, InterruptedException {
     int numCalls = args.warmup * args.numChannels;
     CountDownLatch latch = new CountDownLatch(numCalls);
     for (int i = 0; i < numCalls; i++) {
@@ -68,7 +74,8 @@ public class TestMain {
     }
   }
 
-  private static void runTest(Args args, EchoClient client) throws SSLException, InterruptedException {
+  private static void runTest(Args args, EchoClient client)
+      throws SSLException, InterruptedException {
 
     int rpcsToDo = args.numRpcs;
     CountDownLatch latch = new CountDownLatch(rpcsToDo);
@@ -81,7 +88,7 @@ public class TestMain {
         if (args.distrib != null) {
           int sample = args.distrib.sample();
           if (sample > 0) {
-            //logger.info("sleeping for: " + sample);
+            // logger.info("sleeping for: " + sample);
             Thread.sleep(sample);
           }
         }
@@ -104,10 +111,14 @@ public class TestMain {
     }
     long totalRecvTime = System.currentTimeMillis() - startFirst;
 
-    logger.info("TEST DONE.\n"
-        + "=============================================================\n"
-        + "Total Send time = " + totalSendTime
-        + "ms, Total Receive time = " + totalRecvTime + "ms");
+    logger.info(
+        "TEST DONE.\n"
+            + "=============================================================\n"
+            + "Total Send time = "
+            + totalSendTime
+            + "ms, Total Receive time = "
+            + totalRecvTime
+            + "ms");
     printResult(args, totalPayloadSize, totalRecvTime, histogram);
   }
 
@@ -135,8 +146,9 @@ public class TestMain {
       return;
     }
     String handlers = "java.util.logging.ConsoleHandler";
-    String consoleHandlerProps = "java.util.logging.ConsoleHandler.level = ALL\n"
-        + "java.util.logging.ConsoleHandler.formatter = java.util.logging.SimpleFormatter\n";
+    String consoleHandlerProps =
+        "java.util.logging.ConsoleHandler.level = ALL\n"
+            + "java.util.logging.ConsoleHandler.formatter = java.util.logging.SimpleFormatter\n";
     String fileHandlerProps = "";
     if (!args.logFilename.isEmpty()) {
       if (args.disableConsoleLog) {
@@ -145,8 +157,9 @@ public class TestMain {
       } else {
         handlers = handlers + ", java.util.logging.FileHandler";
       }
-      fileHandlerProps = "java.util.logging.FileHandler.level = ALL\n"
-          + "java.util.logging.FileHandler.formatter = java.util.logging.SimpleFormatter\n";
+      fileHandlerProps =
+          "java.util.logging.FileHandler.level = ALL\n"
+              + "java.util.logging.FileHandler.formatter = java.util.logging.SimpleFormatter\n";
       String filename = args.logFilename;
       if (args.logMaxFiles > 0) {
         filename += ".%g";
@@ -162,14 +175,18 @@ public class TestMain {
     if (args.fineLogs) {
       fineProps = ".level = FINE\n";
     }
-    LogManager.getLogManager().readConfiguration(new ByteArrayInputStream((
-        "handlers=" + handlers + "\n"
-            + consoleHandlerProps
-            + fileHandlerProps
-            + fineProps
-            + "java.util.logging.SimpleFormatter.format=%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS.%1$tN %2$s%n%4$s: %5$s%6$s%n\n")
-        .getBytes(StandardCharsets.UTF_8)
-    ));
+    LogManager.getLogManager()
+        .readConfiguration(
+            new ByteArrayInputStream(
+                ("handlers="
+                        + handlers
+                        + "\n"
+                        + consoleHandlerProps
+                        + fileHandlerProps
+                        + fineProps
+                        + "java.util.logging.SimpleFormatter.format=%1$tY-%1$tm-%1$td"
+                        + " %1$tH:%1$tM:%1$tS.%1$tN %2$s%n%4$s: %5$s%6$s%n\n")
+                    .getBytes(StandardCharsets.UTF_8)));
   }
 
   public static void main(String[] args) throws Exception {
@@ -177,5 +194,9 @@ public class TestMain {
 
     setUpLogs(argObj);
     execTask(argObj);
+
+    if (argObj.enableTrace) {
+      Tracing.getExportComponent().shutdown();
+    }
   }
 }
