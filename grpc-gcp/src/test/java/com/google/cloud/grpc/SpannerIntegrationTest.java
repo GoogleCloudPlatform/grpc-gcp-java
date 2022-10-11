@@ -16,6 +16,7 @@
 
 package com.google.cloud.grpc;
 
+import static com.google.cloud.grpc.GcpMultiEndpointChannel.ME_CONTEXT_KEY;
 import static com.google.cloud.grpc.GcpMultiEndpointChannel.ME_KEY;
 import static com.google.cloud.spanner.SpannerOptions.CALL_CONTEXT_CONFIGURATOR_KEY;
 import static com.google.common.base.Preconditions.checkState;
@@ -654,8 +655,8 @@ public final class SpannerIntegrationTest {
             followerPoolIndex + ": Binding \\d+ key\\(s\\) to channel \\d:.*"
         )).count()).isEqualTo(0);
 
-    // Create context for using follower-first multi-endpoint.
-    Function<String, Context> contextFor = meName -> Context.current()
+    // Function for creating a context with a specific multi-endpoint set in call options.
+    Function<String, Context> callContextFor = meName -> Context.current()
         .withValue(CALL_CONTEXT_CONFIGURATOR_KEY,
             new CallContextConfigurator() {
               @Nullable
@@ -667,8 +668,12 @@ public final class SpannerIntegrationTest {
               }
             });
 
+    // Function for creating a context with a specific multi-endpoint set in the context key.
+    Function<String, Context> contextFor = meName ->
+        Context.current().withValue(ME_CONTEXT_KEY, meName);
+
     assertThat(getOkCallsCount(fakeRegistry, followerEndpoint)).isEqualTo(0);
-    // Use follower, make sure it is used.
+    // Use follower, make sure it is used. (multi-endpoint is set in the context)
     contextFor.apply("follower").run(readQuery);
     assertThat(getOkCallsCount(fakeRegistry, followerEndpoint)).isEqualTo(1);
 
@@ -713,9 +718,16 @@ public final class SpannerIntegrationTest {
 
     // Make sure that the follower endpoint still works if specified.
     assertThat(getOkCallsCount(fakeRegistry, followerEndpoint)).isEqualTo(2);
-    // Use follower, make sure it is used.
-    contextFor.apply("follower-2").run(readQuery);
+    // Use follower, make sure it is used. (multi-endpoint is set in the call options)
+    callContextFor.apply("follower-2").run(readQuery);
     assertThat(getOkCallsCount(fakeRegistry, followerEndpoint)).isEqualTo(3);
+
+    // Use leader, make sure it is used. (multi-endpoint from the call options overrides context-set
+    // multi-endpoint)
+    contextFor.apply("follower-2").run(() ->
+      callContextFor.apply("leader").run(readQuery)
+    );
+    assertThat(getOkCallsCount(fakeRegistry, newLeaderEndpoint)).isEqualTo(2);
 
     gcpMultiEndpointChannel.shutdown();
     spanner.close();
@@ -1002,9 +1014,6 @@ public final class SpannerIntegrationTest {
     List<ListenableFuture<Session>> futures = new ArrayList<>();
     assertEquals(ConnectivityState.IDLE, gcpChannel.getState(false));
 
-    // Initial log messages count.
-    int logCount = logRecords.size();
-
     // Should create one session per channel.
     CreateSessionRequest req = CreateSessionRequest.newBuilder().setDatabase(DATABASE_PATH).build();
     for (int i = 0; i < MAX_CHANNEL; i++) {
@@ -1016,8 +1025,6 @@ public final class SpannerIntegrationTest {
           poolIndex + ": Channel " + i + " created.");
       assertThat(lastLogMessage()).isEqualTo(
           poolIndex + ": Channel " + i + " picked for bind operation.");
-      logCount += 3;
-      assertThat(logRecords.size()).isEqualTo(logCount);
       assertThat(lastLogLevel()).isEqualTo(Level.FINEST);
     }
     // Each channel should have 1 active stream with the CreateSession request because we create them concurrently.
@@ -1046,7 +1053,8 @@ public final class SpannerIntegrationTest {
     // Verify the channel is in use.
     assertEquals(1, currentChannel.getActiveStreamsCount());
 
-    logCount = logRecords.size();
+    // Initial log messages count.
+    int logCount = logRecords.size();
 
     // Create another 1 session per channel sequentially.
     // Without the round-robin it won't use the currentChannel as it has more active streams (1) than other channels.
