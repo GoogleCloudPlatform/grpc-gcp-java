@@ -29,6 +29,11 @@ Receive server-streaming responses with 10 seconds interval. Re-create the strea
 ./gradlew run --args="--stream=true --numRpcs=10 --interval=10000 --host=grpc-cloudapi.googleapis.com"
 ```
 
+Use DirectPath Traffic Director and enable trace
+```sh
+./gradlew run --args="--numRpcs=1 --reqSize=100 --resSize=100 --host=grpc-cloudapi-directpath-esf-sidecar.sandbox.googleapis.com --useTd=true --enableTrace=true"
+```
+
 Example results:
 
 ```sh
@@ -90,6 +95,10 @@ Per sec Payload = 0.07 MB (exact amount of KB = 10000)
 `--metricTaskPrefix`: Prefix for the process label for metrics.
 
 `--metricProbeName`: Additional label for metrics.
+
+`--useTd`: Use DirectPath Traffic Director. The peer IP will also be printed.
+
+`--enableTrace`: Enable trace, which will be exported to StackDriver.
 
 ## Deployment
 
