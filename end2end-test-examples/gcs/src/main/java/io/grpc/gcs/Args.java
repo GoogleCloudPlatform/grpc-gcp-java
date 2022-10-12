@@ -15,6 +15,7 @@ public class Args {
   public static final String CLIENT_GCSIO_JSON = "gcsio-json";
   public static final String CLIENT_JAVA_GRPC = "java-grpc";
   public static final String CLIENT_JAVA_JSON = "java-json";
+  public static final String CLIENT_API_SERVICES_JSON = "api-services-json";
 
   public static final String DEFAULT_HOST = "storage.googleapis.com";
   private static final int PORT = 443;

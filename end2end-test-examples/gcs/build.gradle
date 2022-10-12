@@ -40,6 +40,7 @@ dependencies {
     compile "com.google.api.grpc:proto-google-common-protos:latest.release"
     compile "com.google.auth:google-auth-library-oauth2-http:latest.release"
     compile "com.google.cloud:google-cloud-storage:latest.release"
+    compile "com.google.apis:google-api-services-storage:latest.release"
     compile "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
     compile "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
     compile "com.google.guava:guava:31.1-jre"
