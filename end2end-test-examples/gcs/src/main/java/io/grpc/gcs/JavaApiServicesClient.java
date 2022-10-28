@@ -4,7 +4,7 @@ import static io.grpc.gcs.Args.METHOD_RANDOM;
 import static io.grpc.gcs.Args.METHOD_READ;
 import static io.grpc.gcs.Args.METHOD_WRITE;
 
-import com.google.api.client.googleapis.media.MediaHttpDownloader;
+import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.InputStreamContent;
@@ -17,7 +17,6 @@ import com.google.cloud.storage.StorageOptions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -125,30 +124,26 @@ public class JavaApiServicesClient {
   public void makeRandomMediaRequest(ResultTable results, int threadId) throws IOException {
     Random r = new Random();
     String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
-    int expectedSize = args.buffSize * 1024;
+    final int expectedSize = args.buffSize * 1024;
     for (int i = 0; i < args.calls; i++) {
       ByteArrayOutputStream baos = new ByteArrayOutputStream();
       long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
+      long endOffset = offset + expectedSize - 1;
       long start = System.currentTimeMillis();
       try {
         Storage.Objects.Get req = client.objects().get(args.bkt, object);
-        if(offset > 0) {
-          req.getRequestHeaders().setRange(String.format("bytes=%d-", offset));
-        }
-        req.setReturnRawInputStream(false);
-        MediaHttpDownloader mediaHttpDownloader = req.getMediaHttpDownloader();
-        mediaHttpDownloader.setDirectDownloadEnabled(true);
+        HttpHeaders requestHeaders = req.getRequestHeaders();
+        requestHeaders.setRange(String.format("bytes=%d-%d", offset, endOffset));
         req.executeMedia().download(baos);
       } catch (IOException ioException) {
         System.err.println(ioException);
       }
       long dur = System.currentTimeMillis() - start;
-      byte[] actual = baos.toByteArray();
-      int actualSize = actual.length;
+      int actualSize = baos.toByteArray().length;
       if (actualSize != expectedSize) {
         logger.warning(String.format("Actual bytes size differed from expected. expected: %d actual: %d", expectedSize, actualSize));
       }
-      results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
+      results.reportResult(args.bkt, object, actualSize, dur);
     }
   }
 
