@@ -8,26 +8,29 @@ import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageOptions;
+import com.google.common.io.ByteStreams;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
-public class JavaClient {
+public abstract class JavaClient {
   private static final Logger logger = Logger.getLogger(JavaClient.class.getName());
 
   private Args args;
   private ObjectResolver objectResolver;
   private Storage client;
 
-  public JavaClient(Args args) {
+  protected JavaClient(Args args, Storage storage) {
     this.args = args;
     this.objectResolver = new ObjectResolver(args.obj, args.objFormat, args.objStart, args.objStop);
-    this.client = StorageOptions.getDefaultInstance().getService();
+    this.client = storage;
   }
 
   public void startCalls(ResultTable results) throws InterruptedException, IOException {
@@ -105,22 +108,36 @@ public class JavaClient {
 
     String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
     BlobId blobId = BlobId.of(args.bkt, object);
-    ReadChannel reader = client.reader(blobId);
+
+    int capacity = args.buffSize * 1024;
+    ByteBuffer buff = ByteBuffer.allocate(capacity);
+
     for (int i = 0; i < args.calls; i++) {
-      long offset = (long) r.nextInt(args.size - args.buffSize) * 1024;
-      reader.seek(offset);
+      buff.clear();
+      int bound = args.size - args.buffSize;
+      long offset = r.nextInt(bound) * 1024L;
 
       long start = System.currentTimeMillis();
-      ByteBuffer buff = ByteBuffer.allocate(args.buffSize * 1024);
-      reader.read(buff);
-      long dur = System.currentTimeMillis() - start;
-      if (buff.remaining() > 0) {
-        logger.warning("Got remaining bytes: " + buff.remaining());
+      try (
+          ReadChannel reader = client.reader(blobId);
+          // we care that the bytes move, not what we will do after they move, route to /dev/null
+          WritableByteChannel out = Channels.newChannel(ByteStreams.nullOutputStream())
+      ) {
+        // set the chunkSize to that of our buffer to try and align range read size behavior
+        reader.setChunkSize(capacity);
+        // set begin offset
+        reader.seek(offset);
+        // set end offset (limit is counted from 0, not seek)
+        reader.limit(offset + capacity);
+
+        long copy = copy(reader, out, buff);
+        long dur = System.currentTimeMillis() - start;
+        if (copy != capacity) {
+          logger.warning(String.format("Unexpected number of bytes. Expected: %d but was: %d", capacity, copy));
+        }
+        results.reportResult(args.bkt, object, copy, dur);
       }
-      buff.clear();
-      results.reportResult(args.bkt, object, args.buffSize * 1024, dur);
     }
-    reader.close();
   }
 
   public void makeInsertRequest(ResultTable results, int threadId) {
@@ -134,5 +151,18 @@ public class JavaClient {
       long dur = System.currentTimeMillis() - start;
       results.reportResult(args.bkt, object, totalBytes, dur);
     }
+  }
+
+  private static long copy(ReadableByteChannel from, WritableByteChannel to, ByteBuffer buf)
+      throws IOException {
+    long total = 0;
+    while (from.read(buf) != -1) {
+      buf.flip();
+      while (buf.hasRemaining()) {
+        total += to.write(buf);
+      }
+      buf.clear();
+    }
+    return total;
   }
 }
