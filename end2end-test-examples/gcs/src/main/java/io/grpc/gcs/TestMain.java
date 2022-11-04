@@ -1,12 +1,11 @@
 package io.grpc.gcs;
 
-import static io.grpc.gcs.Args.CLIENT_GRPC;
+import static io.grpc.gcs.Args.CLIENT_API_SERVICES_JSON;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_JSON;
+import static io.grpc.gcs.Args.CLIENT_GRPC;
 import static io.grpc.gcs.Args.CLIENT_JAVA_GRPC;
-import static io.grpc.gcs.Args.CLIENT_JAVA_GRPC_DIRECT_PATH;
 import static io.grpc.gcs.Args.CLIENT_JAVA_JSON;
-import static io.grpc.gcs.Args.CLIENT_API_SERVICES_JSON;
 
 import java.io.FileInputStream;
 import java.security.Security;
@@ -49,21 +48,10 @@ public class TestMain {
         results.stop();
         break;
       case CLIENT_JAVA_GRPC:
-        JavaGrpcClient javaGrpcClient = new JavaGrpcClient(a);
-        results.start();
-        javaGrpcClient.startCalls(results);
-        results.stop();
-        break;
-      case CLIENT_JAVA_GRPC_DIRECT_PATH:
-        JavaGrpcDirectPathClient javaGrpcDirectPathClient = new JavaGrpcDirectPathClient(a);
-        results.start();
-        javaGrpcDirectPathClient.startCalls(results);
-        results.stop();
-        break;
       case CLIENT_JAVA_JSON:
-        JavaJsonClient javaJsonClient = new JavaJsonClient(a);
+        JavaClient javaClient = new JavaClient(a);
         results.start();
-        javaJsonClient.startCalls(results);
+        javaClient.startCalls(results);
         results.stop();
         break;
       case CLIENT_API_SERVICES_JSON:

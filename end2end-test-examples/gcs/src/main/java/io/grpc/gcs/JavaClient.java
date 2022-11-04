@@ -8,6 +8,7 @@ import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
 import com.google.common.io.ByteStreams;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -20,17 +21,38 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
-public abstract class JavaClient {
+public class JavaClient {
   private static final Logger logger = Logger.getLogger(JavaClient.class.getName());
 
   private Args args;
   private ObjectResolver objectResolver;
   private Storage client;
 
-  protected JavaClient(Args args, Storage storage) {
+  public JavaClient(Args args) {
     this.args = args;
     this.objectResolver = new ObjectResolver(args.obj, args.objFormat, args.objStart, args.objStop);
-    this.client = storage;
+    StorageOptions.Builder b;
+    switch (args.client) {
+      case Args.CLIENT_JAVA_JSON:
+        b = StorageOptions.http();
+        break;
+      case Args.CLIENT_JAVA_GRPC:
+          b = StorageOptions.grpc()
+              .setAttemptDirectPath(args.dp);
+        break;
+      default:
+        throw new IllegalStateException(
+            String.format(
+                "Unsupported client: %s. Expected {%s,%s}",
+                args.client, Args.CLIENT_JAVA_JSON, Args.CLIENT_JAVA_GRPC
+            )
+        );
+    }
+
+    this.client = b
+        .setHost(String.format("https://%s:%d", args.host, args.port))
+        .build()
+        .getService();
   }
 
   public void startCalls(ResultTable results) throws InterruptedException, IOException {
