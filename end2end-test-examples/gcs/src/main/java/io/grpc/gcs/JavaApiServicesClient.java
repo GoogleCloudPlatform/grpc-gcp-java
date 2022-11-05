@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public class JavaApiServicesClient {
-  private static final Logger logger = Logger.getLogger(JavaClient.class.getName());
+  private static final Logger logger = Logger.getLogger(JavaApiServicesClient.class.getName());
 
   private Args args;
   private ObjectResolver objectResolver;
