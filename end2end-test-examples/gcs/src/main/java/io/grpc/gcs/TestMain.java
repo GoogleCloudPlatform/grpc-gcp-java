@@ -2,6 +2,7 @@ package io.grpc.gcs;
 
 import static io.grpc.gcs.Args.CLIENT_API_SERVICES_JSON;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC;
+import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC2;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_JSON;
 import static io.grpc.gcs.Args.CLIENT_GRPC;
 import static io.grpc.gcs.Args.CLIENT_JAVA_GRPC;
@@ -35,16 +36,22 @@ public class TestMain {
         grpcClient.startCalls(results);
         results.stop();
         break;
+      case CLIENT_GCSIO_JSON:
+        GcsioClient gcsioJsonClient = new GcsioClient(a, 0);
+        results.start();
+        gcsioJsonClient.startCalls(results);
+        results.stop();
+        break;
       case CLIENT_GCSIO_GRPC:
-        GcsioClient gcsioGrpcClient = new GcsioClient(a, true);
+        GcsioClient gcsioGrpcClient = new GcsioClient(a, 1);
         results.start();
         gcsioGrpcClient.startCalls(results);
         results.stop();
         break;
-      case CLIENT_GCSIO_JSON:
-        GcsioClient gcsioJsonClient = new GcsioClient(a, false);
+      case CLIENT_GCSIO_GRPC2:
+        GcsioClient gcsioGrpc2Client = new GcsioClient(a, 2);
         results.start();
-        gcsioJsonClient.startCalls(results);
+        gcsioGrpc2Client.startCalls(results);
         results.stop();
         break;
       case CLIENT_JAVA_GRPC:

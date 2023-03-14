@@ -11,8 +11,9 @@ public class Args {
   public static final String METHOD_WRITE = "write";
 
   public static final String CLIENT_GRPC = "grpc";
-  public static final String CLIENT_GCSIO_GRPC = "gcsio-grpc";
   public static final String CLIENT_GCSIO_JSON = "gcsio-json";
+  public static final String CLIENT_GCSIO_GRPC = "gcsio-grpc";
+  public static final String CLIENT_GCSIO_GRPC2 = "gcsio-grpc2";
   public static final String CLIENT_JAVA_GRPC = "java-grpc";
   public static final String CLIENT_JAVA_JSON = "java-json";
   public static final String CLIENT_API_SERVICES_JSON = "api-services-json";

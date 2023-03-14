@@ -32,8 +32,9 @@ public class GcsioClient {
   private ObjectResolver objectResolver;
   private GoogleCloudStorageOptions gcsOpts;
   private GoogleCredential creds;
+  private int gRPCVersion;
 
-  public GcsioClient(Args args, boolean grpcEnabled) throws IOException {
+  public GcsioClient(Args args, int gRPCVersion) throws IOException {
     this.args = args;
     this.objectResolver = new ObjectResolver(args.obj, args.objFormat, args.objStart, args.objStop);
     if (args.access_token.equals("")) {
@@ -47,7 +48,7 @@ public class GcsioClient {
     GoogleCloudStorageOptions.Builder optsBuilder =
         GoogleCloudStorageOptions.builder()
             .setAppName("weiranf-app")
-            .setGrpcEnabled(grpcEnabled)
+            .setGrpcEnabled(gRPCVersion > 0)
             .setStorageRootUrl("https://" + args.host)
             .setStorageServicePath(args.service_path)
             .setTrafficDirectorEnabled(args.td)
@@ -63,19 +64,20 @@ public class GcsioClient {
       optsBuilder.setGrpcServerAddress(args.host2);
     }
     this.gcsOpts = optsBuilder.build();
+    this.gRPCVersion = gRPCVersion;
   }
 
   public void startCalls(ResultTable results) throws InterruptedException, IOException {
     if (args.threads == 1) {
       switch (args.method) {
         case METHOD_READ:
-          makeMediaRequest(results, /*threadId=*/ 1);
+          makeMediaRequest(results, /* threadId= */ 1);
           break;
         case METHOD_RANDOM:
-          makeRandomMediaRequest(results, /*threadId=*/ 1);
+          makeRandomMediaRequest(results, /* threadId= */ 1);
           break;
         case METHOD_WRITE:
-          makeWriteRequest(results, /*threadId=*/ 1);
+          makeWriteRequest(results, /* threadId= */ 1);
           break;
         default:
           logger.warning("Please provide valid methods with --method");
@@ -139,11 +141,23 @@ public class GcsioClient {
     }
   }
 
+  private GoogleCloudStorageFileSystem createGcsFileSystem() throws IOException {
+    return new GoogleCloudStorageFileSystem(
+        creds,
+        GoogleCloudStorageFileSystemOptions.builder()
+            .setClientType(
+                // Json and old gRPC client use HTTP_API_CLIENT.
+                // New gRPC client uses STORAGE_CLIENT.
+                gRPCVersion <= 1
+                    ? GoogleCloudStorageFileSystemOptions.ClientType.HTTP_API_CLIENT
+                    : GoogleCloudStorageFileSystemOptions.ClientType.STORAGE_CLIENT)
+            .setCloudStorageOptions(gcsOpts)
+            .build());
+  }
+
   private void makeMediaRequest(ResultTable results, int threadId) throws IOException {
-    GoogleCloudStorageFileSystem gcsfs =
-        new GoogleCloudStorageFileSystem(
-            creds,
-            GoogleCloudStorageFileSystemOptions.builder().setCloudStorageOptions(gcsOpts).build());
+    GoogleCloudStorageFileSystem gcsfs = createGcsFileSystem();
+
     long totalSize = args.size * 1024L;
     int buffSize = (args.buffSize == 0 ? 32 * 1024 : args.buffSize) * 1024;
     ByteBuffer buff = ByteBuffer.allocate(buffSize);
@@ -169,14 +183,11 @@ public class GcsioClient {
   }
 
   private void makeRandomMediaRequest(ResultTable results, int threadId) throws IOException {
-    GoogleCloudStorageFileSystem gcsfs =
-        new GoogleCloudStorageFileSystem(
-            creds,
-            GoogleCloudStorageFileSystemOptions.builder().setCloudStorageOptions(gcsOpts).build());
+    GoogleCloudStorageFileSystem gcsfs = createGcsFileSystem();
 
     Random r = new Random();
 
-    String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
+    String object = objectResolver.Resolve(threadId, /* objectId= */ 0);
     URI uri = URI.create("gs://" + args.bkt + "/" + object);
     GoogleCloudStorageReadOptions readOpts = gcsOpts.getReadChannelOptions();
 
@@ -200,10 +211,7 @@ public class GcsioClient {
 
   private void makeWriteRequest(ResultTable results, int threadId)
       throws IOException, InterruptedException {
-    GoogleCloudStorageFileSystem gcsfs =
-        new GoogleCloudStorageFileSystem(
-            creds,
-            GoogleCloudStorageFileSystemOptions.builder().setCloudStorageOptions(gcsOpts).build());
+    GoogleCloudStorageFileSystem gcsfs = createGcsFileSystem();
 
     int size = args.size * 1024;
     Random rd = new Random();
