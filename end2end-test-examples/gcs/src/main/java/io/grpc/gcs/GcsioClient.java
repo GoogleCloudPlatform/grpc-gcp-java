@@ -7,6 +7,7 @@ import static io.grpc.gcs.Args.METHOD_WRITE;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystem;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemOptions.ClientType;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
 import com.google.cloud.hadoop.util.AsyncWriteChannelOptions;
@@ -23,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import javax.annotation.Nullable;
 
 public class GcsioClient {
   private static final Logger logger = Logger.getLogger(GcsioClient.class.getName());
@@ -32,9 +34,11 @@ public class GcsioClient {
   private ObjectResolver objectResolver;
   private GoogleCloudStorageOptions gcsOpts;
   private GoogleCredential creds;
+  private ClientType clientType;
 
-  public GcsioClient(Args args, boolean grpcEnabled) throws IOException {
+  public GcsioClient(Args args, boolean grpcEnabled, ClientType clientType) throws IOException {
     this.args = args;
+    this.clientType = clientType;
     this.objectResolver = new ObjectResolver(args.obj, args.objFormat, args.objStart, args.objStop);
     if (args.access_token.equals("")) {
       this.creds = GoogleCredential.getApplicationDefault().createScoped(Arrays.asList(SCOPE));
@@ -139,11 +143,17 @@ public class GcsioClient {
     }
   }
 
+  private GoogleCloudStorageFileSystem createGcsFileSystem() throws IOException {
+    return new GoogleCloudStorageFileSystem(
+        creds,
+        GoogleCloudStorageFileSystemOptions.builder()
+            .setClientType(clientType)
+            .setCloudStorageOptions(gcsOpts)
+            .build());
+  }
+
   private void makeMediaRequest(ResultTable results, int threadId) throws IOException {
-    GoogleCloudStorageFileSystem gcsfs =
-        new GoogleCloudStorageFileSystem(
-            creds,
-            GoogleCloudStorageFileSystemOptions.builder().setCloudStorageOptions(gcsOpts).build());
+    GoogleCloudStorageFileSystem gcsfs = createGcsFileSystem();
     long totalSize = args.size * 1024L;
     int buffSize = (args.buffSize == 0 ? 32 * 1024 : args.buffSize) * 1024;
     ByteBuffer buff = ByteBuffer.allocate(buffSize);
@@ -169,10 +179,7 @@ public class GcsioClient {
   }
 
   private void makeRandomMediaRequest(ResultTable results, int threadId) throws IOException {
-    GoogleCloudStorageFileSystem gcsfs =
-        new GoogleCloudStorageFileSystem(
-            creds,
-            GoogleCloudStorageFileSystemOptions.builder().setCloudStorageOptions(gcsOpts).build());
+    GoogleCloudStorageFileSystem gcsfs = createGcsFileSystem();
 
     Random r = new Random();
 
@@ -200,10 +207,7 @@ public class GcsioClient {
 
   private void makeWriteRequest(ResultTable results, int threadId)
       throws IOException, InterruptedException {
-    GoogleCloudStorageFileSystem gcsfs =
-        new GoogleCloudStorageFileSystem(
-            creds,
-            GoogleCloudStorageFileSystemOptions.builder().setCloudStorageOptions(gcsOpts).build());
+    GoogleCloudStorageFileSystem gcsfs = createGcsFileSystem();
 
     int size = args.size * 1024;
     Random rd = new Random();
