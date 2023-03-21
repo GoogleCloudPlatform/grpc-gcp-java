@@ -2,11 +2,13 @@ package io.grpc.gcs;
 
 import static io.grpc.gcs.Args.CLIENT_API_SERVICES_JSON;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC;
+import static io.grpc.gcs.Args.CLIENT_GCSIO_GRPC_JAVA_STORAGE;
 import static io.grpc.gcs.Args.CLIENT_GCSIO_JSON;
 import static io.grpc.gcs.Args.CLIENT_GRPC;
 import static io.grpc.gcs.Args.CLIENT_JAVA_GRPC;
 import static io.grpc.gcs.Args.CLIENT_JAVA_JSON;
 
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemOptions.ClientType;
 import java.io.FileInputStream;
 import java.security.Security;
 import java.util.logging.LogManager;
@@ -36,13 +38,22 @@ public class TestMain {
         results.stop();
         break;
       case CLIENT_GCSIO_GRPC:
-        GcsioClient gcsioGrpcClient = new GcsioClient(a, true);
+        // Json and old gRPC client use HTTP_API_CLIENT.
+        GcsioClient gcsioGrpcClient = new GcsioClient(a, true, ClientType.HTTP_API_CLIENT);
         results.start();
         gcsioGrpcClient.startCalls(results);
         results.stop();
         break;
+      case CLIENT_GCSIO_GRPC_JAVA_STORAGE:
+        // New gRPC client uses STORAGE_CLIENT.
+        GcsioClient gcsioGrpcJavaClient = new GcsioClient(a, true, ClientType.STORAGE_CLIENT);
+        results.start();
+        gcsioGrpcJavaClient.startCalls(results);
+        results.stop();
+        break;
       case CLIENT_GCSIO_JSON:
-        GcsioClient gcsioJsonClient = new GcsioClient(a, false);
+        // Json and old gRPC client use HTTP_API_CLIENT.
+        GcsioClient gcsioJsonClient = new GcsioClient(a, false, ClientType.HTTP_API_CLIENT);
         results.start();
         gcsioJsonClient.startCalls(results);
         results.stop();

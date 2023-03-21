@@ -11,7 +11,10 @@ public class Args {
   public static final String METHOD_WRITE = "write";
 
   public static final String CLIENT_GRPC = "grpc";
+  // gcsio-gRPC via native grpc library
   public static final String CLIENT_GCSIO_GRPC = "gcsio-grpc";
+  // gcsio-gRPC via java-storage library
+  public static final String CLIENT_GCSIO_GRPC_JAVA_STORAGE = "gcsio-grpc-java-storage";
   public static final String CLIENT_GCSIO_JSON = "gcsio-json";
   public static final String CLIENT_JAVA_GRPC = "java-grpc";
   public static final String CLIENT_JAVA_JSON = "java-json";
