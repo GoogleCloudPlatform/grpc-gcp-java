@@ -21,12 +21,14 @@ import com.google.storage.v2.WriteObjectSpec;
 import io.grpc.Grpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
 import io.grpc.alts.ComputeEngineChannelBuilder;
 import io.grpc.alts.GoogleDefaultChannelCredentials;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.stub.MetadataUtils;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,9 +61,17 @@ public class GrpcClient {
 
   private static final String SCOPE = "https://www.googleapis.com/auth/cloud-platform";
   private static final String V2_BUCKET_NAME_PREFIX = "projects/_/buckets/";
+  static final Metadata.Key<String> X_GOOG_REQUEST_PARAMS_KEY =
+      Metadata.Key.of("x-goog-request-params", Metadata.ASCII_STRING_MARSHALLER);
 
   private static String toV2BucketName(String v1BucketName) {
     return V2_BUCKET_NAME_PREFIX + v1BucketName;
+  }
+
+  private static Metadata addMetadataForBucketName(Metadata metadata, String v1BucketName) {
+    metadata.put(
+        X_GOOG_REQUEST_PARAMS_KEY, String.format("bucket=%s", toV2BucketName(v1BucketName)));
+    return metadata;
   }
 
   public GrpcClient(Args args) throws IOException {
@@ -150,13 +160,13 @@ public class GrpcClient {
       try {
         switch (args.method) {
           case METHOD_READ:
-            makeReadObjectRequest(channel, results, /*threadId=*/ 1);
+            makeReadObjectRequest(channel, results, /* threadId= */ 1);
             break;
           case METHOD_RANDOM:
-            makeRandomReadRequest(channel, results, /*threadId=*/ 1);
+            makeRandomReadRequest(channel, results, /* threadId= */ 1);
             break;
           case METHOD_WRITE:
-            makeInsertRequest(channel, results, /*threadId=*/ 1);
+            makeInsertRequest(channel, results, /* threadId= */ 1);
             break;
           default:
             logger.warning("Please provide valid methods with --method");
@@ -216,6 +226,11 @@ public class GrpcClient {
     if (creds != null) {
       blockingStub = blockingStub.withCallCredentials(MoreCallCredentials.from(creds));
     }
+    // Metadata for RLS
+    blockingStub =
+        blockingStub.withInterceptors(
+            MetadataUtils.newAttachHeadersInterceptor(
+                addMetadataForBucketName(new Metadata(), args.bkt)));
 
     byte[] scratch = new byte[4 * 1024 * 1024];
     for (int i = 0; i < args.calls; i++) {
@@ -243,7 +258,8 @@ public class GrpcClient {
         while (true) {
           ReadObjectResponse res = resIterator.next();
           // When zero-copy mashaller is used, the stream that backs ReadObjectResponse
-          // should be closed when the mssage is no longed needed so that all buffers in the
+          // should be closed when the mssage is no longed needed so that all buffers in
+          // the
           // stream can be reclaimed. If zero-copy is not used, stream will be null.
           InputStream stream = ReadObjectResponseMarshaller.popStream(res);
           try {
@@ -273,8 +289,13 @@ public class GrpcClient {
     if (creds != null) {
       blockingStub = blockingStub.withCallCredentials(MoreCallCredentials.from(creds));
     }
+    // Metadata for RLS
+    blockingStub =
+        blockingStub.withInterceptors(
+            MetadataUtils.newAttachHeadersInterceptor(
+                addMetadataForBucketName(new Metadata(), args.bkt)));
 
-    String object = objectResolver.Resolve(threadId, /*objectId=*/ 0);
+    String object = objectResolver.Resolve(threadId, /* objectId= */ 0);
     ReadObjectRequest.Builder reqBuilder =
         ReadObjectRequest.newBuilder().setBucket(toV2BucketName(args.bkt)).setObject(object);
     Random r = new Random();
@@ -305,6 +326,11 @@ public class GrpcClient {
     if (creds != null) {
       asyncStub = asyncStub.withCallCredentials(MoreCallCredentials.from(creds));
     }
+    // Metadata for RLS
+    asyncStub =
+        asyncStub.withInterceptors(
+            MetadataUtils.newAttachHeadersInterceptor(
+                addMetadataForBucketName(new Metadata(), args.bkt)));
 
     int totalBytes = args.size * 1024;
     byte[] data = new byte[totalBytes];
