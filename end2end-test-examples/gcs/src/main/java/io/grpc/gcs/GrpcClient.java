@@ -259,8 +259,7 @@ public class GrpcClient {
           ReadObjectResponse res = resIterator.next();
           // When zero-copy mashaller is used, the stream that backs ReadObjectResponse
           // should be closed when the mssage is no longed needed so that all buffers in
-          // the
-          // stream can be reclaimed. If zero-copy is not used, stream will be null.
+          // the stream can be reclaimed. If zero-copy is not used, stream will be null.
           InputStream stream = ReadObjectResponseMarshaller.popStream(res);
           try {
             // Just copy to scratch memory to ensure its data is consumed.
