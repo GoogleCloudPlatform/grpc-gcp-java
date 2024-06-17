@@ -1273,6 +1273,7 @@ public class GcpManagedChannel extends ManagedChannel {
       MethodDescriptor<ReqT, RespT> methodDescriptor, CallOptions callOptions) {
     if (callOptions.getOption(DISABLE_AFFINITY_KEY)
         || DISABLE_AFFINITY_CTX_KEY.get(Context.current())) {
+      logger.finest(log("Channel affinity is disabled via context or call options."));
       return new GcpClientCall.SimpleGcpClientCall<>(
           getChannelRef(null), methodDescriptor, callOptions);
     }
@@ -1291,10 +1292,15 @@ public class GcpManagedChannel extends ManagedChannel {
   private String keyFromOptsCtx(CallOptions callOptions) {
     String key = callOptions.getOption(AFFINITY_KEY);
     if (key != null) {
+      logger.finest(log("Affinity key \"%s\" set manually via call options.", key));
       return key;
     }
 
-    return AFFINITY_CTX_KEY.get(Context.current());
+    key = AFFINITY_CTX_KEY.get(Context.current());
+    if (key != null) {
+      logger.finest(log("Affinity key \"%s\" set manually via context.", key));
+    }
+    return key;
   }
 
   @Override
