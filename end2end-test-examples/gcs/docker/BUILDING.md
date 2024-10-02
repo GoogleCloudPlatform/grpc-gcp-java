@@ -9,9 +9,11 @@ Execute this command from the root directory of this repository.
 
 ```
 export IMAGE_NAME=us-docker.pkg.dev/grpc-testing/testing-images-public/grpc-gcp-java-gcs-benchmark
-export IMAGE_VERSION=20231103.0
+export IMAGE_VERSION=20241002.0
 docker build -t $IMAGE_NAME:$IMAGE_VERSION -f end2end-test-examples/gcs/docker/Dockerfile .
 docker push $IMAGE_NAME:$IMAGE_VERSION
+docker build -t $IMAGE_NAME:infrastructure-public-image-$IMAGE_VERSION -f end2end-test-examples/gcs/docker/Dockerfile .
+docker push $IMAGE_NAME:infrastructure-public-image-$IMAGE_VERSION
 ```
 
 #### Add latest label to the image (optional)
