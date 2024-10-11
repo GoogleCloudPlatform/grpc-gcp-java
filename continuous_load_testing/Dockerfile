@@ -1,0 +1,3 @@
+FROM eclipse-temurin
+COPY build/install/continuous_load_testing /app
+CMD /app/bin/continuous_load_testing
