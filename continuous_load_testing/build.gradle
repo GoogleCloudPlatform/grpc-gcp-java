@@ -61,7 +61,7 @@ sourceSets {
 
 application {
     // Define the main class for the application.
-    mainClass = 'com.google.net.directpath.continuous_load_testing.App'
+    mainClass = 'com.google.net.grpc.testing.directpath.continuous_load_testing.Client'
 }
 
 dependencies {
