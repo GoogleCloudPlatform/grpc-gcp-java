@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: client-java
+  name: client-java
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client-java
+  template:
+    metadata:
+      labels:
+        app: client-java
+    spec:
+      containers:
+      - imagePullPolicy: Always
+        name: client-java
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "256Mi"
+          limits:
+            cpu: "1"
+            memory: "1024Mi"
