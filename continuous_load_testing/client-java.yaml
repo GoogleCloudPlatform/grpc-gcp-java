@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - image: "us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java"
-      - imagePullPolicy: Always
+        imagePullPolicy: Always
         name: client-java
         resources:
           requests:
