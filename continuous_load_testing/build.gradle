@@ -69,6 +69,7 @@ dependencies {
     implementation "io.grpc:grpc-services:${grpcVersion}"
     implementation "io.grpc:grpc-stub:${grpcVersion}"
     implementation "io.grpc:grpc-xds:${grpcVersion}"
+    implementation "io.grpc:grpc-rls:${grpcVersion}"
     implementation "io.grpc:grpc-googleapis:${grpcVersion}"
     implementation "com.google.protobuf:protobuf-java:${protocVersion}"
     if (JavaVersion.current().isJava9Compatible()) {
