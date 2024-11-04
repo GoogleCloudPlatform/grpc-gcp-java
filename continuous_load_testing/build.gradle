@@ -12,7 +12,7 @@ plugins {
     id "com.google.protobuf" version "0.9.4"
 }
 
-def grpcVersion = '1.66.0'
+def grpcVersion = '1.68.1'
 def protocVersion = '3.25.3'
 
 protobuf {
