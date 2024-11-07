@@ -14,26 +14,69 @@ import io.grpc.testing.integration.TestServiceGrpc;
 import io.grpc.testing.integration.TestServiceGrpc.TestServiceBlockingStub;
 import io.grpc.testing.integration.TestServiceGrpc.TestServiceStub;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
 public class Client {
 
+  private enum Method {
+    EmptyCall, UnaryCall, StreamingInputCall, StreamingOutputCall, FullDuplexCall, HalfDuplexCall
+  }
+
   private static Logger logger = Logger.getLogger(Client.class.getName());
   private static String BACKEND = "google-c2p:///directpathgrpctesting-pa.googleapis.com";
+  private static Set<Method> methods = new HashSet<>(Arrays.asList(Method.values()));
+  private static int concurrency = 1;
+  private static int num_of_requests = 10;
 
   public static void main(String[] args) {
     initializeLogManager();
+    parseArgs(args);
 
     ManagedChannelBuilder builder = ManagedChannelBuilder.forTarget(BACKEND);
     TestServiceStub stub = TestServiceGrpc.newStub(builder.build());
-    // TODO(fengli): Make it configurable.
-    ExecuteEmptyCalls(stub);
-    ExecuteUnaryCalls(stub);
-    ExecuteStreamingInputCalls(stub);
-    ExecuteStreamingOutputCalls(stub);
-    ExecuteFullDuplexCalls(stub);
-    ExecuteHalfDuplexCalls(stub);
+
+    if (methods.contains(Method.EmptyCall)) {
+      ExecuteEmptyCalls(stub);
+    }
+    if (methods.contains(Method.UnaryCall)) {
+      ExecuteUnaryCalls(stub);
+    }
+    if (methods.contains(Method.StreamingInputCall)) {
+      ExecuteStreamingInputCalls(stub);
+    }
+    if (methods.contains(Method.StreamingOutputCall)) {
+      ExecuteStreamingOutputCalls(stub);
+    }
+    if (methods.contains(Method.FullDuplexCall)) {
+      ExecuteFullDuplexCalls(stub);
+    }
+    if (methods.contains(Method.HalfDuplexCall)) {
+      ExecuteHalfDuplexCalls(stub);
+    }
+  }
+
+  private static void parseArgs(String[] args) {
+    for (String arg : args) {
+      if (arg.startsWith("--methods=")) {
+        methods.clear();
+        String[] methodsInArgs = arg.substring("--methods=".length()).split(",");
+        for (String methodInArgs : methodsInArgs) {
+          methods.add(Method.valueOf(methodInArgs));
+        }
+      }
+      if (arg.startsWith("--concurrency=")) {
+        concurrency = Integer.parseInt(arg.substring("--concurrency".length()));
+      }
+      if (arg.startsWith("--num_of_requests=")) {
+        num_of_requests = Integer.parseInt(arg.substring("--num_of_requests".length()));
+      }
+    }
   }
 
   private static void ExecuteEmptyCalls(TestServiceStub stub) {
@@ -79,13 +122,15 @@ public class Client {
         stub.unaryCall(request, this);
       }
     };
-    Thread t = new Thread(new Runnable() {
-      @Override
-      public void run() {
-        stub.unaryCall(request, observer);
-      }
-    });
-    t.start();
+    for (int i = 0; i < concurrency; i++) {
+      Thread t = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          stub.unaryCall(request, observer);
+        }
+      });
+      t.start();
+    }
   }
 
   private static void ExecuteStreamingInputCalls(TestServiceStub stub) {
@@ -99,8 +144,7 @@ public class Client {
       public void onError(Throwable t) {
         StreamObserver<StreamingInputCallRequest> requestObserver = stub.streamingInputCall(
             this);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < num_of_requests; i++) {
           requestObserver.onNext(request);
         }
       }
@@ -109,24 +153,24 @@ public class Client {
       public void onCompleted() {
         StreamObserver<StreamingInputCallRequest> requestObserver = stub.streamingInputCall(
             this);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < num_of_requests; i++) {
           requestObserver.onNext(request);
         }
       }
     };
-    Thread t = new Thread(new Runnable() {
-      @Override
-      public void run() {
-        StreamObserver<StreamingInputCallRequest> requestObserver = stub.streamingInputCall(
-            responseObserver);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
-          requestObserver.onNext(request);
+    for (int i = 0; i < concurrency; i++) {
+      Thread t = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          StreamObserver<StreamingInputCallRequest> requestObserver = stub.streamingInputCall(
+              responseObserver);
+          for (int i = 0; i < num_of_requests; i++) {
+            requestObserver.onNext(request);
+          }
         }
-      }
-    });
-    t.start();
+      });
+      t.start();
+    }
   }
 
   private static void ExecuteStreamingOutputCalls(TestServiceStub stub) {
@@ -146,13 +190,15 @@ public class Client {
         stub.streamingOutputCall(request, this);
       }
     };
-    Thread t = new Thread(new Runnable() {
-      @Override
-      public void run() {
-        stub.streamingOutputCall(request, responseObserver);
-      }
-    });
-    t.start();
+    for (int i = 0; i < concurrency; i++) {
+      Thread t = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          stub.streamingOutputCall(request, responseObserver);
+        }
+      });
+      t.start();
+    }
   }
 
   private static void ExecuteFullDuplexCalls(TestServiceStub stub) {
@@ -166,8 +212,7 @@ public class Client {
       public void onError(Throwable t) {
         StreamObserver<StreamingOutputCallRequest> requestObserver = stub.fullDuplexCall(
             this);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < num_of_requests; i++) {
           requestObserver.onNext(request);
         }
       }
@@ -176,24 +221,24 @@ public class Client {
       public void onCompleted() {
         StreamObserver<StreamingOutputCallRequest> requestObserver = stub.fullDuplexCall(
             this);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < num_of_requests; i++) {
           requestObserver.onNext(request);
         }
       }
     };
-    Thread t = new Thread(new Runnable() {
-      @Override
-      public void run() {
-        StreamObserver<StreamingOutputCallRequest> requestObserver = stub.fullDuplexCall(
-            responseObserver);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
-          requestObserver.onNext(request);
+    for (int i = 0; i < concurrency; i++) {
+      Thread t = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          StreamObserver<StreamingOutputCallRequest> requestObserver = stub.fullDuplexCall(
+              responseObserver);
+          for (int i = 0; i < num_of_requests; i++) {
+            requestObserver.onNext(request);
+          }
         }
-      }
-    });
-    t.start();
+      });
+      t.start();
+    }
   }
 
   private static void ExecuteHalfDuplexCalls(TestServiceStub stub) {
@@ -207,8 +252,7 @@ public class Client {
       public void onError(Throwable t) {
         StreamObserver<StreamingOutputCallRequest> requestObserver = stub.halfDuplexCall(
             this);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < num_of_requests; i++) {
           requestObserver.onNext(request);
         }
       }
@@ -217,26 +261,26 @@ public class Client {
       public void onCompleted() {
         StreamObserver<StreamingOutputCallRequest> requestObserver = stub.halfDuplexCall(
             this);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < num_of_requests; i++) {
           requestObserver.onNext(request);
         }
         requestObserver.onCompleted();
       }
     };
-    Thread t = new Thread(new Runnable() {
-      @Override
-      public void run() {
-        StreamObserver<StreamingOutputCallRequest> requestObserver = stub.halfDuplexCall(
-            responseObserver);
-        // TODO(fengli): Make it configurable
-        for (int i = 0; i < 10; i++) {
-          requestObserver.onNext(request);
+    for (int i = 0; i < concurrency; i++) {
+      Thread t = new Thread(new Runnable() {
+        @Override
+        public void run() {
+          StreamObserver<StreamingOutputCallRequest> requestObserver = stub.halfDuplexCall(
+              responseObserver);
+          for (int i = 0; i < num_of_requests; i++) {
+            requestObserver.onNext(request);
+          }
+          requestObserver.onCompleted();
         }
-        requestObserver.onCompleted();
-      }
-    });
-    t.start();
+      });
+      t.start();
+    }
   }
 
   private static void initializeLogManager() {
