@@ -779,8 +779,7 @@ public class GcpManagedChannel extends ManagedChannel {
   private LongSummaryStatistics calcStatsAndLog(String logLabel, ToLongFunction<ChannelRef> func) {
     StringBuilder str = new StringBuilder(logLabel + ": [");
     final LongSummaryStatistics stats =
-        channelRefs
-            .stream()
+        channelRefs.stream()
             .mapToLong(
                 ch -> {
                   long count = func.applyAsLong(ch);
