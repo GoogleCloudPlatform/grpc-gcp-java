@@ -24,7 +24,7 @@ def title = 'gRPC extension library for Google Cloud Platform'
 def grpcVersion = '1.59.1'
 def protobufVersion = '3.20.3'
 def protocVersion = '3.20.3'
-def spannerVersion = '6.1.0'
+def spannerVersion = '6.81.0'
 def opencensusVersion = '0.28.3'
 def opentelemetryVersion = '1.41.0'
 
