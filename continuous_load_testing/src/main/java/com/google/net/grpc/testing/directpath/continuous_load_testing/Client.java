@@ -56,9 +56,11 @@ public class Client {
     if (methods.contains(Method.HalfDuplexCall)) {
       ExecuteHalfDuplexCalls(stub);
     }
-    while(true) {
-      if (Thread.interrupted()) {
-        return;
+    while (true) {
+      try {
+        Thread.sleep(1000);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
       }
     }
   }
