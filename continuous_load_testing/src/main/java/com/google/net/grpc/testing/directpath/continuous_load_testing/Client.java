@@ -11,13 +11,10 @@ import io.grpc.testing.integration.Messages.StreamingInputCallResponse;
 import io.grpc.testing.integration.Messages.StreamingOutputCallRequest;
 import io.grpc.testing.integration.Messages.StreamingOutputCallResponse;
 import io.grpc.testing.integration.TestServiceGrpc;
-import io.grpc.testing.integration.TestServiceGrpc.TestServiceBlockingStub;
 import io.grpc.testing.integration.TestServiceGrpc.TestServiceStub;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -58,6 +55,11 @@ public class Client {
     }
     if (methods.contains(Method.HalfDuplexCall)) {
       ExecuteHalfDuplexCalls(stub);
+    }
+    while(true) {
+      if (Thread.interrupted()) {
+        return;
+      }
     }
   }
 
