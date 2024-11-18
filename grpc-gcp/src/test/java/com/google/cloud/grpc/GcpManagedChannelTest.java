@@ -37,10 +37,14 @@ import com.google.spanner.v1.PartitionReadRequest;
 import com.google.spanner.v1.TransactionSelector;
 import io.grpc.CallOptions;
 import io.grpc.ClientCall;
+import io.grpc.ClientInterceptor;
+import io.grpc.CompressorRegistry;
 import io.grpc.ConnectivityState;
+import io.grpc.DecompressorRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.MethodDescriptor;
+import io.grpc.NameResolver.Factory;
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.opencensus.metrics.LabelKey;
@@ -54,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -289,7 +294,7 @@ public final class GcpManagedChannelTest {
     resetGcpChannel();
     for (int i = 0; i < 5; i++) {
       ManagedChannel channel = builder.build();
-      gcpChannel.channelRefs.add(gcpChannel.new ChannelRef(channel, i, i, MAX_STREAM));
+      gcpChannel.channelRefs.add(gcpChannel.new ChannelRef(channel, i, MAX_STREAM));
     }
     assertEquals(5, gcpChannel.channelRefs.size());
     assertEquals(0, gcpChannel.getChannelRef(null).getAffinityCount());
@@ -299,7 +304,7 @@ public final class GcpManagedChannelTest {
     int[] streams = new int[] {-1, 5, 7, 1};
     for (int i = 6; i < 10; i++) {
       ManagedChannel channel = builder.build();
-      gcpChannel.channelRefs.add(gcpChannel.new ChannelRef(channel, i, i, streams[i - 6]));
+      gcpChannel.channelRefs.add(gcpChannel.new ChannelRef(channel, i, streams[i - 6]));
     }
     assertEquals(10, gcpChannel.channelRefs.size());
     assertEquals(6, gcpChannel.getChannelRef(null).getAffinityCount());
@@ -515,7 +520,7 @@ public final class GcpManagedChannelTest {
     resetGcpChannel();
     for (int i = 0; i < MAX_CHANNEL; i++) {
       ManagedChannel channel = builder.build();
-      gcpChannel.channelRefs.add(gcpChannel.new ChannelRef(channel, i, i, MAX_STREAM));
+      gcpChannel.channelRefs.add(gcpChannel.new ChannelRef(channel, i, MAX_STREAM));
     }
     assertEquals(MAX_CHANNEL, gcpChannel.channelRefs.size());
     assertEquals(MAX_STREAM, gcpChannel.getChannelRef(null).getActiveStreamsCount());
@@ -531,8 +536,9 @@ public final class GcpManagedChannelTest {
     final String poolIndex = String.format("pool-%d", currentIndex);
 
     // Initialize the channel and bind the key, check the affinity count.
-    ChannelRef cf1 = gcpChannel.new ChannelRef(builder.build(), 1, 0, 5);
-    ChannelRef cf2 = gcpChannel.new ChannelRef(builder.build(), 2, 0, 4);
+    gcpChannel.nextChannelId.set(1);
+    ChannelRef cf1 = gcpChannel.new ChannelRef(builder.build(), 0, 5);
+    ChannelRef cf2 = gcpChannel.new ChannelRef(builder.build(), 0, 4);
     gcpChannel.channelRefs.add(cf1);
     gcpChannel.channelRefs.add(cf2);
 
@@ -589,8 +595,9 @@ public final class GcpManagedChannelTest {
   @Test
   public void testUsingKeyWithoutBinding() {
     // Initialize the channel and bind the key, check the affinity count.
-    ChannelRef cf1 = gcpChannel.new ChannelRef(builder.build(), 1, 0, 5);
-    ChannelRef cf2 = gcpChannel.new ChannelRef(builder.build(), 2, 0, 4);
+    gcpChannel.nextChannelId.set(1);
+    ChannelRef cf1 = gcpChannel.new ChannelRef(builder.build(), 0, 5);
+    ChannelRef cf2 = gcpChannel.new ChannelRef(builder.build(), 0, 4);
     gcpChannel.channelRefs.add(cf1);
     gcpChannel.channelRefs.add(cf2);
 
@@ -779,13 +786,35 @@ public final class GcpManagedChannelTest {
       }
 
       MetricsRecord record = fakeRegistry.pollRecord();
-      assertThat(record.getMetrics().size()).isEqualTo(25);
+      assertThat(record.getMetrics().size()).isEqualTo(28);
 
       // Initial log messages count.
       int logCount = logRecords.size();
 
-      List<PointWithFunction<?>> numChannels =
+      List<PointWithFunction<?>> minChannels =
+          record.getMetrics().get(prefix + GcpMetricsConstants.METRIC_MIN_CHANNELS);
+      assertThat(minChannels.size()).isEqualTo(1);
+      assertThat(minChannels.get(0).value()).isEqualTo(0L);
+      assertThat(minChannels.get(0).keys()).isEqualTo(expectedLabelKeys);
+      assertThat(minChannels.get(0).values()).isEqualTo(expectedLabelValues);
+      assertThat(logRecords.size()).isEqualTo(++logCount);
+      assertThat(lastLogLevel()).isEqualTo(Level.FINE);
+      assertThat(lastLogMessage())
+          .isEqualTo(poolIndex + ": stat: " + GcpMetricsConstants.METRIC_MIN_CHANNELS + " = 0");
+
+      List<PointWithFunction<?>> maxChannels =
           record.getMetrics().get(prefix + GcpMetricsConstants.METRIC_MAX_CHANNELS);
+      assertThat(maxChannels.size()).isEqualTo(1);
+      assertThat(maxChannels.get(0).value()).isEqualTo(5L);
+      assertThat(maxChannels.get(0).keys()).isEqualTo(expectedLabelKeys);
+      assertThat(maxChannels.get(0).values()).isEqualTo(expectedLabelValues);
+      assertThat(logRecords.size()).isEqualTo(++logCount);
+      assertThat(lastLogLevel()).isEqualTo(Level.FINE);
+      assertThat(lastLogMessage())
+          .isEqualTo(poolIndex + ": stat: " + GcpMetricsConstants.METRIC_MAX_CHANNELS + " = 5");
+
+      List<PointWithFunction<?>> numChannels =
+          record.getMetrics().get(prefix + GcpMetricsConstants.METRIC_NUM_CHANNELS);
       assertThat(numChannels.size()).isEqualTo(1);
       assertThat(numChannels.get(0).value()).isEqualTo(5L);
       assertThat(numChannels.get(0).keys()).isEqualTo(expectedLabelKeys);
@@ -793,7 +822,7 @@ public final class GcpManagedChannelTest {
       assertThat(logRecords.size()).isEqualTo(++logCount);
       assertThat(lastLogLevel()).isEqualTo(Level.FINE);
       assertThat(lastLogMessage())
-          .isEqualTo(poolIndex + ": stat: " + GcpMetricsConstants.METRIC_MAX_CHANNELS + " = 5");
+          .isEqualTo(poolIndex + ": stat: " + GcpMetricsConstants.METRIC_NUM_CHANNELS + " = 5");
 
       List<PointWithFunction<?>> maxAllowedChannels =
           record.getMetrics().get(prefix + GcpMetricsConstants.METRIC_MAX_ALLOWED_CHANNELS);
@@ -857,9 +886,21 @@ public final class GcpManagedChannelTest {
     // Watch debug messages.
     testLogger.setLevel(Level.FINE);
 
+    int[] streams = new int[] {3, 2, 5, 7, 1};
+    int[] keyCount = new int[] {2, 3, 1, 1, 4};
+    int[] okCalls = new int[] {2, 2, 8, 2, 3};
+    int[] errCalls = new int[] {1, 1, 2, 2, 1};
+    List<FakeManagedChannel> channels = new ArrayList<>();
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
+
+    for (int i = 0; i < streams.length; i++) {
+      FakeManagedChannel channel = new FakeManagedChannel(executorService);
+      channels.add(channel);
+    }
+
     final GcpManagedChannel pool =
         (GcpManagedChannel)
-            GcpManagedChannelBuilder.forDelegateBuilder(builder)
+            GcpManagedChannelBuilder.forDelegateBuilder(new FakeManagedChannelBuilder(channels))
                 .withOptions(
                     GcpManagedChannelOptions.newBuilder()
                         .withChannelPoolOptions(
@@ -877,24 +918,15 @@ public final class GcpManagedChannelTest {
                         .build())
                 .build();
 
-    ExecutorService executorService = Executors.newSingleThreadExecutor();
     try {
       final int currentIndex = GcpManagedChannel.channelPoolIndex.get();
       final String poolIndex = String.format("pool-%d", currentIndex);
 
-      int[] streams = new int[] {3, 2, 5, 7, 1};
-      int[] keyCount = new int[] {2, 3, 1, 1, 4};
-      int[] okCalls = new int[] {2, 2, 8, 2, 3};
-      int[] errCalls = new int[] {1, 1, 2, 2, 1};
-      List<FakeManagedChannel> channels = new ArrayList<>();
       for (int i = 0; i < streams.length; i++) {
-        FakeManagedChannel channel = new FakeManagedChannel(executorService);
-        channels.add(channel);
-        ChannelRef ref = pool.new ChannelRef(channel, i);
-        pool.channelRefs.add(ref);
+        ChannelRef ref = pool.createNewChannel();
 
         // Simulate channel connecting.
-        channel.setState(ConnectivityState.CONNECTING);
+        channels.get(i).setState(ConnectivityState.CONNECTING);
         TimeUnit.MILLISECONDS.sleep(10);
 
         // For the last one...
@@ -929,7 +961,7 @@ public final class GcpManagedChannelTest {
           ref.activeStreamsCountDecr(startNanos, deStatus, false);
         }
 
-        channel.setState(ConnectivityState.READY);
+        channels.get(i).setState(ConnectivityState.READY);
 
         for (int j = 0; j < streams[i]; j++) {
           ref.activeStreamsCountIncr();
@@ -961,16 +993,18 @@ public final class GcpManagedChannelTest {
 
       assertThat(messages).contains(poolIndex + ": Active streams counts: [3, 2, 5, 7, 1]");
       assertThat(messages).contains(poolIndex + ": Affinity counts: [2, 3, 1, 1, 4]");
+      assertThat(messages).contains(poolIndex + ": Removed channels active streams counts: []");
 
       assertThat(messages).contains(poolIndex + ": stat: min_ready_channels = 0");
       assertThat(messages).contains(poolIndex + ": stat: max_ready_channels = 4");
+      assertThat(messages).contains(poolIndex + ": stat: min_channels = 0");
       assertThat(messages).contains(poolIndex + ": stat: max_channels = 5");
       assertThat(messages).contains(poolIndex + ": stat: max_allowed_channels = 5");
+      assertThat(messages).contains(poolIndex + ": stat: num_channels = 5");
       assertThat(messages).contains(poolIndex + ": stat: num_channel_disconnect = 4");
       assertThat(messages).contains(poolIndex + ": stat: num_channel_connect = 5");
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -978,8 +1012,7 @@ public final class GcpManagedChannelTest {
                   .count())
           .isEqualTo(1);
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -987,8 +1020,7 @@ public final class GcpManagedChannelTest {
                   .count())
           .isEqualTo(1);
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -1014,8 +1046,7 @@ public final class GcpManagedChannelTest {
       assertThat(messages).contains(poolIndex + ": stat: num_fallbacks_fail = 1");
       assertThat(messages).contains(poolIndex + ": stat: num_unresponsive_detections = 2");
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -1024,8 +1055,7 @@ public final class GcpManagedChannelTest {
                   .count())
           .isEqualTo(1);
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -1035,8 +1065,10 @@ public final class GcpManagedChannelTest {
           .isEqualTo(1);
       assertThat(messages).contains(poolIndex + ": stat: min_unresponsive_dropped_calls = 2");
       assertThat(messages).contains(poolIndex + ": stat: max_unresponsive_dropped_calls = 3");
+      assertThat(messages).contains(poolIndex + ": stat: channel_pool_scaling_up = 0");
+      assertThat(messages).contains(poolIndex + ": stat: channel_pool_scaling_down = 0");
 
-      assertThat(logRecords.size()).isEqualTo(34);
+      assertThat(logRecords.size()).isEqualTo(39);
       logRecords.forEach(
           logRecord ->
               assertThat(logRecord.getLevel()).named(logRecord.getMessage()).isEqualTo(Level.FINE));
@@ -1051,11 +1083,14 @@ public final class GcpManagedChannelTest {
 
       assertThat(messages).contains(poolIndex + ": Active streams counts: [3, 2, 5, 7, 1]");
       assertThat(messages).contains(poolIndex + ": Affinity counts: [2, 3, 1, 1, 4]");
+      assertThat(messages).contains(poolIndex + ": Removed channels active streams counts: []");
 
       assertThat(messages).contains(poolIndex + ": stat: min_ready_channels = 1");
       assertThat(messages).contains(poolIndex + ": stat: max_ready_channels = 1");
+      assertThat(messages).contains(poolIndex + ": stat: min_channels = 5");
       assertThat(messages).contains(poolIndex + ": stat: max_channels = 5");
       assertThat(messages).contains(poolIndex + ": stat: max_allowed_channels = 5");
+      assertThat(messages).contains(poolIndex + ": stat: num_channels = 5");
       assertThat(messages).contains(poolIndex + ": stat: num_channel_disconnect = 0");
       assertThat(messages).contains(poolIndex + ": stat: num_channel_connect = 0");
       assertThat(messages).contains(poolIndex + ": stat: min_channel_readiness_time = 0");
@@ -1083,8 +1118,10 @@ public final class GcpManagedChannelTest {
       assertThat(messages).contains(poolIndex + ": stat: max_unresponsive_detection_time = 0");
       assertThat(messages).contains(poolIndex + ": stat: min_unresponsive_dropped_calls = 0");
       assertThat(messages).contains(poolIndex + ": stat: max_unresponsive_dropped_calls = 0");
+      assertThat(messages).contains(poolIndex + ": stat: channel_pool_scaling_up = 0");
+      assertThat(messages).contains(poolIndex + ": stat: channel_pool_scaling_down = 0");
 
-      assertThat(logRecords.size()).isEqualTo(34);
+      assertThat(logRecords.size()).isEqualTo(39);
 
     } finally {
       pool.shutdownNow();
@@ -1115,7 +1152,7 @@ public final class GcpManagedChannelTest {
     String poolIndex = String.format("pool-%d", currentIndex);
     final AtomicInteger idleCounter = new AtomicInteger();
     ManagedChannel channel = new FakeIdleCountingManagedChannel(idleCounter);
-    ChannelRef chRef = pool.new ChannelRef(channel, 0);
+    ChannelRef chRef = pool.new ChannelRef(channel);
     assertEquals(0, idleCounter.get());
 
     TimeUnit.MILLISECONDS.sleep(105);
@@ -1337,7 +1374,7 @@ public final class GcpManagedChannelTest {
 
     // Pre-populate with a fake channel to control state changes.
     FakeManagedChannel channel = new FakeManagedChannel(grpcExecutor);
-    ChannelRef ref = pool.new ChannelRef(channel, 0);
+    ChannelRef ref = pool.new ChannelRef(channel);
     pool.channelRefs.add(ref);
 
     // Always re-subscribe for notification to have constant callbacks flowing.
@@ -1511,6 +1548,70 @@ public final class GcpManagedChannelTest {
     pool.unbind(Collections.singletonList(expKey));
     assertThat(pool.affinityKeyLastUsed.size()).isEqualTo(1);
     assertThat(pool.affinityKeyLastUsed.get(expKey)).isNull();
+  }
+
+  static class FakeManagedChannelBuilder extends ManagedChannelBuilder<FakeManagedChannelBuilder> {
+    private final List<? extends ManagedChannel> channels;
+    private final AtomicInteger next = new AtomicInteger();
+
+    FakeManagedChannelBuilder(List<? extends ManagedChannel> channels) {
+      this.channels = channels;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder directExecutor() {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder executor(Executor executor) {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder intercept(List<ClientInterceptor> interceptors) {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder intercept(ClientInterceptor... interceptors) {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder userAgent(String userAgent) {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder overrideAuthority(String authority) {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder nameResolverFactory(Factory resolverFactory) {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder decompressorRegistry(DecompressorRegistry registry) {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder compressorRegistry(CompressorRegistry registry) {
+      return this;
+    }
+
+    @Override
+    public FakeManagedChannelBuilder idleTimeout(long value, TimeUnit unit) {
+      return this;
+    }
+
+    @Override
+    public ManagedChannel build() {
+      return channels.get(next.getAndIncrement());
+    }
   }
 
   static class FakeManagedChannel extends ManagedChannel {
