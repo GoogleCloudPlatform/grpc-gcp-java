@@ -1,7 +1,10 @@
 package com.google.net.grpc.testing.directpath.continuous_load_testing;
 
 
+import io.grpc.ChannelCredentials;
+import io.grpc.Grpc;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.alts.GoogleDefaultChannelCredentials;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.integration.EmptyProtos.Empty;
 import io.grpc.testing.integration.Messages.SimpleRequest;
@@ -35,7 +38,8 @@ public class Client {
     initializeLogManager();
     parseArgs(args);
 
-    ManagedChannelBuilder builder = ManagedChannelBuilder.forTarget(BACKEND);
+    ChannelCredentials credentials = GoogleDefaultChannelCredentials.create();
+    ManagedChannelBuilder builder = Grpc.newChannelBuilder(BACKEND, credentials);
     TestServiceStub stub = TestServiceGrpc.newStub(builder.build());
 
     if (methods.contains(Method.EmptyCall)) {
