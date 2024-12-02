@@ -56,8 +56,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -65,10 +68,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -1550,12 +1556,209 @@ public final class GcpManagedChannelTest {
     assertThat(pool.affinityKeyLastUsed.get(expKey)).isNull();
   }
 
+  @Test
+  public void testDynamicChannelPool() throws InterruptedException {
+
+    final int minSize = 2;
+    final int maxSize = 4;
+    final int minRpcPerChannel = 2;
+    final int maxRpcPerChannel = 5;
+    final Duration scaleDownInterval = Duration.ofMillis(50);
+    final ExecutorService executorService = Executors.newSingleThreadExecutor();
+
+    FakeManagedChannelBuilder fmcb = new FakeManagedChannelBuilder(() -> new FakeManagedChannel(executorService));
+
+    // Creating a pool with dynamic sizing.
+    final GcpManagedChannel pool =
+        (GcpManagedChannel)
+            GcpManagedChannelBuilder.forDelegateBuilder(fmcb)
+                .withOptions(
+                    GcpManagedChannelOptions.newBuilder()
+                        .withChannelPoolOptions(
+                            GcpChannelPoolOptions.newBuilder()
+                                .setMinSize(minSize)
+                                .setMaxSize(maxSize)
+                                .setDynamicScaling(minRpcPerChannel, maxRpcPerChannel, scaleDownInterval)
+                                .build())
+                        .build())
+                .build();
+
+    // Starts with minSize.
+    assertThat(pool.getNumberOfChannels()).isEqualTo(minSize);
+
+    // Mark connected in random order.
+    List<ChannelRef> shuffled = new ArrayList<>(pool.channelRefs);
+    Collections.shuffle(shuffled);
+    for (ChannelRef channelRef : shuffled) {
+      ((FakeManagedChannel) channelRef.getChannel()).setState(ConnectivityState.READY);
+    }
+
+    long startTime = System.nanoTime();
+
+    // Simulate starting 10 calls which should be within the limit (2 channels x 5 maxRpcPerChannel).
+    for (int i = 0; i < minSize*maxRpcPerChannel; i++) {
+      pool.getChannelRef(null).activeStreamsCountIncr();
+    }
+
+    // As we are still within threshold of maxRpcPerChannel the pool must not scale yet.
+    assertThat(pool.getNumberOfChannels()).isEqualTo(minSize);
+
+    // Adding 11th call should trigger scaling up immediately.
+    pool.getChannelRef(null).activeStreamsCountIncr();
+    assertThat(pool.getNumberOfChannels()).isEqualTo(minSize+1);
+
+    // Mark newly created channel connected.
+    ((FakeManagedChannel) pool.channelRefs.get(minSize).getChannel()).setState(ConnectivityState.READY);
+
+    // Continue adding calls to verify the pool respects the maxSize value.
+    for (int i = 0; i < maxSize*maxRpcPerChannel-minSize*maxRpcPerChannel; i++) {
+      pool.getChannelRef(null).activeStreamsCountIncr();
+    }
+
+    // Now we have 21 calls in-flight which should bring us to 5 channels because
+    // of maxRpcPerChannel is 5, but the max size of the pool is 4, so there should be 4 channels.
+    assertThat(pool.getNumberOfChannels()).isEqualTo(maxSize);
+
+    // Threshold for scaling down is minRpcPerChannel * number of channels. 2 * 3 in our case.
+    // Going down 21 -> 7.
+    for (ChannelRef channelRef : pool.channelRefs) {
+      for (int i = 0; i < maxRpcPerChannel-minRpcPerChannel; i++) {
+        channelRef.activeStreamsCountDecr(startTime, Status.OK, false);
+      }
+    }
+    for (int i = 0; i < minRpcPerChannel; i++) {
+      pool.channelRefs.get(i).activeStreamsCountDecr(startTime, Status.OK, false);
+    }
+
+    // Should not downscale yet.
+    assertThat(pool.getNumberOfChannels()).isEqualTo(maxSize);
+
+    // Should not downscale even after scale down check is passed.
+    TimeUnit.MILLISECONDS.sleep(2 * scaleDownInterval.toMillis());
+    assertThat(pool.getNumberOfChannels()).isEqualTo(maxSize);
+    
+    // Set all except last channel ready.
+    for (int i = 0; i < pool.getNumberOfChannels(); i++) {
+      if (i == pool.getNumberOfChannels() - 1) {
+        continue;
+      }
+      ((FakeManagedChannel) pool.channelRefs.get(i).getChannel()).setState(ConnectivityState.READY);
+    }
+
+    // Remember not connected channel or oldest connected channel. In our case the last one (not connected yet).
+    final ChannelRef disconnectedRef = pool.channelRefs.stream().min(Comparator.comparing(
+        (GcpManagedChannel.ChannelRef chRef) -> chRef.getConnectedSinceNanos())).get();
+
+    // Removing one more stream should trigger scale down after the interval.
+    pool.channelRefs.get(0).activeStreamsCountDecr(startTime, Status.OK, false);
+    TimeUnit.MILLISECONDS.sleep(2 * scaleDownInterval.toMillis());
+    assertThat(pool.getNumberOfChannels()).isEqualTo(maxSize - 1);
+
+    // Make sure the oldest connected channel is removed.
+    assertThat(pool.channelRefs.stream().anyMatch((chRef) -> (chRef == disconnectedRef))).isFalse();
+
+    Set<ChannelRef> prevChannels = new HashSet<>(pool.channelRefs);
+
+    // Scale up again to make sure not connected channels are not reused.
+    for (int i = 0; i < 2 * maxRpcPerChannel + disconnectedRef.getActiveStreamsCount(); i++) {
+      pool.getChannelRef(null).activeStreamsCountIncr();
+    }
+
+    assertThat(pool.getNumberOfChannels()).isEqualTo(maxSize);
+
+    // Find newly created channel.
+    ChannelRef newChannel = pool.channelRefs.stream().dropWhile(chRef -> prevChannels.contains(chRef)).findFirst().get();
+    // Mark ready.
+    ((FakeManagedChannel) newChannel.getChannel()).setState(ConnectivityState.READY);
+
+    // Make sure disconnectedRef is not reused.
+    assertThat(newChannel == disconnectedRef).isFalse();
+
+    // Make sure previously removed channel is not shutted down as it still has a couple of calls.
+    assertThat(disconnectedRef.getState()).isNotEqualTo(ConnectivityState.SHUTDOWN);
+
+    // Cancel the calls and make sure the channel shutdown.
+    while (disconnectedRef.getActiveStreamsCount() > 0) {
+      disconnectedRef.activeStreamsCountDecr(startTime, Status.CANCELLED, true);
+    }
+    TimeUnit.MILLISECONDS.sleep(2 * scaleDownInterval.toMillis());
+    assertThat(disconnectedRef.getChannel().getState(false)).isEqualTo(ConnectivityState.SHUTDOWN);
+
+    // Find the oldest connected channel.
+    ChannelRef oldestConnected = pool.channelRefs.stream().sorted(Comparator.comparing(
+      (GcpManagedChannel.ChannelRef chRef) -> chRef.getConnectedSinceNanos())).findFirst().get();
+    // Remember its streams count.
+    int oldestStreamsCount = oldestConnected.getActiveStreamsCount();
+
+    // Scale down. Desired state: minRpcPerChannel on every channel, then closing minRpcPerChannel streams cycling through channels.
+    for (ChannelRef channelRef : pool.channelRefs) {
+      while (channelRef.getActiveStreamsCount() != minRpcPerChannel) {
+        if (channelRef.getActiveStreamsCount() > minRpcPerChannel) {
+          channelRef.activeStreamsCountDecr(startTime, Status.OK, false);
+        } else {
+          channelRef.activeStreamsCountIncr();
+        }
+      }
+    }
+    for (int i = 0; i < minRpcPerChannel; i++) {
+      pool.channelRefs.get(i).activeStreamsCountDecr(startTime, Status.OK, false);
+    }
+    TimeUnit.MILLISECONDS.sleep(2 * scaleDownInterval.toMillis());
+    assertThat(pool.getNumberOfChannels()).isEqualTo(maxSize - 1);
+
+    // Make sure it is removed.
+    assertThat(pool.channelRefs.stream().anyMatch(chRef -> chRef == oldestConnected)).isFalse();
+
+    // The active streams should still be there.
+    assertThat(oldestConnected.getActiveStreamsCount()).isEqualTo(oldestStreamsCount);
+
+    // The removed oldest connected channel must still be ready.
+    assertThat(oldestConnected.getState()).isEqualTo(ConnectivityState.READY);
+
+    // Scale up.
+    for (int i = 0; i < 2 * maxRpcPerChannel + oldestConnected.getActiveStreamsCount(); i++) {
+      pool.getChannelRef(null).activeStreamsCountIncr();
+    }
+    assertThat(pool.getNumberOfChannels()).isEqualTo(maxSize);
+
+    // Make sure it is reused.
+    assertThat(pool.channelRefs.stream().anyMatch(chRef -> chRef == oldestConnected)).isTrue();
+
+    // Remember maxSize-minSize oldest connected channels.
+    List<ChannelRef> oldestConnectedChannels = pool.channelRefs.stream().sorted(Comparator.comparing(
+      (GcpManagedChannel.ChannelRef chRef) -> chRef.getConnectedSinceNanos())).collect(Collectors.toList()).subList(0, maxSize-minSize);
+
+    // Remove all streams so that channel pool downscales to minSize.
+    for (ChannelRef channelRef : pool.channelRefs) {
+      while (channelRef.getActiveStreamsCount() > 0) {
+        channelRef.activeStreamsCountDecr(startTime, Status.OK, false);
+      }
+    }
+
+    // Make sure channel pool scaled down to minSize after the interval.
+    TimeUnit.MILLISECONDS.sleep(2 * scaleDownInterval.toMillis());
+    assertThat(pool.getNumberOfChannels()).isEqualTo(minSize);
+
+    // Make sure the oldest connected channels were removed.
+    assertThat(pool.channelRefs.stream().anyMatch(chRef -> oldestConnectedChannels.contains(chRef))).isFalse();
+
+    // Make sure the removed channels are shutted down.
+    assertThat(oldestConnectedChannels.stream().allMatch(chRef -> chRef.getState() == ConnectivityState.SHUTDOWN)).isTrue();
+  }
+
   static class FakeManagedChannelBuilder extends ManagedChannelBuilder<FakeManagedChannelBuilder> {
     private final List<? extends ManagedChannel> channels;
+    private final Supplier<? extends ManagedChannel> channelFactory;
     private final AtomicInteger next = new AtomicInteger();
 
     FakeManagedChannelBuilder(List<? extends ManagedChannel> channels) {
       this.channels = channels;
+      this.channelFactory = null;
+    }
+
+    FakeManagedChannelBuilder(Supplier<? extends ManagedChannel> channelFactory) {
+      this.channelFactory = channelFactory;
+      this.channels = null;
     }
 
     @Override
@@ -1610,7 +1813,11 @@ public final class GcpManagedChannelTest {
 
     @Override
     public ManagedChannel build() {
-      return channels.get(next.getAndIncrement());
+      if (channels != null) {
+        return channels.get(next.getAndIncrement());
+      }
+
+      return channelFactory.get();
     }
   }
 
@@ -1653,27 +1860,35 @@ public final class GcpManagedChannelTest {
 
     @Override
     public ManagedChannel shutdown() {
+      this.setState(ConnectivityState.SHUTDOWN);
       return null;
     }
 
     @Override
     public boolean isShutdown() {
-      return false;
+      return this.state == ConnectivityState.SHUTDOWN;
     }
 
     @Override
     public boolean isTerminated() {
-      return false;
+      return this.state == ConnectivityState.SHUTDOWN;
     }
 
     @Override
     public ManagedChannel shutdownNow() {
+      this.setState(ConnectivityState.SHUTDOWN);
       return null;
     }
 
     @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) {
-      return false;
+      if (this.state == ConnectivityState.SHUTDOWN) {
+        return true;
+      }
+      try {
+        unit.sleep(timeout);
+      } catch (InterruptedException e) {}
+      return this.state == ConnectivityState.SHUTDOWN;
     }
 
     @Override
