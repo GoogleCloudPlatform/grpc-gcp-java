@@ -14,6 +14,8 @@ plugins {
 
 def grpcVersion = '1.68.1'
 def protocVersion = '3.25.3'
+def openTelemetryVersion = '1.40.0'
+def cloudMonitoringExporterVersion = '0.33.0'
 
 protobuf {
     protoc {
@@ -72,6 +74,10 @@ dependencies {
     implementation "io.grpc:grpc-rls:${grpcVersion}"
     implementation "io.grpc:grpc-googleapis:${grpcVersion}"
     implementation "com.google.protobuf:protobuf-java:${protocVersion}"
+    implementation "io.grpc:grpc-opentelemetry:${grpcVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk:${openTelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk-metrics:${openTelemetryVersion}"
+    implementation "com.google.cloud.opentelemetry:exporter-metrics:${cloudMonitoringExporterVersion}"
     if (JavaVersion.current().isJava9Compatible()) {
         // Workaround for @javax.annotation.Generated
         // see: https://github.com/grpc/grpc-java/issues/3633
