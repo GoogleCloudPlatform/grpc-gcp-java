@@ -1,10 +1,12 @@
 package com.google.net.grpc.testing.directpath.continuous_load_testing;
 
 
+import com.google.common.collect.ImmutableList;
 import io.grpc.ChannelCredentials;
 import io.grpc.Grpc;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.alts.GoogleDefaultChannelCredentials;
+import io.grpc.opentelemetry.GrpcOpenTelemetry;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.integration.EmptyProtos.Empty;
 import io.grpc.testing.integration.Messages.SimpleRequest;
@@ -15,12 +17,19 @@ import io.grpc.testing.integration.Messages.StreamingOutputCallRequest;
 import io.grpc.testing.integration.Messages.StreamingOutputCallResponse;
 import io.grpc.testing.integration.TestServiceGrpc;
 import io.grpc.testing.integration.TestServiceGrpc.TestServiceStub;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.export.MetricExporter;
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
+import com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter;
+import com.google.cloud.opentelemetry.metric.MetricConfiguration;
 
 public class Client {
 
@@ -28,18 +37,43 @@ public class Client {
     EmptyCall, UnaryCall, StreamingInputCall, StreamingOutputCall, FullDuplexCall, HalfDuplexCall
   }
 
-  private static Logger logger = Logger.getLogger(Client.class.getName());
-  private static String BACKEND = "google-c2p:///directpathgrpctesting-pa.googleapis.com";
-  private static Set<Method> methods = new HashSet<>(Arrays.asList(Method.values()));
+  private static final Logger logger = Logger.getLogger(Client.class.getName());
+  private static final String BACKEND = "google-c2p:///directpathgrpctesting-pa.googleapis.com";
+  private static final Set<Method> methods = new HashSet<>(Arrays.asList(Method.values()));
   private static int concurrency = 1;
   private static int num_of_requests = 10;
 
+  private static final Collection<String> METRICS =
+      ImmutableList.of(
+          "grpc.lb.wrr.rr_fallback",
+          "grpc.lb.wrr.endpoint_weight_not_yet_usable",
+          "grpc.lb.wrr.endpoint_weight_stale",
+          "grpc.lb.wrr.endpoint_weights",
+          "grpc.lb.rls.cache_entries",
+          "grpc.lb.rls.cache_size",
+          "grpc.lb.rls.default_target_picks",
+          "grpc.lb.rls.target_picks",
+          "grpc.lb.rls.failed_picks",
+          "grpc.xds_client.connected",
+          "grpc.xds_client.server_failure",
+          "grpc.xds_client.resource_updates_valid",
+          "grpc.xds_client.resource_updates_invalid",
+          "grpc.xds_client.resources",
+          "grpc.client.attempt.sent_total_compressed_message_size",
+          "grpc.client.attempt.rcvd_total_compressed_message_size",
+          "grpc.client.attempt.started",
+          "grpc.client.attempt.duration",
+          "grpc.client.call.duration");
+
   public static void main(String[] args) {
+    logger.info("DirectPath Continuous Load Testing Client Started.");
     initializeLogManager();
     parseArgs(args);
+    GrpcOpenTelemetry grpcOpenTelemetry = initializeOpenTelemetry();
 
     ChannelCredentials credentials = GoogleDefaultChannelCredentials.create();
-    ManagedChannelBuilder builder = Grpc.newChannelBuilder(BACKEND, credentials);
+    ManagedChannelBuilder<?> builder = Grpc.newChannelBuilder(BACKEND, credentials);
+    grpcOpenTelemetry.configureChannelBuilder(builder);
     TestServiceStub stub = TestServiceGrpc.newStub(builder.build());
 
     if (methods.contains(Method.EmptyCall)) {
@@ -60,8 +94,11 @@ public class Client {
     if (methods.contains(Method.HalfDuplexCall)) {
       ExecuteHalfDuplexCalls(stub);
     }
+
+    //noinspection InfiniteLoopStatement
     while (true) {
       try {
+        //noinspection BusyWait
         Thread.sleep(1000);
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
@@ -87,8 +124,29 @@ public class Client {
     }
   }
 
+  private static GrpcOpenTelemetry initializeOpenTelemetry() {
+    MetricExporter cloudMonitoringExporter =
+        GoogleCloudMetricExporter.createWithConfiguration(
+            MetricConfiguration.builder()
+                .setUseServiceTimeSeries(true)
+                .setInstrumentationLibraryLabelsEnabled(false)
+                .setPrefix("directpathgrpctesting-pa.googleapis.com/client")
+                .build()
+        );
+    SdkMeterProvider provider = SdkMeterProvider.builder()
+        .registerMetricReader(
+            PeriodicMetricReader.builder(cloudMonitoringExporter)
+                .setInterval(java.time.Duration.ofSeconds(20))
+                .build())
+        .build();
+    OpenTelemetrySdk openTelemetrySdk = OpenTelemetrySdk.builder()
+        .setMeterProvider(provider).build();
+    return GrpcOpenTelemetry.newBuilder().sdk(openTelemetrySdk)
+        .addOptionalLabel("grpc.lb.locality").enableMetrics(METRICS).build();
+  }
+
   private static void ExecuteEmptyCalls(TestServiceStub stub) {
-    final StreamObserver<Empty> observer = new StreamObserver<Empty>() {
+    final StreamObserver<Empty> observer = new StreamObserver<>() {
       @Override
       public void onNext(Empty value) {
       }
@@ -103,18 +161,13 @@ public class Client {
         stub.emptyCall(Empty.getDefaultInstance(), this);
       }
     };
-    Thread t = new Thread(new Runnable() {
-      @Override
-      public void run() {
-        stub.emptyCall(Empty.getDefaultInstance(), observer);
-      }
-    });
+    Thread t = new Thread(() -> stub.emptyCall(Empty.getDefaultInstance(), observer));
     t.start();
   }
 
   private static void ExecuteUnaryCalls(TestServiceStub stub) {
     SimpleRequest request = SimpleRequest.newBuilder().build();
-    final StreamObserver<SimpleResponse> observer = new StreamObserver<SimpleResponse>() {
+    final StreamObserver<SimpleResponse> observer = new StreamObserver<>() {
       @Override
       public void onNext(SimpleResponse value) {
 
@@ -131,19 +184,14 @@ public class Client {
       }
     };
     for (int i = 0; i < concurrency; i++) {
-      Thread t = new Thread(new Runnable() {
-        @Override
-        public void run() {
-          stub.unaryCall(request, observer);
-        }
-      });
+      Thread t = new Thread(() -> stub.unaryCall(request, observer));
       t.start();
     }
   }
 
   private static void ExecuteStreamingInputCalls(TestServiceStub stub) {
     StreamingInputCallRequest request = StreamingInputCallRequest.newBuilder().build();
-    final StreamObserver<StreamingInputCallResponse> responseObserver = new StreamObserver<StreamingInputCallResponse>() {
+    final StreamObserver<StreamingInputCallResponse> responseObserver = new StreamObserver<>() {
       @Override
       public void onNext(StreamingInputCallResponse value) {
       }
@@ -167,14 +215,11 @@ public class Client {
       }
     };
     for (int i = 0; i < concurrency; i++) {
-      Thread t = new Thread(new Runnable() {
-        @Override
-        public void run() {
-          StreamObserver<StreamingInputCallRequest> requestObserver = stub.streamingInputCall(
-              responseObserver);
-          for (int i = 0; i < num_of_requests; i++) {
-            requestObserver.onNext(request);
-          }
+      Thread t = new Thread(() -> {
+        StreamObserver<StreamingInputCallRequest> requestObserver = stub.streamingInputCall(
+            responseObserver);
+        for (int i1 = 0; i1 < num_of_requests; i1++) {
+          requestObserver.onNext(request);
         }
       });
       t.start();
@@ -183,7 +228,7 @@ public class Client {
 
   private static void ExecuteStreamingOutputCalls(TestServiceStub stub) {
     StreamingOutputCallRequest request = StreamingOutputCallRequest.newBuilder().build();
-    final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<StreamingOutputCallResponse>() {
+    final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<>() {
       @Override
       public void onNext(StreamingOutputCallResponse value) {
       }
@@ -199,19 +244,14 @@ public class Client {
       }
     };
     for (int i = 0; i < concurrency; i++) {
-      Thread t = new Thread(new Runnable() {
-        @Override
-        public void run() {
-          stub.streamingOutputCall(request, responseObserver);
-        }
-      });
+      Thread t = new Thread(() -> stub.streamingOutputCall(request, responseObserver));
       t.start();
     }
   }
 
   private static void ExecuteFullDuplexCalls(TestServiceStub stub) {
     StreamingOutputCallRequest request = StreamingOutputCallRequest.newBuilder().build();
-    final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<StreamingOutputCallResponse>() {
+    final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<>() {
       @Override
       public void onNext(StreamingOutputCallResponse value) {
       }
@@ -235,14 +275,11 @@ public class Client {
       }
     };
     for (int i = 0; i < concurrency; i++) {
-      Thread t = new Thread(new Runnable() {
-        @Override
-        public void run() {
-          StreamObserver<StreamingOutputCallRequest> requestObserver = stub.fullDuplexCall(
-              responseObserver);
-          for (int i = 0; i < num_of_requests; i++) {
-            requestObserver.onNext(request);
-          }
+      Thread t = new Thread(() -> {
+        StreamObserver<StreamingOutputCallRequest> requestObserver = stub.fullDuplexCall(
+            responseObserver);
+        for (int i1 = 0; i1 < num_of_requests; i1++) {
+          requestObserver.onNext(request);
         }
       });
       t.start();
@@ -251,7 +288,7 @@ public class Client {
 
   private static void ExecuteHalfDuplexCalls(TestServiceStub stub) {
     StreamingOutputCallRequest request = StreamingOutputCallRequest.newBuilder().build();
-    final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<StreamingOutputCallResponse>() {
+    final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<>() {
       @Override
       public void onNext(StreamingOutputCallResponse value) {
       }
@@ -276,16 +313,13 @@ public class Client {
       }
     };
     for (int i = 0; i < concurrency; i++) {
-      Thread t = new Thread(new Runnable() {
-        @Override
-        public void run() {
-          StreamObserver<StreamingOutputCallRequest> requestObserver = stub.halfDuplexCall(
-              responseObserver);
-          for (int i = 0; i < num_of_requests; i++) {
-            requestObserver.onNext(request);
-          }
-          requestObserver.onCompleted();
+      Thread t = new Thread(() -> {
+        StreamObserver<StreamingOutputCallRequest> requestObserver = stub.halfDuplexCall(
+            responseObserver);
+        for (int i1 = 0; i1 < num_of_requests; i1++) {
+          requestObserver.onNext(request);
         }
+        requestObserver.onCompleted();
       });
       t.start();
     }
