@@ -17,10 +17,12 @@ import io.grpc.testing.integration.Messages.StreamingOutputCallRequest;
 import io.grpc.testing.integration.Messages.StreamingOutputCallResponse;
 import io.grpc.testing.integration.TestServiceGrpc;
 import io.grpc.testing.integration.TestServiceGrpc.TestServiceStub;
+import io.opentelemetry.contrib.gcp.resource.GCPResourceProvider;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import io.opentelemetry.sdk.resources.Resource;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -133,7 +135,9 @@ public class Client {
                 .setPrefix("directpathgrpctesting-pa.googleapis.com/client")
                 .build()
         );
+    GCPResourceProvider resourceProvider = new GCPResourceProvider();
     SdkMeterProvider provider = SdkMeterProvider.builder()
+        .setResource(Resource.create(resourceProvider.getAttributes()))
         .registerMetricReader(
             PeriodicMetricReader.builder(cloudMonitoringExporter)
                 .setInterval(java.time.Duration.ofSeconds(20))
