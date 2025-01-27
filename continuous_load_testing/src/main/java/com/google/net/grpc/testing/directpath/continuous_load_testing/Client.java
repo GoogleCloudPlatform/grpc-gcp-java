@@ -18,8 +18,11 @@ import io.grpc.testing.integration.Messages.StreamingOutputCallResponse;
 import io.grpc.testing.integration.TestServiceGrpc;
 import io.grpc.testing.integration.TestServiceGrpc.TestServiceStub;
 import io.opentelemetry.contrib.gcp.resource.GCPResourceProvider;
+import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
+import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
@@ -136,15 +139,20 @@ public class Client {
                 .build()
         );
     GCPResourceProvider resourceProvider = new GCPResourceProvider();
-    SdkMeterProvider provider = SdkMeterProvider.builder()
+    SdkMeterProviderBuilder providerBuilder = SdkMeterProvider.builder()
         .setResource(Resource.create(resourceProvider.getAttributes()))
         .registerMetricReader(
             PeriodicMetricReader.builder(cloudMonitoringExporter)
                 .setInterval(java.time.Duration.ofSeconds(20))
-                .build())
-        .build();
+                .build());
+    // Replaces the dots with slashes in each metric, which is needed by stackdriver.
+    for (String metric :METRICS) {
+      providerBuilder.registerView(
+          InstrumentSelector.builder().setName(metric).build(),
+          View.builder().setName(metric.replace(".", "/")).build());
+    }
     OpenTelemetrySdk openTelemetrySdk = OpenTelemetrySdk.builder()
-        .setMeterProvider(provider).build();
+        .setMeterProvider(providerBuilder.build()).build();
     return GrpcOpenTelemetry.newBuilder().sdk(openTelemetrySdk)
         .addOptionalLabel("grpc.lb.locality").enableMetrics(METRICS).build();
   }
