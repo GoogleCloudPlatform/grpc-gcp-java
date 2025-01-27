@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: client-java-manual
+  name: client-java-manual
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client-java-manual
+  template:
+    metadata:
+      labels:
+        app: client-java-manual
+    spec:
+      containers:
+      - image: "us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java-manual"
+        imagePullPolicy: Always
+        name: client-java-manual
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "256Mi"
+          limits:
+            cpu: "1"
+            memory: "1024Mi"
