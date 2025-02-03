@@ -78,6 +78,7 @@ dependencies {
     implementation "io.grpc:grpc-opentelemetry:${grpcVersion}"
     implementation "io.opentelemetry:opentelemetry-sdk:${openTelemetryVersion}"
     implementation "io.opentelemetry:opentelemetry-sdk-metrics:${openTelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:${openTelemetryVersion}"
     implementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${openTelemetryVersion}"
     implementation "com.google.cloud.opentelemetry:exporter-metrics:${cloudMonitoringExporterVersion}"
     implementation "io.opentelemetry.contrib:opentelemetry-gcp-resources:${openTelemetryContribVersion}-alpha"

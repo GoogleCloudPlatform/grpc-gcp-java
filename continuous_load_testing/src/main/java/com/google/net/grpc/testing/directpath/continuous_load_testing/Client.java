@@ -18,6 +18,7 @@ import io.grpc.testing.integration.Messages.StreamingOutputCallResponse;
 import io.grpc.testing.integration.TestServiceGrpc;
 import io.grpc.testing.integration.TestServiceGrpc.TestServiceStub;
 import io.opentelemetry.contrib.gcp.resource.GCPResourceProvider;
+import io.opentelemetry.sdk.autoconfigure.ResourceConfiguration;
 import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -138,15 +139,16 @@ public class Client {
                 .setPrefix("directpathgrpctesting-pa.googleapis.com/client")
                 .build()
         );
+    Resource resource = ResourceConfiguration.createEnvironmentResource();
     GCPResourceProvider resourceProvider = new GCPResourceProvider();
     SdkMeterProviderBuilder providerBuilder = SdkMeterProvider.builder()
-        .setResource(Resource.create(resourceProvider.getAttributes()))
+        .setResource(resource.merge(Resource.create(resourceProvider.getAttributes())))
         .registerMetricReader(
             PeriodicMetricReader.builder(cloudMonitoringExporter)
-                .setInterval(java.time.Duration.ofSeconds(20))
+                .setInterval(java.time.Duration.ofSeconds(90))
                 .build());
     // Replaces the dots with slashes in each metric, which is needed by stackdriver.
-    for (String metric :METRICS) {
+    for (String metric : METRICS) {
       providerBuilder.registerView(
           InstrumentSelector.builder().setName(metric).build(),
           View.builder().setName(metric.replace(".", "/")).build());
