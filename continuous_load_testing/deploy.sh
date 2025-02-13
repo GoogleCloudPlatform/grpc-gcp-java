@@ -16,5 +16,5 @@ docker build --progress=plain --no-cache -t directpathgrpctesting-client-java-ma
 docker tag directpathgrpctesting-client-java-manual us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java-manual
 gcloud artifacts docker images delete us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java-manual --delete-tags -q
 docker push us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java-manual
-gcloud container clusters get-credentials cluster-1 --region us-east7 --project directpathgrpctesting-client
+gcloud container clusters get-credentials cluster-1 --region us-west1 --project directpathgrpctesting-client
 kubectl apply -f client-java-manual.yaml

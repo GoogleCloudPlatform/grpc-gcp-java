@@ -100,16 +100,6 @@ public class Client {
     if (methods.contains(Method.HalfDuplexCall)) {
       ExecuteHalfDuplexCalls(stub);
     }
-
-    //noinspection InfiniteLoopStatement
-    while (true) {
-      try {
-        //noinspection BusyWait
-        Thread.sleep(1000);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-    }
   }
 
   private static void parseArgs(String[] args) {
@@ -128,6 +118,9 @@ public class Client {
         num_of_requests = Integer.parseInt(arg.substring("--num_of_requests".length()));
       }
     }
+    logger.info("methods: " + methods);
+    logger.info("concurrency: " + concurrency);
+    logger.info("num_of_requests: " + num_of_requests);
   }
 
   private static GrpcOpenTelemetry initializeOpenTelemetry() {
@@ -160,6 +153,7 @@ public class Client {
   }
 
   private static void ExecuteEmptyCalls(TestServiceStub stub) {
+    logger.info("ExecuteEmptyCalls");
     final StreamObserver<Empty> observer = new StreamObserver<>() {
       @Override
       public void onNext(Empty value) {
@@ -175,11 +169,14 @@ public class Client {
         stub.emptyCall(Empty.getDefaultInstance(), this);
       }
     };
-    Thread t = new Thread(() -> stub.emptyCall(Empty.getDefaultInstance(), observer));
-    t.start();
+    for (int i = 0; i < concurrency; i++) {
+      Thread t = new Thread(() -> stub.emptyCall(Empty.getDefaultInstance(), observer));
+      t.start();
+    }
   }
 
   private static void ExecuteUnaryCalls(TestServiceStub stub) {
+    logger.info("ExecuteUnaryCalls");
     SimpleRequest request = SimpleRequest.newBuilder().build();
     final StreamObserver<SimpleResponse> observer = new StreamObserver<>() {
       @Override
@@ -204,6 +201,7 @@ public class Client {
   }
 
   private static void ExecuteStreamingInputCalls(TestServiceStub stub) {
+    logger.info("ExecuteStreamingInputCalls");
     StreamingInputCallRequest request = StreamingInputCallRequest.newBuilder().build();
     final StreamObserver<StreamingInputCallResponse> responseObserver = new StreamObserver<>() {
       @Override
@@ -241,6 +239,7 @@ public class Client {
   }
 
   private static void ExecuteStreamingOutputCalls(TestServiceStub stub) {
+    logger.info("ExecuteStreamingOutputCalls");
     StreamingOutputCallRequest request = StreamingOutputCallRequest.newBuilder().build();
     final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<>() {
       @Override
@@ -264,6 +263,7 @@ public class Client {
   }
 
   private static void ExecuteFullDuplexCalls(TestServiceStub stub) {
+    logger.info("ExecuteFullDuplexCalls");
     StreamingOutputCallRequest request = StreamingOutputCallRequest.newBuilder().build();
     final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<>() {
       @Override
@@ -301,6 +301,7 @@ public class Client {
   }
 
   private static void ExecuteHalfDuplexCalls(TestServiceStub stub) {
+    logger.info("ExecuteHalfDuplexCalls");
     StreamingOutputCallRequest request = StreamingOutputCallRequest.newBuilder().build();
     final StreamObserver<StreamingOutputCallResponse> responseObserver = new StreamObserver<>() {
       @Override
