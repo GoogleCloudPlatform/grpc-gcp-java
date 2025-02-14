@@ -112,10 +112,10 @@ public class Client {
         }
       }
       if (arg.startsWith("--concurrency=")) {
-        concurrency = Integer.parseInt(arg.substring("--concurrency".length()));
+        concurrency = Integer.parseInt(arg.substring("--concurrency=".length()));
       }
       if (arg.startsWith("--num_of_requests=")) {
-        num_of_requests = Integer.parseInt(arg.substring("--num_of_requests".length()));
+        num_of_requests = Integer.parseInt(arg.substring("--num_of_requests=".length()));
       }
     }
     logger.info("methods: " + methods);
