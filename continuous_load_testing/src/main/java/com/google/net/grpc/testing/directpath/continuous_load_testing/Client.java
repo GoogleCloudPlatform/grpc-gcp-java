@@ -28,6 +28,7 @@ import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -99,6 +100,14 @@ public class Client {
     }
     if (methods.contains(Method.HalfDuplexCall)) {
       ExecuteHalfDuplexCalls(stub);
+    }
+
+    try {
+      synchronized (Client.class) {
+        Client.class.wait();
+      }
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
     }
   }
 
