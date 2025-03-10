@@ -2,23 +2,23 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: client-java-directpath
-  name: client-java-directpath
+    app: client-java
+  name: client-java
   namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: client-java-directpath
+      app: client-java
   template:
     metadata:
       labels:
-        app: client-java-directpath
+        app: client-java
     spec:
       containers:
       - image: "us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java"
         imagePullPolicy: Always
-        name: client-java-directpath
+        name: client-java
         env:
         - name: POD_NAME
           valueFrom:
@@ -29,7 +29,7 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: CONTAINER_NAME
-          value: client-java-directpath
+          value: client-java
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(NAMESPACE_NAME),k8s.container.name=$(CONTAINER_NAME)
         resources:
