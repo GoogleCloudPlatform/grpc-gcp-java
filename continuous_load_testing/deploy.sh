@@ -3,8 +3,7 @@ WORKING_DIR=$(pwd)
 ROOT_DIR=$(dirname $(dirname $(pwd)))
 echo $WORKING_DIR
 echo $ROOT_DIR
-kubectl delete deployment client-java-manual-directpath
-kubectl delete deployment client-java-manual-cloudpath
+kubectl delete deployment client-java-manual
 gradle clean
 gradle build
 gradle installDist
@@ -18,5 +17,4 @@ docker tag directpathgrpctesting-client-java-manual us-docker.pkg.dev/directpath
 gcloud artifacts docker images delete us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java-manual --delete-tags -q
 docker push us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java-manual
 gcloud container clusters get-credentials cluster-1 --region us-west1 --project directpathgrpctesting-client
-kubectl apply -f client-java-manual-directpath.yaml
-kubectl apply -f client-java-manual-cloudpath.yaml
+kubectl apply -f client-java-manual.yaml

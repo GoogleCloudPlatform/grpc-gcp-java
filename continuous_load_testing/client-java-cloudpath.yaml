@@ -16,7 +16,7 @@ spec:
         app: client-java-cloudpath
     spec:
       containers:
-      - image: "us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java"
+      - image: "us-docker.pkg.dev/directpathgrpctesting-client/directpathgrpctesting-client/directpathgrpctesting-client-java-cloudpath"
         imagePullPolicy: Always
         name: client-java-cloudpath
         env:
