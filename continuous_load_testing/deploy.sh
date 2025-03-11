@@ -4,11 +4,11 @@ ROOT_DIR=$(dirname $(dirname $(pwd)))
 echo $WORKING_DIR
 echo $ROOT_DIR
 kubectl delete deployment client-java-manual
-gradle clean
-gradle build
-gradle installDist
-cd $ROOT_DIR/grpc-java && gradle :grpc-rls:build -x test && cd $WORKING_DIR
-cd $ROOT_DIR/grpc-java && gradle :grpc-api:build -x test && cd $WORKING_DIR
+./gradlew clean
+./gradlew build
+./gradlew installDist
+cd $ROOT_DIR/grpc-java && ./gradlew :grpc-rls:build -x test -PskipCodegen=true -PskipAndroid=true && cd $WORKING_DIR
+cd $ROOT_DIR/grpc-java && ./gradlew :grpc-api:build -x test -PskipCodegen=true -PskipAndroid=true && cd $WORKING_DIR
 cp $ROOT_DIR/grpc-java/rls/build/libs/grpc-rls-1.70.0-SNAPSHOT.jar $ROOT_DIR/grpc-gcp-java/continuous_load_testing/build/install/continuous_load_testing/lib/grpc-rls-1.68.1.jar
 cp $ROOT_DIR/grpc-java/api/build/libs/grpc-api-1.70.0-SNAPSHOT.jar $ROOT_DIR/grpc-gcp-java/continuous_load_testing/build/install/continuous_load_testing/lib/grpc-api-1.68.1.jar
 docker system prune -af
