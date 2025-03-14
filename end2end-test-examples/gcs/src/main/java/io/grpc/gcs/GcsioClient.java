@@ -63,9 +63,6 @@ public class GcsioClient {
                     .build())
             .setWriteChannelOptions(
                 AsyncWriteChannelOptions.builder().setGrpcChecksumsEnabled(args.checksum).build());
-    if (!Strings.isNullOrEmpty(args.host2)) {
-      optsBuilder.setGrpcServerAddress(args.host2);
-    }
     this.gcsOpts = optsBuilder.build();
   }
 
