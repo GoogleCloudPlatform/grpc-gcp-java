@@ -1,7 +1,6 @@
 plugins {
     id 'java'
-    id 'com.google.protobuf' version '0.8.8'
-    id 'maven'
+    id 'com.google.protobuf' version '0.9.4'
 }
 
 group 'io.grpc'
@@ -9,9 +8,9 @@ version '1.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 
-def gcsioVersion = '2.2.25'
-def grpcVersion = '1.68.0'
-def protobufVersion = '3.25.3'
+def gcsioVersion = '2.2.26'
+def grpcVersion = '1.71.0'
+def protobufVersion = '3.25.5'
 def protocVersion = protobufVersion
 def conscryptVersion = '2.5.2'
 
@@ -21,33 +20,33 @@ repositories {
 }
 
 dependencies {
-    compile "io.grpc:grpc-alts:${grpcVersion}"
-    compile "io.grpc:grpc-api:${grpcVersion}"
-    compile "io.grpc:grpc-auth:${grpcVersion}"
-    compile "io.grpc:grpc-census:${grpcVersion}"
-    compile "io.grpc:grpc-context:${grpcVersion}"
-    compile "io.grpc:grpc-core:${grpcVersion}"
-    compile "io.grpc:grpc-googleapis:${grpcVersion}"
-    compile "io.grpc:grpc-netty-shaded:${grpcVersion}"
-    compile "io.grpc:grpc-protobuf-lite:${grpcVersion}"
-    compile "io.grpc:grpc-protobuf:${grpcVersion}"
-    compile "io.grpc:grpc-stub:${grpcVersion}"
-    compile "io.grpc:grpc-testing:${grpcVersion}"
-    compile "io.grpc:grpc-xds:${grpcVersion}"
-    compile "org.conscrypt:conscrypt-openjdk-uber:${conscryptVersion}"
-    compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
-    compile "com.google.api.grpc:grpc-google-cloud-storage-v2:latest.release"
-    compile "com.google.api.grpc:proto-google-common-protos:latest.release"
-    compile "com.google.api.grpc:proto-google-iam-v1:latest.release"
-    compile "com.google.apis:google-api-services-storage:latest.release"
-    compile "com.google.auth:google-auth-library-oauth2-http:latest.release"
-    compile "com.google.cloud:google-cloud-storage:latest.release"
-    compile "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
-    compile "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
-    compile "com.google.guava:guava:32.1.3-jre"
-    compile "net.sourceforge.argparse4j:argparse4j:0.9.0"
+    implementation "io.grpc:grpc-alts:${grpcVersion}"
+    implementation "io.grpc:grpc-api:${grpcVersion}"
+    implementation "io.grpc:grpc-auth:${grpcVersion}"
+    implementation "io.grpc:grpc-census:${grpcVersion}"
+    implementation "io.grpc:grpc-context:${grpcVersion}"
+    implementation "io.grpc:grpc-core:${grpcVersion}"
+    implementation "io.grpc:grpc-googleapis:${grpcVersion}"
+    implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    implementation "io.grpc:grpc-protobuf-lite:${grpcVersion}"
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "io.grpc:grpc-testing:${grpcVersion}"
+    implementation "io.grpc:grpc-xds:${grpcVersion}"
+    implementation "org.conscrypt:conscrypt-openjdk-uber:${conscryptVersion}"
+    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    implementation "com.google.api.grpc:grpc-google-cloud-storage-v2:latest.release"
+    implementation "com.google.api.grpc:proto-google-common-protos:latest.release"
+    implementation "com.google.api.grpc:proto-google-iam-v1:latest.release"
+    implementation "com.google.apis:google-api-services-storage:latest.release"
+    implementation "com.google.auth:google-auth-library-oauth2-http:latest.release"
+    implementation "com.google.cloud:google-cloud-storage:latest.release"
+    implementation "com.google.cloud.bigdataoss:bigdataoss-parent:${gcsioVersion}"
+    implementation "com.google.cloud.bigdataoss:gcsio:${gcsioVersion}"
+    implementation "com.google.guava:guava:32.1.3-jre"
+    implementation "net.sourceforge.argparse4j:argparse4j:0.9.0"
 
-    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
 }
 
 protobuf {
@@ -98,7 +97,7 @@ task copyJarsToLib (type: Copy) {
     file(toDir).mkdirs()
 
     // copy jars to lib folder:
-    from configurations.compile
+    from configurations.implementation
     into toDir
 }
 
@@ -107,10 +106,9 @@ jar {
     manifest {
         attributes (
             'Main-Class': 'io.grpc.gcs.TestMain',
-            'Class-Path': '. dependency-jars/' + configurations.compile.collect { it.getName() }.join(' dependency-jars/')
+            'Class-Path': '. dependency-jars/' + configurations.implementation.collect { it.getName() }.join(' dependency-jars/')
         )
     }
 }
 
 jar.dependsOn copyJarsToLib
-
