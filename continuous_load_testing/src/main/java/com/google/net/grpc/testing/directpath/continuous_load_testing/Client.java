@@ -45,7 +45,8 @@ public class Client {
   }
 
   private static final Logger logger = Logger.getLogger(Client.class.getName());
-  private static final String BACKEND = "google-c2p:///directpathgrpctesting-pa.googleapis.com";
+  private static final String DIRECTPATH_BACKEND = "google-c2p:///directpathgrpctesting-pa.googleapis.com";
+  private static final String CLOUDPATH_BACKEND = "dns:///directpathgrpctesting-pa.googleapis.com";
   private static final Set<Method> methods = new HashSet<>(Arrays.asList(Method.values()));
   private static int concurrency = 1;
   private static int num_of_requests = 10;
@@ -79,6 +80,13 @@ public class Client {
     GrpcOpenTelemetry grpcOpenTelemetry = initializeOpenTelemetry();
 
     ChannelCredentials credentials = GoogleDefaultChannelCredentials.create();
+    String disableDirectPath = System.getenv("DISABLE_DIRECT_PATH");
+    String BACKEND;
+    if ("true".equals(disableDirectPath)) {
+      BACKEND = CLOUDPATH_BACKEND;
+    } else {
+      BACKEND = DIRECTPATH_BACKEND;
+    }
     ManagedChannelBuilder<?> builder = Grpc.newChannelBuilder(BACKEND, credentials);
     grpcOpenTelemetry.configureChannelBuilder(builder);
     TestServiceStub stub = TestServiceGrpc.newStub(builder.build());
