@@ -81,8 +81,8 @@ public class Client {
     GrpcOpenTelemetry grpcOpenTelemetry = initializeOpenTelemetry();
 
     ChannelCredentials credentials = GoogleDefaultChannelCredentials.create();
-    String BACKEND = disable_directpath ? CLOUDPATH_BACKEND : DIRECTPATH_BACKEND;
-    ManagedChannelBuilder<?> builder = Grpc.newChannelBuilder(BACKEND, credentials);
+    String backend = disable_directpath ? CLOUDPATH_BACKEND : DIRECTPATH_BACKEND;
+    ManagedChannelBuilder<?> builder = Grpc.newChannelBuilder(backend, credentials);
     grpcOpenTelemetry.configureChannelBuilder(builder);
     TestServiceStub stub = TestServiceGrpc.newStub(builder.build());
 
