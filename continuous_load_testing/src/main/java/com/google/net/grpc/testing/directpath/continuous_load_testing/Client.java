@@ -45,10 +45,12 @@ public class Client {
   }
 
   private static final Logger logger = Logger.getLogger(Client.class.getName());
-  private static final String BACKEND = "google-c2p:///directpathgrpctesting-pa.googleapis.com";
+  private static final String DIRECTPATH_BACKEND = "google-c2p:///directpathgrpctesting-pa.googleapis.com";
+  private static final String CLOUDPATH_BACKEND = "dns:///directpathgrpctesting-pa.googleapis.com";
   private static final Set<Method> methods = new HashSet<>(Arrays.asList(Method.values()));
   private static int concurrency = 1;
   private static int num_of_requests = 10;
+  private static boolean disable_directpath = false;
 
   private static final Collection<String> METRICS =
       ImmutableList.of(
@@ -79,7 +81,8 @@ public class Client {
     GrpcOpenTelemetry grpcOpenTelemetry = initializeOpenTelemetry();
 
     ChannelCredentials credentials = GoogleDefaultChannelCredentials.create();
-    ManagedChannelBuilder<?> builder = Grpc.newChannelBuilder(BACKEND, credentials);
+    String backend = disable_directpath ? CLOUDPATH_BACKEND : DIRECTPATH_BACKEND;
+    ManagedChannelBuilder<?> builder = Grpc.newChannelBuilder(backend, credentials);
     grpcOpenTelemetry.configureChannelBuilder(builder);
     TestServiceStub stub = TestServiceGrpc.newStub(builder.build());
 
@@ -126,10 +129,14 @@ public class Client {
       if (arg.startsWith("--num_of_requests=")) {
         num_of_requests = Integer.parseInt(arg.substring("--num_of_requests=".length()));
       }
+      if (arg.startsWith("--disable_directpath=")) {
+        disable_directpath = Boolean.parseBoolean(arg.substring("--disable_directpath=".length()));
+      }
     }
     logger.info("methods: " + methods);
     logger.info("concurrency: " + concurrency);
     logger.info("num_of_requests: " + num_of_requests);
+    logger.info("disable_directpath:" + disable_directpath);
   }
 
   private static GrpcOpenTelemetry initializeOpenTelemetry() {
