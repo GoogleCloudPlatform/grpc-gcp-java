@@ -1466,7 +1466,13 @@ public class GcpManagedChannel extends ManagedChannel {
     if (!isDynamicScalingEnabled && minStreams >= maxConcurrentStreamsLowWatermark) {
       return true;
     }
-
+    logger.info(log(
+      "Checking for scale up. Total streams: %d, channels: %d. Average RPC per channel: %d. Scale up: %s",
+      totalStreams,
+      channelRefs.size(),
+      totalStreams / channelRefs.size(),
+      (isDynamicScalingEnabled && (totalStreams / channelRefs.size()) >= maxRpcPerChannel)
+    ));
     return (isDynamicScalingEnabled && (totalStreams / channelRefs.size()) >= maxRpcPerChannel);
   }
 
