@@ -1319,6 +1319,7 @@ public class GcpManagedChannel extends ManagedChannel {
     if (!isDynamicScalingEnabled && channelRefs.size() < maxSize) {
       return createNewChannel();
     }
+    maybeDynamicUpscale();
     bindingIndex++;
     if (bindingIndex >= channelRefs.size()) {
       bindingIndex = 0;
@@ -1337,6 +1338,7 @@ public class GcpManagedChannel extends ManagedChannel {
    *     Otherwise pick the one with the smallest number of streams.
    */
   protected ChannelRef getChannelRef(@Nullable String key) {
+    maybeDynamicUpscale();
     if (key == null || key.isEmpty()) {
       return pickLeastBusyChannel(/* forFallback= */ false);
     }
@@ -1457,17 +1459,34 @@ public class GcpManagedChannel extends ManagedChannel {
     return null;
   }
 
+  private void maybeDynamicUpscale() {
+    if (!isDynamicScalingEnabled || channelRefs.size() >= maxSize) {
+      return;
+    }
+
+    if ((totalActiveStreams.get() / channelRefs.size()) >= maxRpcPerChannel) {
+      dynamicUpscale();
+    }
+  }
+
+  private synchronized void dynamicUpscale() {
+    if (!isDynamicScalingEnabled || channelRefs.size() >= maxSize) {
+      return;
+    }
+
+    if ((totalActiveStreams.get() / channelRefs.size()) >= maxRpcPerChannel) {
+      createNewChannel();
+      scaleUpCount++;
+    }
+  }
+
   private boolean shouldScaleUp(int minStreams, int totalStreams) {
     if (channelRefs.size() >= maxSize) {
       // Pool is full.
       return false;
     }
 
-    if (!isDynamicScalingEnabled && minStreams >= maxConcurrentStreamsLowWatermark) {
-      return true;
-    }
-
-    return (isDynamicScalingEnabled && (totalStreams / channelRefs.size()) >= maxRpcPerChannel);
+    return !isDynamicScalingEnabled && minStreams >= maxConcurrentStreamsLowWatermark;
   }
 
   /**
