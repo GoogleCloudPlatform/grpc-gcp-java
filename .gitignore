@@ -1,6 +1,6 @@
 # Gradle
 build
-gradle.properties
+gradle-wrapper.jar
 .gradle
 local.properties
 out

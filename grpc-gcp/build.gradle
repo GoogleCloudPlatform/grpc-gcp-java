@@ -1,11 +1,10 @@
 plugins {
-    id 'java'
-    id 'maven'
+    id 'java-library'
     id 'maven-publish'
     id 'signing'
-    id 'com.google.protobuf' version '0.8.10'
-    id 'com.github.sherter.google-java-format' version '0.8'
-    id 'io.codearte.nexus-staging' version '0.8.0'
+    id 'com.google.protobuf' version '0.8.19'
+    id 'com.github.sherter.google-java-format' version '0.9'
+    id 'io.codearte.nexus-staging' version '0.30.0'
 }
 
 repositories {
@@ -35,8 +34,6 @@ dependencies {
     implementation "io.grpc:grpc-stub:${grpcVersion}"
     implementation "io.opencensus:opencensus-api:${opencensusVersion}"
     implementation "com.google.api:api-common:2.1.5"
-
-    compileOnly "org.apache.tomcat:annotations-api:6.0.53" // necessary for Java 9+
 
     testImplementation "com.google.auth:google-auth-library-credentials:0.13.0"
     testImplementation "com.google.cloud:google-cloud-spanner:${spannerVersion}"
@@ -162,4 +159,8 @@ signing {
         }
         sign publishing.publications.maven
     }
+}
+
+googleJavaFormat {
+  toolVersion = '1.26.0'
 }
