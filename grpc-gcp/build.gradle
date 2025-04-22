@@ -164,4 +164,6 @@ jreleaser {
 
 googleJavaFormat {
   toolVersion = '1.26.0'
+  exclude '.gradle/*'
+  exclude 'bin/generated-sources/*'
 }
