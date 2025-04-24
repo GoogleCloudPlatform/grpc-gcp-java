@@ -779,8 +779,7 @@ public class GcpManagedChannel extends ManagedChannel {
   private LongSummaryStatistics calcStatsAndLog(String logLabel, ToLongFunction<ChannelRef> func) {
     StringBuilder str = new StringBuilder(logLabel + ": [");
     final LongSummaryStatistics stats =
-        channelRefs
-            .stream()
+        channelRefs.stream()
             .mapToLong(
                 ch -> {
                   long count = func.applyAsLong(ch);
@@ -1101,7 +1100,7 @@ public class GcpManagedChannel extends ManagedChannel {
     ChannelRef mappedChannel = affinityKeyToChannelRef.get(key);
     affinityKeyLastUsed.put(key, System.nanoTime());
     if (mappedChannel == null) {
-      ChannelRef channelRef = pickLeastBusyChannel(/*forFallback= */ false);
+      ChannelRef channelRef = pickLeastBusyChannel(/* forFallback= */ false);
       bind(channelRef, Collections.singletonList(key));
       return channelRef;
     }
@@ -1369,12 +1368,12 @@ public class GcpManagedChannel extends ManagedChannel {
     }
     long awaitTimeNanos = endTimeNanos - System.nanoTime();
     if (logMetricService != null && awaitTimeNanos > 0) {
-      //noinspection ResultOfMethodCallIgnored
+      // noinspection ResultOfMethodCallIgnored
       logMetricService.awaitTermination(awaitTimeNanos, NANOSECONDS);
     }
     awaitTimeNanos = endTimeNanos - System.nanoTime();
     if (awaitTimeNanos > 0) {
-      //noinspection ResultOfMethodCallIgnored
+      // noinspection ResultOfMethodCallIgnored
       stateNotificationExecutor.awaitTermination(awaitTimeNanos, NANOSECONDS);
     }
     return isTerminated();

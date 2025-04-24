@@ -969,8 +969,7 @@ public final class GcpManagedChannelTest {
       assertThat(messages).contains(poolIndex + ": stat: num_channel_disconnect = 4");
       assertThat(messages).contains(poolIndex + ": stat: num_channel_connect = 5");
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -978,8 +977,7 @@ public final class GcpManagedChannelTest {
                   .count())
           .isEqualTo(1);
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -987,8 +985,7 @@ public final class GcpManagedChannelTest {
                   .count())
           .isEqualTo(1);
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -1014,8 +1011,7 @@ public final class GcpManagedChannelTest {
       assertThat(messages).contains(poolIndex + ": stat: num_fallbacks_fail = 1");
       assertThat(messages).contains(poolIndex + ": stat: num_unresponsive_detections = 2");
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -1024,8 +1020,7 @@ public final class GcpManagedChannelTest {
                   .count())
           .isEqualTo(1);
       assertThat(
-              messages
-                  .stream()
+              messages.stream()
                   .filter(
                       o ->
                           o.toString()
@@ -1369,7 +1364,7 @@ public final class GcpManagedChannelTest {
     }
 
     executor.shutdown();
-    //noinspection StatementWithEmptyBody
+    // noinspection StatementWithEmptyBody
     while (!executor.awaitTermination(10, TimeUnit.MILLISECONDS)) {}
 
     channel.setState(ConnectivityState.SHUTDOWN);
