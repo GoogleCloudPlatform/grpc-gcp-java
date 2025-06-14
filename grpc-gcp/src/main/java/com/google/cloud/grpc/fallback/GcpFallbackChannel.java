@@ -17,8 +17,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Logger;
 
 public class GcpFallbackChannel extends ManagedChannel {
+  private static final Logger logger = Logger.getLogger(GcpFallbackChannel.class.getName());
   private final GcpFallbackChannelOptions options;
   private final ManagedChannel primaryDelegateChannel;
   private final ManagedChannel fallbackDelegateChannel;
@@ -28,7 +30,8 @@ public class GcpFallbackChannel extends ManagedChannel {
   private final AtomicLong primaryFailures = new AtomicLong(0);
   private final AtomicLong fallbackSuccesses = new AtomicLong(0);
   private final AtomicLong fallbackFailures = new AtomicLong(0);
-  private boolean isInFallbackMode = false;
+  private boolean inFallbackMode = false;
+  private static final String INIT_FAILURE_REASON = "init failure";
 
   private final ScheduledExecutorService execService;
 
@@ -58,13 +61,25 @@ public class GcpFallbackChannel extends ManagedChannel {
       this.execService = Executors.newScheduledThreadPool(3);
     }
     this.options = options;
-    // TODO: catch exception.
-    primaryDelegateChannel = primaryChannelBuilder.build();
+    ManagedChannel primaryChannel = null;
+    try {
+      primaryChannel = primaryChannelBuilder.build();
+    } catch (Exception e) {
+      logger.warning(
+          String.format(
+              "Primary channel initialization failed: %s. Will use fallback channel.",
+              e.getMessage()));
+    }
+    primaryDelegateChannel = primaryChannel;
     fallbackDelegateChannel = fallbackChannelBuilder.build();
     ClientInterceptor primaryMonitoringInterceptor =
         new MonitoringInterceptor(this::processPrimaryStatusCode);
-    this.primaryChannel =
-        ClientInterceptors.intercept(primaryDelegateChannel, primaryMonitoringInterceptor);
+    if (primaryDelegateChannel != null) {
+      this.primaryChannel =
+          ClientInterceptors.intercept(primaryDelegateChannel, primaryMonitoringInterceptor);
+    } else {
+      this.primaryChannel = null;
+    }
     ClientInterceptor fallbackMonitoringInterceptor =
         new MonitoringInterceptor(this::processFallbackStatusCode);
     this.fallbackChannel =
@@ -98,7 +113,7 @@ public class GcpFallbackChannel extends ManagedChannel {
   }
 
   public boolean isInFallbackMode() {
-    return isInFallbackMode;
+    return inFallbackMode || primaryChannel == null;
   }
 
   private void init() {
@@ -136,10 +151,10 @@ public class GcpFallbackChannel extends ManagedChannel {
     if (failures + successes > 0) {
       errRate = (float) failures / (failures + successes);
     }
-    // Report primary error rate.
-    if (!isInFallbackMode && options.isEnableFallback()) {
+    // TODO: Report primary error rate.
+    if (!isInFallbackMode() && options.isEnableFallback()) {
       if (failures >= options.getMinFailedCalls() && errRate >= options.getErrorRateThreshold()) {
-        isInFallbackMode = true;
+        inFallbackMode = true;
       }
     }
     successes = fallbackSuccesses.getAndSet(0);
@@ -148,7 +163,7 @@ public class GcpFallbackChannel extends ManagedChannel {
     if (failures + successes > 0) {
       errRate = (float) failures / (failures + successes);
     }
-    // Report fallback error rate.
+    // TODO: Report fallback error rate.
   }
 
   private void processPrimaryStatusCode(Status.Code statusCode) {
@@ -191,7 +206,7 @@ public class GcpFallbackChannel extends ManagedChannel {
   @Override
   public <RequestT, ResponseT> ClientCall<RequestT, ResponseT> newCall(
       MethodDescriptor<RequestT, ResponseT> methodDescriptor, CallOptions callOptions) {
-    if (isInFallbackMode) {
+    if (isInFallbackMode()) {
       return fallbackChannel.newCall(methodDescriptor, callOptions);
     }
 
@@ -200,7 +215,7 @@ public class GcpFallbackChannel extends ManagedChannel {
 
   @Override
   public String authority() {
-    if (isInFallbackMode) {
+    if (isInFallbackMode()) {
       return fallbackChannel.authority();
     }
 

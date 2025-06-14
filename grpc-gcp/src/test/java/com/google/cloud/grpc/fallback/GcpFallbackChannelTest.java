@@ -81,6 +81,7 @@ public class GcpFallbackChannelTest {
   @Mock private ClientCall<Object, Object> mockFallbackClientCall;
   @Mock private ScheduledExecutorService mockScheduledExecutorService;
   @Mock private ManagedChannelBuilder<?> mockPrimaryBuilder;
+  @Mock private ManagedChannelBuilder<?> mockPrimaryInvalidBuilder;
   @Mock private ManagedChannelBuilder<?> mockFallbackBuilder;
 
   private GcpFallbackChannel gcpFallbackChannel;
@@ -109,6 +110,10 @@ public class GcpFallbackChannelTest {
 
     // For constructor with builders.
     when(mockPrimaryBuilder.build()).thenReturn(mockPrimaryDelegateChannel);
+    when(mockPrimaryInvalidBuilder.build())
+        .thenThrow(
+            new IllegalArgumentException(
+                "Could not find a NameResolverProvider for dns://some.domain"));
     when(mockFallbackBuilder.build()).thenReturn(mockFallbackDelegateChannel);
   }
 
@@ -146,6 +151,14 @@ public class GcpFallbackChannelTest {
     gcpFallbackChannel =
         new GcpFallbackChannel(
             options, mockPrimaryBuilder, mockFallbackBuilder, mockScheduledExecutorService);
+    captureScheduledTasks(options);
+  }
+
+  private void initializeChannelWithInvalidBuilderAndCaptureTasks(
+      GcpFallbackChannelOptions options) {
+    gcpFallbackChannel =
+        new GcpFallbackChannel(
+            options, mockPrimaryInvalidBuilder, mockFallbackBuilder, mockScheduledExecutorService);
     captureScheduledTasks(options);
   }
 
@@ -266,7 +279,7 @@ public class GcpFallbackChannelTest {
   }
 
   @Test
-  public void testFallbackHappens_whenConditionsMet() {
+  public void testFallback_whenConditionsMet() {
     GcpFallbackChannelOptions options =
         GcpFallbackChannelOptions.newBuilder()
             .setEnableFallback(true)
@@ -307,7 +320,7 @@ public class GcpFallbackChannelTest {
   }
 
   @Test
-  public void testFallbackHappens_whenConditionsMet_withCancelledCalls() {
+  public void testFallback_whenConditionsMet_withCancelledCalls() {
     GcpFallbackChannelOptions options =
         GcpFallbackChannelOptions.newBuilder()
             .setEnableFallback(true)
@@ -341,7 +354,7 @@ public class GcpFallbackChannelTest {
   }
 
   @Test
-  public void testFallbackModeStaysOn_evenAfterPrimaryRecovers() {
+  public void testFallback_staysOnAfterPrimaryRecovers() {
     AtomicLong probeCalled = new AtomicLong(0);
     // Probing function returning no error.
     Function<Channel, String> primaryProbe =
@@ -391,6 +404,31 @@ public class GcpFallbackChannelTest {
     assertTrue(
         "Should remain in fallback mode even if primary is hypothetically recovered.",
         gcpFallbackChannel.isInFallbackMode());
+
+    // Verify new calls still go to fallback.
+    gcpFallbackChannel.newCall(methodDescriptor, callOptions);
+    verify(mockFallbackDelegateChannel).newCall(methodDescriptor, callOptions);
+    verify(mockPrimaryDelegateChannel, never()).newCall(methodDescriptor, callOptions);
+    assertEquals(fallbackAuthority, gcpFallbackChannel.authority());
+  }
+
+  @Test
+  public void testFallback_initiallyWhenPrimaryBuildFails() {
+    GcpFallbackChannelOptions options =
+        GcpFallbackChannelOptions.newBuilder()
+            .setEnableFallback(true)
+            .setPeriod(Duration.ofMinutes(1))
+            .setMinFailedCalls(1)
+            .setErrorRateThreshold(0.1f)
+            .setPeriod(Duration.ofMinutes(1))
+            .build();
+    initializeChannelWithInvalidBuilderAndCaptureTasks(options);
+
+    verify(mockPrimaryInvalidBuilder).build();
+    verify(mockFallbackBuilder).build();
+    assertNotNull(gcpFallbackChannel);
+
+    assertTrue("Should be in fallback mode initially.", gcpFallbackChannel.isInFallbackMode());
 
     // Verify new calls still go to fallback.
     gcpFallbackChannel.newCall(methodDescriptor, callOptions);
@@ -512,6 +550,34 @@ public class GcpFallbackChannelTest {
         "Should not be in fallback mode, errorRateThreshold is not met.",
         gcpFallbackChannel.isInFallbackMode());
     assertEquals(primaryAuthority, gcpFallbackChannel.authority());
+  }
+
+  @Test
+  public void testBadPrimary_noPrimaryProbes() {
+    AtomicLong probeCalled = new AtomicLong(0);
+    // Probing function returning no error.
+    Function<Channel, String> primaryProbe =
+        channel -> {
+          probeCalled.incrementAndGet();
+          return "";
+        };
+    GcpFallbackChannelOptions options =
+        GcpFallbackChannelOptions.newBuilder()
+            .setEnableFallback(true)
+            .setPeriod(Duration.ofMinutes(1))
+            .setMinFailedCalls(1)
+            .setErrorRateThreshold(0.1f)
+            .setPeriod(Duration.ofMinutes(1))
+            .setPrimaryProbingFunction(primaryProbe)
+            .setPrimaryProbingInterval(Duration.ofSeconds(15))
+            .build();
+    initializeChannelWithInvalidBuilderAndCaptureTasks(options);
+
+    assertNotNull("probePrimary must be scheduled", primaryProbingTask);
+    // Run probing function in GcpFallbackChannel.
+    primaryProbingTask.run();
+    // The probePrimary should not call the provided function because we have no primary channel.
+    assertEquals(0, probeCalled.get());
   }
 
   @Test
