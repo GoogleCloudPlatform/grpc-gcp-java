@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -876,5 +877,48 @@ public class GcpFallbackChannelTest {
 
     fallbackProbingTask.run();
     verify(mockFallbackProber).apply(mockFallbackDelegateChannel);
+  }
+
+  @Test
+  public void testConstructor_failsWhenOptionsIsNull() {
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            gcpFallbackChannel =
+                new GcpFallbackChannel(
+                    null, mockPrimaryDelegateChannel, mockFallbackDelegateChannel));
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            gcpFallbackChannel =
+                new GcpFallbackChannel(null, mockPrimaryBuilder, mockFallbackBuilder));
+  }
+
+  @Test
+  public void testConstructor_failsWhenPrimaryIsNull() {
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            gcpFallbackChannel =
+                new GcpFallbackChannel(getDefaultOptions(), null, mockFallbackDelegateChannel));
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            gcpFallbackChannel =
+                new GcpFallbackChannel(getDefaultOptions(), null, mockFallbackBuilder));
+  }
+
+  @Test
+  public void testConstructor_failsWhenFallbackIsNull() {
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            gcpFallbackChannel =
+                new GcpFallbackChannel(getDefaultOptions(), mockPrimaryBuilder, null));
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            gcpFallbackChannel =
+                new GcpFallbackChannel(getDefaultOptions(), mockPrimaryBuilder, null));
   }
 }

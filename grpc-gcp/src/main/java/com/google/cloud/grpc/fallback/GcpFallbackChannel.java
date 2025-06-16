@@ -1,5 +1,6 @@
 package com.google.cloud.grpc.fallback;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
@@ -55,6 +56,9 @@ public class GcpFallbackChannel extends ManagedChannel {
       ManagedChannelBuilder<?> primaryChannelBuilder,
       ManagedChannelBuilder<?> fallbackChannelBuilder,
       ScheduledExecutorService execService) {
+    checkNotNull(options);
+    checkNotNull(primaryChannelBuilder);
+    checkNotNull(fallbackChannelBuilder);
     if (execService != null) {
       this.execService = execService;
     } else {
@@ -93,6 +97,9 @@ public class GcpFallbackChannel extends ManagedChannel {
       ManagedChannel primaryChannel,
       ManagedChannel fallbackChannel,
       ScheduledExecutorService execService) {
+    checkNotNull(options);
+    checkNotNull(primaryChannel);
+    checkNotNull(fallbackChannel);
     if (execService != null) {
       this.execService = execService;
     } else {
