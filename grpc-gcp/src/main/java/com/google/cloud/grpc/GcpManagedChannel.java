@@ -1480,7 +1480,10 @@ public class GcpManagedChannel extends ManagedChannel {
     }
   }
 
-  private boolean shouldScaleUp(int minStreams, int totalStreams) {
+  // This is pre-dynamic scaling functionality where we only scale up when the minimum number of
+  // streams on any channel reached maxConcurrentStreamsLowWatermark.
+  // If dynamic scaling is enabled we do not use this logic.
+  private boolean shouldScaleUp(int minStreams) {
     if (channelRefs.size() >= maxSize) {
       // Pool is full.
       return false;
@@ -1508,11 +1511,8 @@ public class GcpManagedChannel extends ManagedChannel {
     ChannelRef readyCandidate = null;
     int readyMinStreams = Integer.MAX_VALUE;
 
-    int totalStreams = 0;
-
     for (ChannelRef channelRef : channelRefs) {
       int cnt = channelRef.getActiveStreamsCount();
-      totalStreams += cnt;
       if (cnt < minStreams) {
         minStreams = cnt;
         channelCandidate = channelRef;
@@ -1526,8 +1526,7 @@ public class GcpManagedChannel extends ManagedChannel {
     }
 
     if (!fallbackEnabled) {
-      // Check if we need to scale up.
-      if (shouldScaleUp(minStreams, totalStreams)) {
+      if (shouldScaleUp(minStreams)) {
         ChannelRef newChannel = tryCreateNewChannel();
         if (newChannel != null) {
           scaleUpCount++;
@@ -1537,8 +1536,7 @@ public class GcpManagedChannel extends ManagedChannel {
       return channelCandidate;
     }
 
-    // Check if we need to scale up.
-    if (shouldScaleUp(readyMinStreams, totalStreams)) {
+    if (shouldScaleUp(readyMinStreams)) {
       ChannelRef newChannel = tryCreateNewChannel();
       if (newChannel != null) {
         scaleUpCount++;
