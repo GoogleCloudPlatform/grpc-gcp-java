@@ -50,6 +50,9 @@ dependencies {
     testImplementation "io.grpc:grpc-stub:${grpcVersion}"
     testImplementation "com.google.truth:truth:0.42"
     testImplementation 'junit:junit:4.13.2'
+    testImplementation "io.opentelemetry:opentelemetry-sdk:${openTelemetryApiVersion}"
+    testImplementation "io.opentelemetry:opentelemetry-sdk-metrics:${openTelemetryApiVersion}"
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${openTelemetryApiVersion}"
 }
 
 protobuf {
