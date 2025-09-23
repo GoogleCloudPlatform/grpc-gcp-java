@@ -1,5 +1,5 @@
 steps:
-- name: openjdk:11.0-jdk
+- name: openjdk:17-jdk-slim
   dir: 'grpc-gcp'
   env:
   - 'GCP_PROJECT_ID=grpc-gcp-testing'
