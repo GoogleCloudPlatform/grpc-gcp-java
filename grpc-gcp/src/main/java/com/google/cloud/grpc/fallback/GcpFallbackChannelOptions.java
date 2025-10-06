@@ -23,6 +23,7 @@ public class GcpFallbackChannelOptions {
   private final Duration fallbackProbingInterval;
   private final String primaryChannelName;
   private final String fallbackChannelName;
+  private final GcpFallbackOpenTelemetry openTelemetry;
 
   public GcpFallbackChannelOptions(Builder builder) {
     this.enableFallback = builder.enableFallback;
@@ -36,6 +37,7 @@ public class GcpFallbackChannelOptions {
     this.fallbackProbingInterval = builder.fallbackProbingInterval;
     this.primaryChannelName = builder.primaryChannelName;
     this.fallbackChannelName = builder.fallbackChannelName;
+    this.openTelemetry = builder.openTelemetry;
   }
 
   public static Builder newBuilder() {
@@ -86,6 +88,10 @@ public class GcpFallbackChannelOptions {
     return fallbackChannelName;
   }
 
+  public GcpFallbackOpenTelemetry getGcpOpenTelemetry() {
+    return openTelemetry;
+  }
+
   public static class Builder {
     private boolean enableFallback = true;
     private float errorRateThreshold = 1f;
@@ -102,6 +108,8 @@ public class GcpFallbackChannelOptions {
 
     private String primaryChannelName = "primary";
     private String fallbackChannelName = "fallback";
+
+    private GcpFallbackOpenTelemetry openTelemetry = null;
 
     public Builder() {}
 
@@ -167,6 +175,11 @@ public class GcpFallbackChannelOptions {
 
     public Builder setFallbackChannelName(String fallbackChannelName) {
       this.fallbackChannelName = fallbackChannelName;
+      return this;
+    }
+
+    public Builder setGcpFallbackOpenTelemetry(GcpFallbackOpenTelemetry openTelemetry) {
+      this.openTelemetry = openTelemetry;
       return this;
     }
 

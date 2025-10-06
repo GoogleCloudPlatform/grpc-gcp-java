@@ -1,5 +1,32 @@
+/*
+ * Copyright 2025 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.google.cloud.grpc.fallback;
 
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CALL_STATUS_METRIC;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CHANNEL_NAME;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CURRENT_CHANNEL_METRIC;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.ERROR_RATIO_METRIC;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.FALLBACK_COUNT_METRIC;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.FROM_CHANNEL_NAME;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.METRIC_PREFIX;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.PROBE_RESULT;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.PROBE_RESULT_METRIC;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.STATUS_CODE;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.TO_CHANNEL_NAME;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.junit.Assert.assertEquals;
@@ -28,16 +55,34 @@ import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.MethodDescriptor.Marshaller;
 import io.grpc.Status;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.metrics.InstrumentType;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
+import io.opentelemetry.sdk.metrics.data.DoublePointData;
+import io.opentelemetry.sdk.metrics.data.LongPointData;
+import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.metrics.export.MetricExporter;
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import javax.annotation.Nonnull;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -248,7 +293,7 @@ public class GcpFallbackChannelTest {
     ArgumentCaptor<ClientCall.Listener<Object>> delegateListenerCaptor =
         ArgumentCaptor.forClass(ClientCall.Listener.class);
 
-    // Make sure the start method was called on theclient call mock and capture the provided
+    // Make sure the start method was called on the client call mock and capture the provided
     // listener. This listener is created by the channel created with ClientInterceptors
     // in the GcpFallbackChannel and wraps the dummy listener we provided above.
     verify(mockClientCall).start(delegateListenerCaptor.capture(), eq(requestHeaders));
@@ -279,14 +324,135 @@ public class GcpFallbackChannelTest {
     clearInvocations(mockPrimaryDelegateChannel, mockFallbackDelegateChannel, mockClientCall);
   }
 
+  private class TestMetricExporter implements MetricExporter {
+    public final List<MetricData> exportedMetrics = Collections.synchronizedList(new ArrayList<>());
+
+    @Override
+    public CompletableResultCode export(@Nonnull Collection<MetricData> metrics) {
+      exportedMetrics.addAll(metrics);
+      return CompletableResultCode.ofSuccess();
+    }
+
+    @Override
+    public CompletableResultCode flush() {
+      return CompletableResultCode.ofSuccess();
+    }
+
+    @Override
+    public CompletableResultCode shutdown() {
+      exportedMetrics.clear();
+      return CompletableResultCode.ofSuccess();
+    }
+
+    @Override
+    public AggregationTemporality getAggregationTemporality(
+        @Nonnull InstrumentType instrumentType) {
+      return AggregationTemporality.DELTA;
+    }
+
+    public List<MetricData> getExportedMetrics() {
+      return exportedMetrics;
+    }
+  }
+
+  private OpenTelemetry prepareOpenTelemetry(TestMetricExporter exporter) {
+    SdkMeterProvider meterProvider =
+        SdkMeterProvider.builder()
+            .registerMetricReader(
+                PeriodicMetricReader.builder(exporter).setInterval(Duration.ofMillis(100)).build())
+            .build();
+
+    OpenTelemetry openTelemetry =
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+
+    return openTelemetry;
+  }
+
+  private String fullMetricName(String metricName) {
+    return String.format("%s.%s", METRIC_PREFIX, metricName);
+  }
+
+  private void assertSumMetrics(
+      long value, List<MetricData> metrics, String metricName, Attributes attrs) {
+    long actualValue = 0;
+    for (MetricData metricData : metrics) {
+      if (!metricData.getName().equals(metricName)) {
+        continue;
+      }
+
+      pointsLoop:
+      for (LongPointData point : metricData.getLongSumData().getPoints()) {
+        for (AttributeKey<?> key : attrs.asMap().keySet()) {
+          if (!attrs.get(key).equals(point.getAttributes().get(key))) {
+            continue pointsLoop;
+          }
+        }
+
+        actualValue += point.getValue();
+      }
+    }
+    assertEquals(value, actualValue);
+  }
+
+  private void assertGaugeMetric(
+      long value, List<MetricData> metrics, String metricName, Attributes attrs) {
+    for (MetricData metricData : metrics) {
+      if (!metricData.getName().equals(metricName)) {
+        continue;
+      }
+
+      pointsLoop:
+      for (LongPointData point : metricData.getLongGaugeData().getPoints()) {
+        for (AttributeKey<?> key : attrs.asMap().keySet()) {
+          if (!attrs.get(key).equals(point.getAttributes().get(key))) {
+            continue pointsLoop;
+          }
+        }
+
+        assertEquals(value, point.getValue());
+        return;
+      }
+    }
+
+    fail("Gauge metric not found in exported metrics.");
+  }
+
+  private void assertGaugeMetric(
+      double value, double delta, List<MetricData> metrics, String metricName, Attributes attrs) {
+    for (MetricData metricData : metrics) {
+      if (!metricData.getName().equals(metricName)) {
+        continue;
+      }
+
+      pointsLoop:
+      for (DoublePointData point : metricData.getDoubleGaugeData().getPoints()) {
+        for (AttributeKey<?> key : attrs.asMap().keySet()) {
+          if (!attrs.get(key).equals(point.getAttributes().get(key))) {
+            continue pointsLoop;
+          }
+        }
+
+        assertEquals(value, point.getValue(), delta);
+        return;
+      }
+    }
+
+    fail("Gauge metric not found in exported metrics.");
+  }
+
   @Test
-  public void testFallback_whenConditionsMet() {
+  public void testFallback_whenConditionsMet() throws InterruptedException {
+    TestMetricExporter exporter = new TestMetricExporter();
     GcpFallbackChannelOptions options =
         GcpFallbackChannelOptions.newBuilder()
             .setEnableFallback(true)
             .setMinFailedCalls(3)
             .setErrorRateThreshold(0.42f) // 3 failures / 7 calls = 0.4285
             .setPeriod(Duration.ofMinutes(1))
+            .setGcpFallbackOpenTelemetry(
+                GcpFallbackOpenTelemetry.newBuilder()
+                    .withSdk(prepareOpenTelemetry(exporter))
+                    .build())
             .build();
     initializeChannelAndCaptureTasks(options);
 
@@ -314,10 +480,68 @@ public class GcpFallbackChannelTest {
         gcpFallbackChannel.isInFallbackMode());
 
     // Verify new calls go to fallback channel.
-    gcpFallbackChannel.newCall(methodDescriptor, callOptions);
-    verify(mockFallbackDelegateChannel).newCall(methodDescriptor, callOptions);
-    verify(mockPrimaryDelegateChannel, never()).newCall(methodDescriptor, callOptions);
+    simulateCall(Status.OK, true);
     assertEquals(fallbackAuthority, gcpFallbackChannel.authority());
+
+    TimeUnit.MILLISECONDS.sleep(200);
+
+    List<MetricData> exportedMetrics = exporter.getExportedMetrics();
+
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(CALL_STATUS_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary", STATUS_CODE, "DEADLINE_EXCEEDED"));
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(CALL_STATUS_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary", STATUS_CODE, "UNAVAILABLE"));
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(CALL_STATUS_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary", STATUS_CODE, "UNAUTHENTICATED"));
+    assertSumMetrics(
+        4,
+        exportedMetrics,
+        fullMetricName(CALL_STATUS_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary", STATUS_CODE, "OK"));
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(CALL_STATUS_METRIC),
+        Attributes.of(CHANNEL_NAME, "fallback", STATUS_CODE, "OK"));
+
+    assertGaugeMetric(
+        0,
+        exportedMetrics,
+        fullMetricName(CURRENT_CHANNEL_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary"));
+    assertGaugeMetric(
+        1,
+        exportedMetrics,
+        fullMetricName(CURRENT_CHANNEL_METRIC),
+        Attributes.of(CHANNEL_NAME, "fallback"));
+
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(FALLBACK_COUNT_METRIC),
+        Attributes.of(FROM_CHANNEL_NAME, "primary", TO_CHANNEL_NAME, "fallback"));
+
+    assertGaugeMetric(
+        0.4285,
+        0.001,
+        exportedMetrics,
+        fullMetricName(ERROR_RATIO_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary"));
+    assertGaugeMetric(
+        0,
+        0.001,
+        exportedMetrics,
+        fullMetricName(ERROR_RATIO_METRIC),
+        Attributes.of(CHANNEL_NAME, "fallback"));
   }
 
   @Test
@@ -877,6 +1101,55 @@ public class GcpFallbackChannelTest {
 
     fallbackProbingTask.run();
     verify(mockFallbackProber).apply(mockFallbackDelegateChannel);
+  }
+
+  @Test
+  public void testProbing_reportsMetrics() throws InterruptedException {
+    Function<Channel, String> mockPrimaryProber =
+        channel -> {
+          return "test_error";
+        };
+    Function<Channel, String> mockFallbackProber =
+        channel -> {
+          return "";
+        };
+
+    TestMetricExporter exporter = new TestMetricExporter();
+    GcpFallbackChannelOptions options =
+        GcpFallbackChannelOptions.newBuilder()
+            .setEnableFallback(true)
+            .setPeriod(Duration.ofMinutes(1))
+            .setPrimaryProbingFunction(mockPrimaryProber)
+            .setFallbackProbingFunction(mockFallbackProber)
+            .setPrimaryProbingInterval(Duration.ofSeconds(5))
+            .setFallbackProbingInterval(Duration.ofSeconds(10))
+            .setGcpFallbackOpenTelemetry(
+                GcpFallbackOpenTelemetry.newBuilder()
+                    .withSdk(prepareOpenTelemetry(exporter))
+                    .build())
+            .build();
+
+    initializeChannelAndCaptureTasks(options);
+
+    assertNotNull(primaryProbingTask);
+    assertNotNull(fallbackProbingTask);
+
+    primaryProbingTask.run();
+    fallbackProbingTask.run();
+
+    TimeUnit.MILLISECONDS.sleep(200);
+    List<MetricData> exportedMetrics = exporter.getExportedMetrics();
+
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(PROBE_RESULT_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary", PROBE_RESULT, "test_error"));
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(PROBE_RESULT_METRIC),
+        Attributes.of(CHANNEL_NAME, "fallback", PROBE_RESULT, ""));
   }
 
   @Test

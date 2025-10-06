@@ -22,6 +22,7 @@ import java.util.logging.Logger;
 
 public class GcpFallbackChannel extends ManagedChannel {
   private static final Logger logger = Logger.getLogger(GcpFallbackChannel.class.getName());
+  private static final String INIT_FAILURE_REASON = "init failure";
   private final GcpFallbackChannelOptions options;
   private final ManagedChannel primaryDelegateChannel;
   private final ManagedChannel fallbackDelegateChannel;
@@ -32,7 +33,7 @@ public class GcpFallbackChannel extends ManagedChannel {
   private final AtomicLong fallbackSuccesses = new AtomicLong(0);
   private final AtomicLong fallbackFailures = new AtomicLong(0);
   private boolean inFallbackMode = false;
-  private static final String INIT_FAILURE_REASON = "init failure";
+  private final GcpFallbackOpenTelemetry openTelemetry;
 
   private final ScheduledExecutorService execService;
 
@@ -65,6 +66,11 @@ public class GcpFallbackChannel extends ManagedChannel {
       this.execService = Executors.newScheduledThreadPool(3);
     }
     this.options = options;
+    if (options.getGcpOpenTelemetry() != null) {
+      this.openTelemetry = options.getGcpOpenTelemetry();
+    } else {
+      this.openTelemetry = GcpFallbackOpenTelemetry.newBuilder().build();
+    }
     ManagedChannel primaryChannel = null;
     try {
       primaryChannel = primaryChannelBuilder.build();
@@ -106,6 +112,11 @@ public class GcpFallbackChannel extends ManagedChannel {
       this.execService = Executors.newScheduledThreadPool(3);
     }
     this.options = options;
+    if (options.getGcpOpenTelemetry() != null) {
+      this.openTelemetry = options.getGcpOpenTelemetry();
+    } else {
+      this.openTelemetry = GcpFallbackOpenTelemetry.newBuilder().build();
+    }
     primaryDelegateChannel = primaryChannel;
     fallbackDelegateChannel = fallbackChannel;
     ClientInterceptor primaryMonitorInterceptor =
@@ -158,9 +169,16 @@ public class GcpFallbackChannel extends ManagedChannel {
     if (failures + successes > 0) {
       errRate = (float) failures / (failures + successes);
     }
-    // TODO: Report primary error rate.
+    // Report primary error rate.
+    openTelemetry.getModule().reportErrorRate(options.getPrimaryChannelName(), errRate);
+
     if (!isInFallbackMode() && options.isEnableFallback()) {
       if (failures >= options.getMinFailedCalls() && errRate >= options.getErrorRateThreshold()) {
+        if (inFallbackMode != true) {
+          openTelemetry
+              .getModule()
+              .reportFallback(options.getPrimaryChannelName(), options.getFallbackChannelName());
+        }
         inFallbackMode = true;
       }
     }
@@ -170,7 +188,15 @@ public class GcpFallbackChannel extends ManagedChannel {
     if (failures + successes > 0) {
       errRate = (float) failures / (failures + successes);
     }
-    // TODO: Report fallback error rate.
+    // Report fallback error rate.
+    openTelemetry.getModule().reportErrorRate(options.getFallbackChannelName(), errRate);
+
+    openTelemetry
+        .getModule()
+        .reportCurrentChannel(options.getPrimaryChannelName(), inFallbackMode == false);
+    openTelemetry
+        .getModule()
+        .reportCurrentChannel(options.getFallbackChannelName(), inFallbackMode == true);
   }
 
   private void processPrimaryStatusCode(Status.Code statusCode) {
@@ -182,6 +208,7 @@ public class GcpFallbackChannel extends ManagedChannel {
       primarySuccesses.incrementAndGet();
     }
     // Report status code.
+    openTelemetry.getModule().reportStatus(options.getPrimaryChannelName(), statusCode);
   }
 
   private void processFallbackStatusCode(Status.Code statusCode) {
@@ -193,6 +220,7 @@ public class GcpFallbackChannel extends ManagedChannel {
       fallbackSuccesses.incrementAndGet();
     }
     // Report status code.
+    openTelemetry.getModule().reportStatus(options.getFallbackChannelName(), statusCode);
   }
 
   private void probePrimary() {
@@ -203,11 +231,13 @@ public class GcpFallbackChannel extends ManagedChannel {
       result = options.getPrimaryProbingFunction().apply(primaryDelegateChannel);
     }
     // Report metric based on result.
+    openTelemetry.getModule().reportProbeResult(options.getPrimaryChannelName(), result);
   }
 
   private void probeFallback() {
     String result = options.getFallbackProbingFunction().apply(fallbackDelegateChannel);
     // Report metric based on result.
+    openTelemetry.getModule().reportProbeResult(options.getFallbackChannelName(), result);
   }
 
   @Override

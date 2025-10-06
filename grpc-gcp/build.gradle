@@ -32,7 +32,11 @@ dependencies {
     implementation "io.grpc:grpc-protobuf:${grpcVersion}"
     implementation "io.grpc:grpc-stub:${grpcVersion}"
     implementation "io.opencensus:opencensus-api:${opencensusVersion}"
+    implementation libs.opentelemetry.api
     implementation "com.google.api:api-common:2.1.5"
+    implementation libs.auto.value.annotations
+
+    annotationProcessor libs.auto.value
 
     testImplementation "com.google.auth:google-auth-library-credentials:0.13.0"
     testImplementation "com.google.cloud:google-cloud-spanner:${spannerVersion}"
@@ -45,6 +49,7 @@ dependencies {
     testImplementation "com.google.truth:truth:0.42"
     testImplementation "org.mockito:mockito-core:4.11.0"
     testImplementation 'junit:junit:4.13.2'
+    testImplementation libs.opentelemetry.sdk
 }
 
 protobuf {
