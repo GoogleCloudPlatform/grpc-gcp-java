@@ -20,6 +20,7 @@ import static com.google.cloud.grpc.GrpcGcpUtil.IMPLEMENTATION_VERSION;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.metrics.Meter;
@@ -50,8 +51,16 @@ public final class GcpFallbackOpenTelemetry {
   static final AttributeKey<String> FROM_CHANNEL_NAME = AttributeKey.stringKey("from_channel_name");
   static final AttributeKey<String> TO_CHANNEL_NAME = AttributeKey.stringKey("to_channel_name");
   static final AttributeKey<String> STATUS_CODE = AttributeKey.stringKey("status_code");
-  // static final AttributeKey<Boolean> PROBE_SUCCESS = AttributeKey.booleanKey("success");
   static final AttributeKey<String> PROBE_RESULT = AttributeKey.stringKey("result");
+
+  static final ImmutableSet<String> DEFAULT_METRICS_SET =
+      ImmutableSet.of(
+          CURRENT_CHANNEL_METRIC,
+          FALLBACK_COUNT_METRIC,
+          CALL_STATUS_METRIC,
+          ERROR_RATIO_METRIC,
+          PROBE_RESULT_METRIC,
+          CHANNEL_DOWNTIME_METRIC);
 
   private final OpenTelemetry openTelemetrySdk;
   private final MeterProvider meterProvider;
@@ -137,7 +146,7 @@ public final class GcpFallbackOpenTelemetry {
     if (explicitlyEnabled != null) {
       return explicitlyEnabled;
     }
-    return OpenTelemetryMetricsModule.DEFAULT_METRICS_SET.contains(metricName) && !disableDefault;
+    return DEFAULT_METRICS_SET.contains(metricName) && !disableDefault;
   }
 
   static OpenTelemetryMetricsResource createMetricInstruments(

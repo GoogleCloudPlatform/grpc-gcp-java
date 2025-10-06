@@ -23,7 +23,6 @@ import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.STATUS_COD
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.TO_CHANNEL_NAME;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.collect.ImmutableSet;
 import io.grpc.Status.Code;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleGauge;
@@ -31,18 +30,8 @@ import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.LongGauge;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 
 final class OpenTelemetryMetricsModule {
-  private static final Logger logger = Logger.getLogger(OpenTelemetryMetricsModule.class.getName());
-  static final ImmutableSet<String> DEFAULT_METRICS_SET =
-      ImmutableSet.of(
-          "current_channel",
-          "fallback_count",
-          "call_status",
-          "error_ratio",
-          "probe_result",
-          "channel_downtime");
   private final OpenTelemetryMetricsResource resource;
   private Map<String, Long> firstFailure = new ConcurrentHashMap<>();
 
@@ -53,10 +42,12 @@ final class OpenTelemetryMetricsModule {
   void reportErrorRate(String channelName, float errorRate) {
     DoubleGauge errorRatioGauge = resource.errorRatioGauge();
 
-    if (errorRatioGauge != null) {
-      Attributes attributes = Attributes.of(CHANNEL_NAME, channelName);
-      errorRatioGauge.set(errorRate, attributes);
+    if (errorRatioGauge == null) {
+      return;
     }
+
+    Attributes attributes = Attributes.of(CHANNEL_NAME, channelName);
+    errorRatioGauge.set(errorRate, attributes);
   }
 
   void reportStatus(String channelName, Code statusCode) {
