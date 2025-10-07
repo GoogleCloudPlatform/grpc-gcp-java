@@ -16,14 +16,19 @@ repositories {
 version = '1.7.0'
 group = 'com.google.cloud'
 description = 'GRPC-GCP-Extension Java'
-sourceCompatibility = '1.8'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
 
 def title = 'gRPC extension library for Google Cloud Platform'
-def grpcVersion = '1.36.3'
-def protobufVersion = '3.20.3'
-def protocVersion = '3.20.3'
+def grpcVersion = '1.66.0'
+def protobufVersion = '3.25.3'
+def protocVersion = '3.25.3'
 def spannerVersion = '6.1.0'
 def opencensusVersion = '0.28.3'
+def openTelemetryApiVersion = '1.45.0'
 
 dependencies {
     implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
@@ -32,6 +37,7 @@ dependencies {
     implementation "io.grpc:grpc-protobuf:${grpcVersion}"
     implementation "io.grpc:grpc-stub:${grpcVersion}"
     implementation "io.opencensus:opencensus-api:${opencensusVersion}"
+    implementation "io.opentelemetry:opentelemetry-api:${openTelemetryApiVersion}"
     implementation "com.google.api:api-common:2.1.5"
 
     testImplementation "com.google.auth:google-auth-library-credentials:0.13.0"
@@ -81,12 +87,14 @@ sourceSets {
 task javadocJar(type: Jar, dependsOn: javadoc) {
     archiveClassifier = 'javadoc'
     from javadoc.destinationDir
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 task sourcesJar(type: Jar) {
     duplicatesStrategy = DuplicatesStrategy.WARN
     archiveClassifier = 'sources'
     from sourceSets.main.allJava
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 publishing {
