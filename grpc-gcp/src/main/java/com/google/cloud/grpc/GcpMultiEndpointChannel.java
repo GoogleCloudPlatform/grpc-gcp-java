@@ -59,6 +59,9 @@ import io.opencensus.metrics.LabelKey;
 import io.opencensus.metrics.LabelValue;
 import io.opencensus.metrics.MetricOptions;
 import io.opencensus.metrics.MetricRegistry;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
+import io.opentelemetry.api.metrics.Meter;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Duration;
@@ -154,6 +157,8 @@ public class GcpMultiEndpointChannel extends ManagedChannel {
   private DerivedLongGauge endpointStateMetric;
   private DerivedLongCumulative endpointSwitchMetric;
   private DerivedLongGauge currentEndpointMetric;
+  private Meter otelMeter;
+  private Attributes otelCommonAttributes;
 
   private final Map<String, CurrentEndpointWatcher> currentEndpointWatchers =
       new ConcurrentHashMap<>();
@@ -321,29 +326,36 @@ public class GcpMultiEndpointChannel extends ManagedChannel {
   private void setUpMetricsForMultiEndpoint(GcpMultiEndpointOptions options, MultiEndpoint me) {
     String name = options.getName();
     List<String> endpoints = options.getEndpoints();
-    endpointSwitchMetric.createTimeSeries(
-        appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_FALLBACK)),
-        me,
-        MultiEndpoint::getFallbackCnt);
-    endpointSwitchMetric.createTimeSeries(
-        appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_RECOVER)),
-        me,
-        MultiEndpoint::getRecoverCnt);
-    endpointSwitchMetric.createTimeSeries(
-        appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_REPLACE)),
-        me,
-        MultiEndpoint::getReplaceCnt);
-    for (String e : endpoints) {
-      CurrentEndpointWatcher watcher = new CurrentEndpointWatcher(me, e);
-      currentEndpointWatchers.put(name + ":" + e, watcher);
-      currentEndpointMetric.createTimeSeries(
-          appendCommonValues(LabelValue.create(name), LabelValue.create(e)),
-          watcher,
-          CurrentEndpointWatcher::getMetricValue);
+    if (endpointSwitchMetric != null) {
+      endpointSwitchMetric.createTimeSeries(
+          appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_FALLBACK)),
+          me,
+          MultiEndpoint::getFallbackCnt);
+      endpointSwitchMetric.createTimeSeries(
+          appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_RECOVER)),
+          me,
+          MultiEndpoint::getRecoverCnt);
+      endpointSwitchMetric.createTimeSeries(
+          appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_REPLACE)),
+          me,
+          MultiEndpoint::getReplaceCnt);
+    }
+    if (currentEndpointMetric != null) {
+      for (String e : endpoints) {
+        CurrentEndpointWatcher watcher = new CurrentEndpointWatcher(me, e);
+        currentEndpointWatchers.put(name + ":" + e, watcher);
+        currentEndpointMetric.createTimeSeries(
+            appendCommonValues(LabelValue.create(name), LabelValue.create(e)),
+            watcher,
+            CurrentEndpointWatcher::getMetricValue);
+      }
     }
   }
 
   private void updateMetricsForMultiEndpoint(GcpMultiEndpointOptions options, MultiEndpoint me) {
+    if (currentEndpointMetric == null) {
+      return;
+    }
     Set<String> newEndpoints = new HashSet<>(options.getEndpoints());
     Set<String> existingEndpoints = new HashSet<>(me.getEndpoints());
     for (String e : existingEndpoints) {
@@ -366,16 +378,20 @@ public class GcpMultiEndpointChannel extends ManagedChannel {
   }
 
   private void removeMetricsForMultiEndpoint(String name, MultiEndpoint me) {
-    endpointSwitchMetric.removeTimeSeries(
-        appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_FALLBACK)));
-    endpointSwitchMetric.removeTimeSeries(
-        appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_RECOVER)));
-    endpointSwitchMetric.removeTimeSeries(
-        appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_REPLACE)));
-    for (String e : me.getEndpoints()) {
-      currentEndpointMetric.removeTimeSeries(
-          appendCommonValues(LabelValue.create(name), LabelValue.create(e)));
-      currentEndpointWatchers.remove(name + ":" + e);
+    if (endpointSwitchMetric != null) {
+      endpointSwitchMetric.removeTimeSeries(
+          appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_FALLBACK)));
+      endpointSwitchMetric.removeTimeSeries(
+          appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_RECOVER)));
+      endpointSwitchMetric.removeTimeSeries(
+          appendCommonValues(LabelValue.create(name), LabelValue.create(TYPE_REPLACE)));
+    }
+    if (currentEndpointMetric != null) {
+      for (String e : me.getEndpoints()) {
+        currentEndpointMetric.removeTimeSeries(
+            appendCommonValues(LabelValue.create(name), LabelValue.create(e)));
+        currentEndpointWatchers.remove(name + ":" + e);
+      }
     }
   }
 
@@ -522,6 +538,40 @@ public class GcpMultiEndpointChannel extends ManagedChannel {
     }
 
     MetricRegistry metricRegistry = gcpMetricsOptions.getMetricRegistry();
+    if (gcpMetricsOptions.getOpenTelemetryMeter() != null) {
+      // Prefer OpenTelemetry if present
+      this.otelMeter = gcpMetricsOptions.getOpenTelemetryMeter();
+      AttributesBuilder builder = Attributes.builder();
+      if (gcpMetricsOptions.getOtelLabelKeys() != null && gcpMetricsOptions.getOtelLabelValues() != null) {
+        for (int i = 0; i < Math.min(gcpMetricsOptions.getOtelLabelKeys().size(), gcpMetricsOptions.getOtelLabelValues().size()); i++) {
+          String k = gcpMetricsOptions.getOtelLabelKeys().get(i);
+          String v = gcpMetricsOptions.getOtelLabelValues().get(i);
+          if (k != null && !k.isEmpty() && v != null) {
+            builder.put(k, v);
+          }
+        }
+      }
+      otelCommonAttributes = builder.build();
+      String prefix = gcpMetricsOptions.getNamePrefix();
+      // endpoint_state as gauges for AVAILABLE/UNAVAILABLE will be registered per EndpointStateMonitor
+      // endpoint_switch cumulative counters per switch type
+      otelMeter.gaugeBuilder(prefix + METRIC_ENDPOINT_SWITCH)
+          .ofLongs()
+          .setDescription("Occurrences of endpoint switch by type.")
+          .setUnit(COUNT)
+          .buildWithCallback(m -> {
+            // Sum of three counters from all MultiEndpoint watchers
+            long fallback = multiEndpoints.values().stream().mapToLong(MultiEndpoint::getFallbackCnt).sum();
+            long recover = multiEndpoints.values().stream().mapToLong(MultiEndpoint::getRecoverCnt).sum();
+            long replace = multiEndpoints.values().stream().mapToLong(MultiEndpoint::getReplaceCnt).sum();
+            m.record(fallback, Attributes.builder().putAll(otelCommonAttributes).put(SWITCH_TYPE_LABEL, TYPE_FALLBACK).build());
+            m.record(recover, Attributes.builder().putAll(otelCommonAttributes).put(SWITCH_TYPE_LABEL, TYPE_RECOVER).build());
+            m.record(replace, Attributes.builder().putAll(otelCommonAttributes).put(SWITCH_TYPE_LABEL, TYPE_REPLACE).build());
+          });
+      // current_endpoint gauges per (me_name, endpoint) will be created in setUpMetricsForMultiEndpoint via OpenCensus path only if registry used.
+      return;
+    }
+
     if (metricRegistry == null) {
       return;
     }

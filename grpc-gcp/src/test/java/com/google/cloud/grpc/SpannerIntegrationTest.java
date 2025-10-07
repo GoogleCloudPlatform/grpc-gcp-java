@@ -37,9 +37,11 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.grpc.GcpManagedChannel.ChannelRef;
 import com.google.cloud.grpc.GcpManagedChannelOptions.GcpChannelPoolOptions;
 import com.google.cloud.grpc.GcpManagedChannelOptions.GcpMetricsOptions;
-import com.google.cloud.grpc.MetricRegistryTestUtils.FakeMetricRegistry;
-import com.google.cloud.grpc.MetricRegistryTestUtils.MetricsRecord;
-import com.google.cloud.grpc.MetricRegistryTestUtils.PointWithFunction;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
+import io.opentelemetry.sdk.metrics.data.MetricData;
 import com.google.cloud.grpc.proto.ApiConfig;
 import com.google.cloud.spanner.Database;
 import com.google.cloud.spanner.DatabaseAdminClient;
@@ -157,8 +159,8 @@ public final class SpannerIntegrationTest {
   final String leaderME = "leader";
   final String followerME = "follower";
 
-  final LabelKey commonKey = LabelKey.create("common_key", "Common key");
-  final LabelValue commonValue = LabelValue.create("common_value");
+  final String commonKey = "common_key";
+  final String commonValue = "common_value";
 
   private void sleep(long millis) throws InterruptedException {
     Sleeper.DEFAULT.sleep(millis);
@@ -467,22 +469,20 @@ public final class SpannerIntegrationTest {
     gcpChannelBRR.shutdownNow();
   }
 
-  private long getOkCallsCount(FakeMetricRegistry fakeRegistry, String endpoint) {
-    MetricsRecord record = fakeRegistry.pollRecord();
-    List<PointWithFunction<?>> metric =
-        record.getMetrics().get(GcpMetricsConstants.METRIC_NUM_CALLS_COMPLETED);
-    for (PointWithFunction<?> m : metric) {
-      assertThat(m.keys().get(0).getKey()).isEqualTo(GcpMetricsConstants.RESULT_LABEL);
-      assertThat(m.keys().get(1).getKey()).isEqualTo(commonKey.getKey());
-      assertThat(m.values().get(1).getValue()).isEqualTo(commonValue.getValue());
-      assertThat(m.keys().get(2).getKey()).isEqualTo(GcpMetricsConstants.ENDPOINT_LABEL);
-      if (!m.values().get(0).equals(LabelValue.create(GcpMetricsConstants.RESULT_SUCCESS))) {
+  private long getOkCallsCount(InMemoryMetricReader metricReader, String endpoint) {
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    for (MetricData metric : metrics) {
+      if (!metric.getName().equals(GcpMetricsConstants.METRIC_NUM_CALLS_COMPLETED)) {
         continue;
       }
-      if (!m.values().get(2).equals(LabelValue.create(endpoint))) {
-        continue;
+      for (var point : metric.getLongSumData().getPoints()) {
+        var attributes = point.getAttributes().asMap();
+        if (attributes.get(GcpMetricsConstants.RESULT_LABEL).equals(GcpMetricsConstants.RESULT_SUCCESS) &&
+            attributes.get(commonKey).equals(commonValue) &&
+            attributes.get(GcpMetricsConstants.ENDPOINT_LABEL).equals(endpoint)) {
+          return point.getValue();
+        }
       }
-      return m.value();
     }
     fail("Success calls metric is not found for endpoint: " + endpoint);
     return 0;
@@ -500,20 +500,19 @@ public final class SpannerIntegrationTest {
     return apiConfigBuilder.build();
   }
 
-  private String getCurrentEndpoint(FakeMetricRegistry fakeRegistry, String meName) {
-    MetricsRecord record = fakeRegistry.pollRecord();
-    List<PointWithFunction<?>> metric =
-        record.getMetrics().get(GcpMetricsConstants.METRIC_CURRENT_ENDPOINT);
-    for (PointWithFunction<?> m : metric) {
-      assertThat(m.keys().get(0).getKey()).isEqualTo(GcpMetricsConstants.ME_NAME_LABEL);
-      assertThat(m.keys().get(1).getKey()).isEqualTo(GcpMetricsConstants.ENDPOINT_LABEL);
-      assertThat(m.keys().get(2).getKey()).isEqualTo(commonKey.getKey());
-      assertThat(m.values().get(2).getValue()).isEqualTo(commonValue.getValue());
-      if (!m.values().get(0).getValue().equals(meName)) {
+  private String getCurrentEndpoint(InMemoryMetricReader metricReader, String meName) {
+    Collection<MetricData> metrics = metricReader.collectAllMetrics();
+    for (MetricData metric : metrics) {
+      if (!metric.getName().equals(GcpMetricsConstants.METRIC_CURRENT_ENDPOINT)) {
         continue;
       }
-      if (m.value() == 1) {
-        return m.values().get(1).getValue();
+      for (var point : metric.getLongGaugeData().getPoints()) {
+        var attributes = point.getAttributes().asMap();
+        if (attributes.get(GcpMetricsConstants.ME_NAME_LABEL).equals(meName) &&
+            attributes.get(commonKey).equals(commonValue) &&
+            point.getValue() == 1) {
+          return attributes.get(GcpMetricsConstants.ENDPOINT_LABEL);
+        }
       }
     }
     fail("Current endpoint metric not found for multi-endpoint: " + meName);
