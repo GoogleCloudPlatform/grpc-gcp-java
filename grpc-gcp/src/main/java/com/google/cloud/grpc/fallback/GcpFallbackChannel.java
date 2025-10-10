@@ -242,7 +242,7 @@ public class GcpFallbackChannel extends ManagedChannel {
   private void probePrimary() {
     String result = "";
     if (primaryDelegateChannel == null) {
-      result = "init failure";
+      result = INIT_FAILURE_REASON;
     } else {
       result = options.getPrimaryProbingFunction().apply(primaryDelegateChannel);
     }
