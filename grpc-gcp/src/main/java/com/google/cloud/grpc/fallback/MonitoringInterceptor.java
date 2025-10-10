@@ -71,6 +71,7 @@ class MonitoringInterceptor implements ClientInterceptor {
               responseListener) {
             @Override
             public void onClose(Status status, Metadata trailers) {
+              // Use atomic to account for the race between onClose and cancel.
               if (!decremented.getAndSet(true)) {
                 statusCodeConsumer.accept(status.getCode());
               }
@@ -83,6 +84,7 @@ class MonitoringInterceptor implements ClientInterceptor {
 
     @Override
     public void cancel(@Nullable String message, @Nullable Throwable cause) {
+      // Use atomic to account for the race between onClose and cancel.
       if (!decremented.getAndSet(true)) {
         statusCodeConsumer.accept(Status.Code.CANCELLED);
       }

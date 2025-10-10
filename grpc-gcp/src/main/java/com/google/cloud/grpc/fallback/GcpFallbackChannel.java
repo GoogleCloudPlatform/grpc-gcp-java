@@ -40,9 +40,13 @@ public class GcpFallbackChannel extends ManagedChannel {
   private static final Logger logger = Logger.getLogger(GcpFallbackChannel.class.getName());
   private static final String INIT_FAILURE_REASON = "init failure";
   private final GcpFallbackChannelOptions options;
+  // Primary channel that was provided in constructor.
   private final ManagedChannel primaryDelegateChannel;
+  // Fallback channel that was provided in constructor.
   private final ManagedChannel fallbackDelegateChannel;
+  // Wrapped primary channel to be used for RPCs.
   private final Channel primaryChannel;
+  // Wrapped fallback channel to be used for RPCs.
   private final Channel fallbackChannel;
   private final AtomicLong primarySuccesses = new AtomicLong(0);
   private final AtomicLong primaryFailures = new AtomicLong(0);
