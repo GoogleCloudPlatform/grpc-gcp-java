@@ -16,6 +16,7 @@
 
 package com.google.cloud.grpc.fallback;
 
+import static com.google.cloud.grpc.fallback.GcpFallbackChannel.INIT_FAILURE_REASON;
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CALL_STATUS_METRIC;
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CHANNEL_NAME;
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CURRENT_CHANNEL_METRIC;
@@ -129,6 +130,7 @@ public class GcpFallbackChannelTest {
   @Mock private ManagedChannelBuilder<?> mockPrimaryBuilder;
   @Mock private ManagedChannelBuilder<?> mockPrimaryInvalidBuilder;
   @Mock private ManagedChannelBuilder<?> mockFallbackBuilder;
+  @Mock private ManagedChannelBuilder<?> mockFallbackInvalidBuilder;
 
   private GcpFallbackChannel gcpFallbackChannel;
 
@@ -157,6 +159,10 @@ public class GcpFallbackChannelTest {
     // For constructor with builders.
     when(mockPrimaryBuilder.build()).thenReturn(mockPrimaryDelegateChannel);
     when(mockPrimaryInvalidBuilder.build())
+        .thenThrow(
+            new IllegalArgumentException(
+                "Could not find a NameResolverProvider for custom://some.domain"));
+    when(mockFallbackInvalidBuilder.build())
         .thenThrow(
             new IllegalArgumentException(
                 "Could not find a NameResolverProvider for dns://some.domain"));
@@ -200,11 +206,19 @@ public class GcpFallbackChannelTest {
     captureScheduledTasks(options);
   }
 
-  private void initializeChannelWithInvalidBuilderAndCaptureTasks(
+  private void initializeChannelWithInvalidPrimaryBuilderAndCaptureTasks(
       GcpFallbackChannelOptions options) {
     gcpFallbackChannel =
         new GcpFallbackChannel(
             options, mockPrimaryInvalidBuilder, mockFallbackBuilder, mockScheduledExecutorService);
+    captureScheduledTasks(options);
+  }
+
+  private void initializeChannelWithInvalidFallbackBuilderAndCaptureTasks(
+      GcpFallbackChannelOptions options) {
+    gcpFallbackChannel =
+        new GcpFallbackChannel(
+            options, mockPrimaryBuilder, mockFallbackInvalidBuilder, mockScheduledExecutorService);
     captureScheduledTasks(options);
   }
 
@@ -647,7 +661,7 @@ public class GcpFallbackChannelTest {
             .setErrorRateThreshold(0.1f)
             .setPeriod(Duration.ofMinutes(1))
             .build();
-    initializeChannelWithInvalidBuilderAndCaptureTasks(options);
+    initializeChannelWithInvalidPrimaryBuilderAndCaptureTasks(options);
 
     verify(mockPrimaryInvalidBuilder).build();
     verify(mockFallbackBuilder).build();
@@ -796,7 +810,7 @@ public class GcpFallbackChannelTest {
             .setPrimaryProbingFunction(primaryProbe)
             .setPrimaryProbingInterval(Duration.ofSeconds(15))
             .build();
-    initializeChannelWithInvalidBuilderAndCaptureTasks(options);
+    initializeChannelWithInvalidPrimaryBuilderAndCaptureTasks(options);
 
     assertNotNull("probePrimary must be scheduled", primaryProbingTask);
     // Run probing function in GcpFallbackChannel.
@@ -1153,6 +1167,104 @@ public class GcpFallbackChannelTest {
   }
 
   @Test
+  public void testProbing_reportsInitFailureForPrimary() throws InterruptedException {
+    Function<Channel, String> mockPrimaryProber =
+        channel -> {
+          return "test_error";
+        };
+    Function<Channel, String> mockFallbackProber =
+        channel -> {
+          return "";
+        };
+
+    TestMetricExporter exporter = new TestMetricExporter();
+    GcpFallbackChannelOptions options =
+        GcpFallbackChannelOptions.newBuilder()
+            .setEnableFallback(true)
+            .setPeriod(Duration.ofMinutes(1))
+            .setPrimaryProbingFunction(mockPrimaryProber)
+            .setFallbackProbingFunction(mockFallbackProber)
+            .setPrimaryProbingInterval(Duration.ofSeconds(5))
+            .setFallbackProbingInterval(Duration.ofSeconds(10))
+            .setGcpFallbackOpenTelemetry(
+                GcpFallbackOpenTelemetry.newBuilder()
+                    .withSdk(prepareOpenTelemetry(exporter))
+                    .build())
+            .build();
+
+    initializeChannelWithInvalidPrimaryBuilderAndCaptureTasks(options);
+
+    assertNotNull(primaryProbingTask);
+    assertNotNull(fallbackProbingTask);
+
+    primaryProbingTask.run();
+    fallbackProbingTask.run();
+
+    TimeUnit.MILLISECONDS.sleep(200);
+    List<MetricData> exportedMetrics = exporter.getExportedMetrics();
+
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(PROBE_RESULT_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary", PROBE_RESULT, INIT_FAILURE_REASON));
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(PROBE_RESULT_METRIC),
+        Attributes.of(CHANNEL_NAME, "fallback", PROBE_RESULT, ""));
+  }
+
+  @Test
+  public void testProbing_reportsInitFailureForFallback() throws InterruptedException {
+    Function<Channel, String> mockPrimaryProber =
+        channel -> {
+          return "test_error";
+        };
+    Function<Channel, String> mockFallbackProber =
+        channel -> {
+          return "";
+        };
+
+    TestMetricExporter exporter = new TestMetricExporter();
+    GcpFallbackChannelOptions options =
+        GcpFallbackChannelOptions.newBuilder()
+            .setEnableFallback(true)
+            .setPeriod(Duration.ofMinutes(1))
+            .setPrimaryProbingFunction(mockPrimaryProber)
+            .setFallbackProbingFunction(mockFallbackProber)
+            .setPrimaryProbingInterval(Duration.ofSeconds(5))
+            .setFallbackProbingInterval(Duration.ofSeconds(10))
+            .setGcpFallbackOpenTelemetry(
+                GcpFallbackOpenTelemetry.newBuilder()
+                    .withSdk(prepareOpenTelemetry(exporter))
+                    .build())
+            .build();
+
+    initializeChannelWithInvalidFallbackBuilderAndCaptureTasks(options);
+
+    assertNotNull(primaryProbingTask);
+    assertNotNull(fallbackProbingTask);
+
+    primaryProbingTask.run();
+    fallbackProbingTask.run();
+
+    TimeUnit.MILLISECONDS.sleep(200);
+    List<MetricData> exportedMetrics = exporter.getExportedMetrics();
+
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(PROBE_RESULT_METRIC),
+        Attributes.of(CHANNEL_NAME, "primary", PROBE_RESULT, "test_error"));
+    assertSumMetrics(
+        1,
+        exportedMetrics,
+        fullMetricName(PROBE_RESULT_METRIC),
+        Attributes.of(CHANNEL_NAME, "fallback", PROBE_RESULT, INIT_FAILURE_REASON));
+  }
+
+  @Test
   public void testConstructor_failsWhenOptionsIsNull() {
     assertThrows(
         NullPointerException.class,
@@ -1193,5 +1305,15 @@ public class GcpFallbackChannelTest {
         () ->
             gcpFallbackChannel =
                 new GcpFallbackChannel(getDefaultOptions(), mockPrimaryBuilder, null));
+  }
+
+  @Test
+  public void testConstructor_failsWhenBothBuildersFail() {
+    assertThrows(
+        RuntimeException.class,
+        () ->
+            gcpFallbackChannel =
+                new GcpFallbackChannel(
+                    getDefaultOptions(), mockPrimaryInvalidBuilder, mockFallbackInvalidBuilder));
   }
 }

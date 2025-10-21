@@ -35,15 +35,16 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
+import javax.annotation.Nullable;
 
 public class GcpFallbackChannel extends ManagedChannel {
   private static final Logger logger = Logger.getLogger(GcpFallbackChannel.class.getName());
-  private static final String INIT_FAILURE_REASON = "init failure";
+  static final String INIT_FAILURE_REASON = "init failure";
   private final GcpFallbackChannelOptions options;
   // Primary channel that was provided in constructor.
-  private final ManagedChannel primaryDelegateChannel;
+  @Nullable private final ManagedChannel primaryDelegateChannel;
   // Fallback channel that was provided in constructor.
-  private final ManagedChannel fallbackDelegateChannel;
+  @Nullable private final ManagedChannel fallbackDelegateChannel;
   // Wrapped primary channel to be used for RPCs.
   private final Channel primaryChannel;
   // Wrapped fallback channel to be used for RPCs.
@@ -101,19 +102,39 @@ public class GcpFallbackChannel extends ManagedChannel {
               e.getMessage()));
     }
     primaryDelegateChannel = primaryChannel;
-    fallbackDelegateChannel = fallbackChannelBuilder.build();
-    ClientInterceptor primaryMonitoringInterceptor =
-        new MonitoringInterceptor(this::processPrimaryStatusCode);
+
+    ManagedChannel fallbackChannel = null;
+    try {
+      fallbackChannel = fallbackChannelBuilder.build();
+    } catch (Exception e) {
+      if (primaryChannel == null) {
+        throw new RuntimeException(
+            "Both primary and fallback channels initialization failed: " + e.getMessage(), e);
+      }
+
+      logger.warning(
+          String.format(
+              "Fallback channel initialization failed: %s. Will use only the primary channel.",
+              e.getMessage()));
+    }
+    fallbackDelegateChannel = fallbackChannel;
+
     if (primaryDelegateChannel != null) {
       this.primaryChannel =
-          ClientInterceptors.intercept(primaryDelegateChannel, primaryMonitoringInterceptor);
+          ClientInterceptors.intercept(
+              primaryDelegateChannel, new MonitoringInterceptor(this::processPrimaryStatusCode));
     } else {
       this.primaryChannel = null;
     }
-    ClientInterceptor fallbackMonitoringInterceptor =
-        new MonitoringInterceptor(this::processFallbackStatusCode);
-    this.fallbackChannel =
-        ClientInterceptors.intercept(fallbackDelegateChannel, fallbackMonitoringInterceptor);
+
+    if (fallbackDelegateChannel != null) {
+      this.fallbackChannel =
+          ClientInterceptors.intercept(
+              fallbackDelegateChannel, new MonitoringInterceptor(this::processFallbackStatusCode));
+    } else {
+      this.fallbackChannel = null;
+    }
+
     init();
   }
 
@@ -255,7 +276,12 @@ public class GcpFallbackChannel extends ManagedChannel {
   }
 
   private void probeFallback() {
-    String result = options.getFallbackProbingFunction().apply(fallbackDelegateChannel);
+    String result = "";
+    if (fallbackDelegateChannel == null) {
+      result = INIT_FAILURE_REASON;
+    } else {
+      result = options.getFallbackProbingFunction().apply(fallbackDelegateChannel);
+    }
     // Report metric based on result.
     openTelemetry.getModule().reportProbeResult(options.getFallbackChannelName(), result);
   }
@@ -284,7 +310,9 @@ public class GcpFallbackChannel extends ManagedChannel {
     if (primaryDelegateChannel != null) {
       primaryDelegateChannel.shutdown();
     }
-    fallbackDelegateChannel.shutdown();
+    if (fallbackDelegateChannel != null) {
+      fallbackDelegateChannel.shutdown();
+    }
     execService.shutdown();
     return this;
   }
@@ -294,7 +322,9 @@ public class GcpFallbackChannel extends ManagedChannel {
     if (primaryDelegateChannel != null) {
       primaryDelegateChannel.shutdownNow();
     }
-    fallbackDelegateChannel.shutdownNow();
+    if (fallbackDelegateChannel != null) {
+      fallbackDelegateChannel.shutdownNow();
+    }
     execService.shutdownNow();
     return this;
   }
@@ -305,7 +335,11 @@ public class GcpFallbackChannel extends ManagedChannel {
       return false;
     }
 
-    return fallbackDelegateChannel.isShutdown() && execService.isShutdown();
+    if (fallbackDelegateChannel != null && !fallbackDelegateChannel.isShutdown()) {
+      return false;
+    }
+
+    return execService.isShutdown();
   }
 
   @Override
@@ -314,7 +348,11 @@ public class GcpFallbackChannel extends ManagedChannel {
       return false;
     }
 
-    return fallbackDelegateChannel.isTerminated() && execService.isTerminated();
+    if (fallbackDelegateChannel != null && !fallbackDelegateChannel.isTerminated()) {
+      return false;
+    }
+
+    return execService.isTerminated();
   }
 
   @Override
@@ -328,12 +366,14 @@ public class GcpFallbackChannel extends ManagedChannel {
     }
 
     long awaitTimeNanos = endTimeNanos - System.nanoTime();
-    boolean terminated = fallbackDelegateChannel.awaitTermination(awaitTimeNanos, NANOSECONDS);
-    if (!terminated) {
-      return false;
+    if (fallbackDelegateChannel != null) {
+      boolean terminated = fallbackDelegateChannel.awaitTermination(awaitTimeNanos, NANOSECONDS);
+      if (!terminated) {
+        return false;
+      }
+      awaitTimeNanos = endTimeNanos - System.nanoTime();
     }
 
-    awaitTimeNanos = endTimeNanos - System.nanoTime();
     return execService.awaitTermination(awaitTimeNanos, NANOSECONDS);
   }
 }
