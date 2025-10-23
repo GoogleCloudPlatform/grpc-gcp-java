@@ -743,6 +743,33 @@ public class GcpFallbackChannelTest {
   }
 
   @Test
+  public void testNoFallback_fallbackChannelBuildFails() {
+    GcpFallbackChannelOptions options =
+        GcpFallbackChannelOptions.newBuilder()
+            .setEnableFallback(true)
+            .setMinFailedCalls(1)
+            .setErrorRateThreshold(0.1f)
+            .setPeriod(Duration.ofMinutes(1))
+            .build();
+    initializeChannelWithInvalidFallbackBuilderAndCaptureTasks(options);
+
+    assertFalse("Should not be in fallback mode initially.", gcpFallbackChannel.isInFallbackMode());
+
+    simulateCall(Status.UNAVAILABLE, false);
+    simulateCall(Status.UNAVAILABLE, false);
+    simulateCall(Status.UNAVAILABLE, false);
+    // Total calls = 3, Failures = 3. Error rate = 1.0. MinFailedCalls = 1. Threshold = 0.1.
+    // Fallback conditions satisfied but we have nowhere to fail over to because the fallbackChannel
+    // wasn't built.
+
+    assertNotNull("checkErrorRates must be scheduled.", checkErrorRatesTask);
+    checkErrorRatesTask.run();
+
+    assertFalse("Should not be in fallback mode.", gcpFallbackChannel.isInFallbackMode());
+    assertEquals(primaryAuthority, gcpFallbackChannel.authority());
+  }
+
+  @Test
   public void testNoFallback_errorRateNotMet() {
     GcpFallbackChannelOptions options =
         GcpFallbackChannelOptions.newBuilder()

@@ -213,7 +213,7 @@ public class GcpFallbackChannel extends ManagedChannel {
     // Report primary error rate.
     openTelemetry.getModule().reportErrorRate(options.getPrimaryChannelName(), errRate);
 
-    if (!isInFallbackMode() && options.isEnableFallback()) {
+    if (!isInFallbackMode() && options.isEnableFallback() && fallbackChannel != null) {
       if (failures >= options.getMinFailedCalls() && errRate >= options.getErrorRateThreshold()) {
         if (inFallbackMode != true) {
           openTelemetry
