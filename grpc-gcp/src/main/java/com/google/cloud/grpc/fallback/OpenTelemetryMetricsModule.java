@@ -16,27 +16,113 @@
 
 package com.google.cloud.grpc.fallback;
 
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CALL_STATUS_METRIC;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CHANNEL_DOWNTIME_METRIC;
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CHANNEL_NAME;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.CURRENT_CHANNEL_METRIC;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.DEFAULT_METRICS_SET;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.ERROR_RATIO_METRIC;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.FALLBACK_COUNT_METRIC;
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.FROM_CHANNEL_NAME;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.METRIC_PREFIX;
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.PROBE_RESULT;
+import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.PROBE_RESULT_METRIC;
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.STATUS_CODE;
 import static com.google.cloud.grpc.fallback.GcpFallbackOpenTelemetry.TO_CHANNEL_NAME;
-import static com.google.common.base.Preconditions.checkNotNull;
 
 import io.grpc.Status.Code;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleGauge;
 import io.opentelemetry.api.metrics.LongCounter;
-import io.opentelemetry.api.metrics.LongGauge;
+import io.opentelemetry.api.metrics.Meter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 final class OpenTelemetryMetricsModule {
   private final OpenTelemetryMetricsResource resource;
-  private Map<String, Long> firstFailure = new ConcurrentHashMap<>();
+  private final Map<String, Long> firstFailure = new ConcurrentHashMap<>();
+  private final Map<String, Boolean> channelActive = new ConcurrentHashMap<>();
 
-  OpenTelemetryMetricsModule(OpenTelemetryMetricsResource resource) {
-    this.resource = checkNotNull(resource, "resource");
+  OpenTelemetryMetricsModule(
+      Meter meter, Map<String, Boolean> enableMetrics, boolean disableDefault) {
+    this.resource = createMetricInstruments(meter, enableMetrics, disableDefault);
+  }
+
+  static boolean isMetricEnabled(
+      String metricName, Map<String, Boolean> enableMetrics, boolean disableDefault) {
+    Boolean explicitlyEnabled = enableMetrics.get(metricName);
+    if (explicitlyEnabled != null) {
+      return explicitlyEnabled;
+    }
+    return DEFAULT_METRICS_SET.contains(metricName) && !disableDefault;
+  }
+
+  private OpenTelemetryMetricsResource createMetricInstruments(
+      Meter meter, Map<String, Boolean> enableMetrics, boolean disableDefault) {
+    OpenTelemetryMetricsResource.Builder builder = OpenTelemetryMetricsResource.builder();
+
+    if (isMetricEnabled(CURRENT_CHANNEL_METRIC, enableMetrics, disableDefault)) {
+      builder.currentChannelCounter(
+          meter
+              .upDownCounterBuilder(String.format("%s.%s", METRIC_PREFIX, CURRENT_CHANNEL_METRIC))
+              .setUnit("{channel}")
+              .setDescription("1 for currently active channel, 0 otherwise.")
+              .buildWithCallback(
+                  counter -> {
+                    channelActive.forEach(
+                        (channelName, isActive) -> {
+                          counter.record(
+                              isActive ? 1 : 0, Attributes.of(CHANNEL_NAME, channelName));
+                        });
+                  }));
+    }
+
+    if (isMetricEnabled(FALLBACK_COUNT_METRIC, enableMetrics, disableDefault)) {
+      builder.fallbackCounter(
+          meter
+              .counterBuilder(String.format("%s.%s", METRIC_PREFIX, FALLBACK_COUNT_METRIC))
+              .setUnit("{occurrence}")
+              .setDescription("Number of fallbacks occurred from one channel to another.")
+              .build());
+    }
+
+    if (isMetricEnabled(CALL_STATUS_METRIC, enableMetrics, disableDefault)) {
+      builder.callStatusCounter(
+          meter
+              .counterBuilder(String.format("%s.%s", METRIC_PREFIX, CALL_STATUS_METRIC))
+              .setUnit("{call}")
+              .setDescription("Number of calls with a status and channel.")
+              .build());
+    }
+
+    if (isMetricEnabled(ERROR_RATIO_METRIC, enableMetrics, disableDefault)) {
+      builder.errorRatioGauge(
+          meter
+              .gaugeBuilder(String.format("%s.%s", METRIC_PREFIX, ERROR_RATIO_METRIC))
+              .setUnit("1")
+              .setDescription("Ratio of failed calls to total calls for a channel.")
+              .build());
+    }
+
+    if (isMetricEnabled(PROBE_RESULT_METRIC, enableMetrics, disableDefault)) {
+      builder.probeResultCounter(
+          meter
+              .counterBuilder(String.format("%s.%s", METRIC_PREFIX, PROBE_RESULT_METRIC))
+              .setUnit("{result}")
+              .setDescription("Results of probing functions execution.")
+              .build());
+    }
+
+    if (isMetricEnabled(CHANNEL_DOWNTIME_METRIC, enableMetrics, disableDefault)) {
+      builder.channelDowntimeGauge(
+          meter
+              .gaugeBuilder(String.format("%s.%s", METRIC_PREFIX, CHANNEL_DOWNTIME_METRIC))
+              .setUnit("s")
+              .setDescription("How many consecutive seconds probing fails for the channel.")
+              .build());
+    }
+
+    return builder.build();
   }
 
   void reportErrorRate(String channelName, float errorRate) {
@@ -78,7 +164,7 @@ final class OpenTelemetryMetricsModule {
       probeResultCounter.add(1, attributes);
     }
 
-    LongGauge downtimeGauge = resource.channelDowntimeGauge();
+    DoubleGauge downtimeGauge = resource.channelDowntimeGauge();
     if (downtimeGauge == null) {
       return;
     }
@@ -91,23 +177,12 @@ final class OpenTelemetryMetricsModule {
     } else {
       firstFailure.putIfAbsent(channelName, System.nanoTime());
       downtimeGauge.set(
-          (System.nanoTime() - firstFailure.get(channelName)) / 1_000_000_000, attributes);
+          (double) (System.nanoTime() - firstFailure.get(channelName)) / 1_000_000_000, attributes);
     }
   }
 
   void reportCurrentChannel(String channelName, boolean current) {
-    LongGauge channelGauge = resource.currentChannelGauge();
-    if (channelGauge == null) {
-      return;
-    }
-
-    Attributes attributes = Attributes.of(CHANNEL_NAME, channelName);
-
-    if (current) {
-      channelGauge.set(1, attributes);
-    } else {
-      channelGauge.set(0, attributes);
-    }
+    channelActive.put(channelName, current);
   }
 
   void reportFallback(String fromChannelName, String toChannelName) {

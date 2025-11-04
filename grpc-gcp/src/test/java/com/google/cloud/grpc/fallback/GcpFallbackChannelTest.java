@@ -527,12 +527,12 @@ public class GcpFallbackChannelTest {
         fullMetricName(CALL_STATUS_METRIC),
         Attributes.of(CHANNEL_NAME, "fallback", STATUS_CODE, "OK"));
 
-    assertGaugeMetric(
+    assertSumMetrics(
         0,
         exportedMetrics,
         fullMetricName(CURRENT_CHANNEL_METRIC),
         Attributes.of(CHANNEL_NAME, "primary"));
-    assertGaugeMetric(
+    assertSumMetrics(
         1,
         exportedMetrics,
         fullMetricName(CURRENT_CHANNEL_METRIC),

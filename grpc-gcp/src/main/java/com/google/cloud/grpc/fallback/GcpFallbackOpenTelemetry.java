@@ -67,7 +67,6 @@ public final class GcpFallbackOpenTelemetry {
   private final Meter meter;
   private final Map<String, Boolean> enableMetrics;
   private final boolean disableDefault;
-  private final OpenTelemetryMetricsResource resource;
   private final OpenTelemetryMetricsModule openTelemetryMetricsModule;
 
   public static Builder newBuilder() {
@@ -84,8 +83,8 @@ public final class GcpFallbackOpenTelemetry {
             .build();
     this.enableMetrics = ImmutableMap.copyOf(builder.enableMetrics);
     this.disableDefault = builder.disableAll;
-    this.resource = createMetricInstruments(meter, enableMetrics, disableDefault);
-    this.openTelemetryMetricsModule = new OpenTelemetryMetricsModule(resource);
+    this.openTelemetryMetricsModule =
+        new OpenTelemetryMetricsModule(meter, enableMetrics, disableDefault);
   }
 
   /** Builder for configuring {@link GcpFallbackOpenTelemetry}. */
@@ -138,78 +137,6 @@ public final class GcpFallbackOpenTelemetry {
     public GcpFallbackOpenTelemetry build() {
       return new GcpFallbackOpenTelemetry(this);
     }
-  }
-
-  static boolean isMetricEnabled(
-      String metricName, Map<String, Boolean> enableMetrics, boolean disableDefault) {
-    Boolean explicitlyEnabled = enableMetrics.get(metricName);
-    if (explicitlyEnabled != null) {
-      return explicitlyEnabled;
-    }
-    return DEFAULT_METRICS_SET.contains(metricName) && !disableDefault;
-  }
-
-  static OpenTelemetryMetricsResource createMetricInstruments(
-      Meter meter, Map<String, Boolean> enableMetrics, boolean disableDefault) {
-    OpenTelemetryMetricsResource.Builder builder = OpenTelemetryMetricsResource.builder();
-
-    if (isMetricEnabled(CURRENT_CHANNEL_METRIC, enableMetrics, disableDefault)) {
-      builder.currentChannelGauge(
-          meter
-              .gaugeBuilder(String.format("%s.%s", METRIC_PREFIX, CURRENT_CHANNEL_METRIC))
-              .ofLongs()
-              .setUnit("{channel}")
-              .setDescription("1 for currently active channel, 0 otherwise.")
-              .build());
-    }
-
-    if (isMetricEnabled(FALLBACK_COUNT_METRIC, enableMetrics, disableDefault)) {
-      builder.fallbackCounter(
-          meter
-              .counterBuilder(String.format("%s.%s", METRIC_PREFIX, FALLBACK_COUNT_METRIC))
-              .setUnit("{occurrence}")
-              .setDescription("Number of fallbacks occurred from one channel to another.")
-              .build());
-    }
-
-    if (isMetricEnabled(CALL_STATUS_METRIC, enableMetrics, disableDefault)) {
-      builder.callStatusCounter(
-          meter
-              .counterBuilder(String.format("%s.%s", METRIC_PREFIX, CALL_STATUS_METRIC))
-              .setUnit("{call}")
-              .setDescription("Number of calls with a status and channel.")
-              .build());
-    }
-
-    if (isMetricEnabled(ERROR_RATIO_METRIC, enableMetrics, disableDefault)) {
-      builder.errorRatioGauge(
-          meter
-              .gaugeBuilder(String.format("%s.%s", METRIC_PREFIX, ERROR_RATIO_METRIC))
-              .setUnit("1")
-              .setDescription("Ratio of failed calls to total calls for a channel.")
-              .build());
-    }
-
-    if (isMetricEnabled(PROBE_RESULT_METRIC, enableMetrics, disableDefault)) {
-      builder.probeResultCounter(
-          meter
-              .counterBuilder(String.format("%s.%s", METRIC_PREFIX, PROBE_RESULT_METRIC))
-              .setUnit("{result}")
-              .setDescription("Results of probing functions execution.")
-              .build());
-    }
-
-    if (isMetricEnabled(CHANNEL_DOWNTIME_METRIC, enableMetrics, disableDefault)) {
-      builder.channelDowntimeGauge(
-          meter
-              .gaugeBuilder(String.format("%s.%s", METRIC_PREFIX, CHANNEL_DOWNTIME_METRIC))
-              .ofLongs()
-              .setUnit("s")
-              .setDescription("How many consecutive seconds probing fails for the channel.")
-              .build());
-    }
-
-    return builder.build();
   }
 
   OpenTelemetryMetricsModule getModule() {

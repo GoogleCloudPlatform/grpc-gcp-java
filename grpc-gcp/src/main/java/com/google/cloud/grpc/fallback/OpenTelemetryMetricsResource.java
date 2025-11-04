@@ -20,14 +20,14 @@ import com.google.auto.value.AutoValue;
 import com.google.cloud.grpc.fallback.AutoValue_OpenTelemetryMetricsResource.Builder;
 import io.opentelemetry.api.metrics.DoubleGauge;
 import io.opentelemetry.api.metrics.LongCounter;
-import io.opentelemetry.api.metrics.LongGauge;
+import io.opentelemetry.api.metrics.ObservableLongUpDownCounter;
 import javax.annotation.Nullable;
 
 @AutoValue
 abstract class OpenTelemetryMetricsResource {
 
   @Nullable
-  abstract LongGauge currentChannelGauge();
+  abstract ObservableLongUpDownCounter currentChannelCounter();
 
   @Nullable
   abstract LongCounter fallbackCounter();
@@ -42,7 +42,7 @@ abstract class OpenTelemetryMetricsResource {
   abstract LongCounter probeResultCounter();
 
   @Nullable
-  abstract LongGauge channelDowntimeGauge();
+  abstract DoubleGauge channelDowntimeGauge();
 
   static Builder builder() {
     return new AutoValue_OpenTelemetryMetricsResource.Builder();
@@ -50,7 +50,7 @@ abstract class OpenTelemetryMetricsResource {
 
   @AutoValue.Builder
   abstract static class Builder {
-    abstract Builder currentChannelGauge(LongGauge gauge);
+    abstract Builder currentChannelCounter(ObservableLongUpDownCounter counter);
 
     abstract Builder fallbackCounter(LongCounter counter);
 
@@ -60,7 +60,7 @@ abstract class OpenTelemetryMetricsResource {
 
     abstract Builder probeResultCounter(LongCounter counter);
 
-    abstract Builder channelDowntimeGauge(LongGauge gauge);
+    abstract Builder channelDowntimeGauge(DoubleGauge gauge);
 
     abstract OpenTelemetryMetricsResource build();
   }
