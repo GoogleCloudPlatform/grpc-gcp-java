@@ -119,7 +119,7 @@ public class GcpFallbackChannelOptions {
     private Function<Channel, String> primaryProbingFunction = null;
     private Function<Channel, String> fallbackProbingFunction = null;
 
-    private Duration primaryProbingInterval = Duration.ofSeconds(15);
+    private Duration primaryProbingInterval = Duration.ofMinutes(1);
     private Duration fallbackProbingInterval = Duration.ofMinutes(15);
 
     private String primaryChannelName = "primary";

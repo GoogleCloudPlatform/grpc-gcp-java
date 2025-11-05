@@ -78,7 +78,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -177,16 +176,22 @@ public class GcpFallbackChannelTest {
     }
   }
 
-  private GcpFallbackChannelOptions getDefaultOptions() {
-    Set<Status.Code> erroneousStates =
-        EnumSet.of(Status.Code.UNAVAILABLE, Status.Code.CANCELLED, Status.Code.DEADLINE_EXCEEDED);
+  private GcpFallbackChannelOptions.Builder getDefaultOptionsBuilder() {
     return GcpFallbackChannelOptions.newBuilder()
         .setEnableFallback(true)
         .setErrorRateThreshold(0.5f)
         .setMinFailedCalls(3)
         .setPeriod(Duration.ofMinutes(1))
-        .setErroneousStates(erroneousStates)
-        .build();
+        .setPrimaryProbingInterval(Duration.ofMinutes(5))
+        .setErroneousStates(
+            EnumSet.of(
+                Status.Code.UNAVAILABLE,
+                Status.Code.UNAUTHENTICATED,
+                Status.Code.DEADLINE_EXCEEDED));
+  }
+
+  private GcpFallbackChannelOptions getDefaultOptions() {
+    return getDefaultOptionsBuilder().build();
   }
 
   private void initializeChannelAndCaptureTasks(GcpFallbackChannelOptions options) {
@@ -409,29 +414,6 @@ public class GcpFallbackChannelTest {
   }
 
   private void assertGaugeMetric(
-      long value, List<MetricData> metrics, String metricName, Attributes attrs) {
-    for (MetricData metricData : metrics) {
-      if (!metricData.getName().equals(metricName)) {
-        continue;
-      }
-
-      pointsLoop:
-      for (LongPointData point : metricData.getLongGaugeData().getPoints()) {
-        for (AttributeKey<?> key : attrs.asMap().keySet()) {
-          if (!attrs.get(key).equals(point.getAttributes().get(key))) {
-            continue pointsLoop;
-          }
-        }
-
-        assertEquals(value, point.getValue());
-        return;
-      }
-    }
-
-    fail("Gauge metric not found in exported metrics.");
-  }
-
-  private void assertGaugeMetric(
       double value, double delta, List<MetricData> metrics, String metricName, Attributes attrs) {
     for (MetricData metricData : metrics) {
       if (!metricData.getName().equals(metricName)) {
@@ -458,11 +440,9 @@ public class GcpFallbackChannelTest {
   public void testFallback_whenConditionsMet() throws InterruptedException {
     TestMetricExporter exporter = new TestMetricExporter();
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
+        getDefaultOptionsBuilder()
             .setMinFailedCalls(3)
             .setErrorRateThreshold(0.42f) // 3 failures / 7 calls = 0.4285
-            .setPeriod(Duration.ofMinutes(1))
             .setGcpFallbackOpenTelemetry(
                 GcpFallbackOpenTelemetry.newBuilder()
                     .withSdk(prepareOpenTelemetry(exporter))
@@ -561,14 +541,12 @@ public class GcpFallbackChannelTest {
   @Test
   public void testFallback_whenConditionsMet_withCancelledCalls() {
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
+        getDefaultOptionsBuilder()
             .setMinFailedCalls(1)
             .setErrorRateThreshold(1f)
             .setErroneousStates(
                 EnumSet.of(
                     Status.Code.UNAVAILABLE, Status.Code.CANCELLED, Status.Code.DEADLINE_EXCEEDED))
-            .setPeriod(Duration.ofMinutes(1))
             .build();
     initializeChannelAndCaptureTasks(options);
 
@@ -602,11 +580,9 @@ public class GcpFallbackChannelTest {
           return "";
         };
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
+        getDefaultOptionsBuilder()
             .setMinFailedCalls(1)
             .setErrorRateThreshold(0.1f)
-            .setPeriod(Duration.ofMinutes(1))
             .setPrimaryProbingFunction(primaryProbe)
             .setPrimaryProbingInterval(Duration.ofSeconds(15))
             .build();
@@ -654,13 +630,7 @@ public class GcpFallbackChannelTest {
   @Test
   public void testFallback_initiallyWhenPrimaryBuildFails() {
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setPeriod(Duration.ofMinutes(1))
-            .setMinFailedCalls(1)
-            .setErrorRateThreshold(0.1f)
-            .setPeriod(Duration.ofMinutes(1))
-            .build();
+        getDefaultOptionsBuilder().setMinFailedCalls(1).setErrorRateThreshold(0.1f).build();
     initializeChannelWithInvalidPrimaryBuilderAndCaptureTasks(options);
 
     verify(mockPrimaryInvalidBuilder).build();
@@ -679,12 +649,11 @@ public class GcpFallbackChannelTest {
   @Test
   public void testNoFallback_whenDisabledInOptions() {
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
+        getDefaultOptionsBuilder()
             .setEnableFallback(false)
             // Conditions for fallback would otherwise be met.
             .setMinFailedCalls(1)
             .setErrorRateThreshold(0.1f)
-            .setPeriod(Duration.ofMinutes(1))
             .build();
     initializeChannelAndCaptureTasks(options);
 
@@ -706,11 +675,9 @@ public class GcpFallbackChannelTest {
   @Test
   public void testNoFallback_minCallsNotMet() {
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
+        getDefaultOptionsBuilder()
             .setMinFailedCalls(3) // Need 3 failed calls.
             .setErrorRateThreshold(0.1f) // Low threshold, but minCalls is high.
-            .setPeriod(Duration.ofMinutes(1))
             .build();
     initializeChannelAndCaptureTasks(options);
 
@@ -745,12 +712,7 @@ public class GcpFallbackChannelTest {
   @Test
   public void testNoFallback_fallbackChannelBuildFails() {
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setMinFailedCalls(1)
-            .setErrorRateThreshold(0.1f)
-            .setPeriod(Duration.ofMinutes(1))
-            .build();
+        getDefaultOptionsBuilder().setMinFailedCalls(1).setErrorRateThreshold(0.1f).build();
     initializeChannelWithInvalidFallbackBuilderAndCaptureTasks(options);
 
     assertFalse("Should not be in fallback mode initially.", gcpFallbackChannel.isInFallbackMode());
@@ -772,11 +734,9 @@ public class GcpFallbackChannelTest {
   @Test
   public void testNoFallback_errorRateNotMet() {
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
+        getDefaultOptionsBuilder()
             .setMinFailedCalls(1) // Min calls met.
             .setErrorRateThreshold(0.8f) // High threshold.
-            .setPeriod(Duration.ofMinutes(1))
             .build();
     initializeChannelAndCaptureTasks(options);
 
@@ -799,12 +759,7 @@ public class GcpFallbackChannelTest {
   @Test
   public void testNoFallback_zeroCalls() {
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setMinFailedCalls(1)
-            .setErrorRateThreshold(0.1f)
-            .setPeriod(Duration.ofMinutes(1))
-            .build();
+        getDefaultOptionsBuilder().setMinFailedCalls(1).setErrorRateThreshold(0.1f).build();
     initializeChannelAndCaptureTasks(options);
 
     assertFalse("Should not be in fallback mode initially.", gcpFallbackChannel.isInFallbackMode());
@@ -828,12 +783,9 @@ public class GcpFallbackChannelTest {
           return "";
         };
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setPeriod(Duration.ofMinutes(1))
+        getDefaultOptionsBuilder()
             .setMinFailedCalls(1)
             .setErrorRateThreshold(0.1f)
-            .setPeriod(Duration.ofMinutes(1))
             .setPrimaryProbingFunction(primaryProbe)
             .setPrimaryProbingInterval(Duration.ofSeconds(15))
             .build();
@@ -1084,12 +1036,7 @@ public class GcpFallbackChannelTest {
   @Test
   public void testAuthority_usesFallbackWhenInFallbackMode() {
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setMinFailedCalls(1)
-            .setErrorRateThreshold(0.1f)
-            .setPeriod(Duration.ofMinutes(1))
-            .build();
+        getDefaultOptionsBuilder().setMinFailedCalls(1).setErrorRateThreshold(0.1f).build();
 
     initializeChannelAndCaptureTasks(options);
 
@@ -1102,12 +1049,8 @@ public class GcpFallbackChannelTest {
 
   @Test
   public void testConstructorWithBuilders_initializesAndBuildsChannels() {
-    GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setPeriod(Duration.ofMinutes(1))
-            .build();
-    initializeChannelWithBuildersAndCaptureTasks(options); // This uses the builder constructor.
+    initializeChannelWithBuildersAndCaptureTasks(
+        getDefaultOptions()); // This uses the builder constructor.
 
     verify(mockPrimaryBuilder).build();
     verify(mockFallbackBuilder).build();
@@ -1123,9 +1066,7 @@ public class GcpFallbackChannelTest {
     Function<Channel, String> mockFallbackProber = mock(Function.class);
 
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setPeriod(Duration.ofMinutes(1))
+        getDefaultOptionsBuilder()
             .setPrimaryProbingFunction(mockPrimaryProber)
             .setFallbackProbingFunction(mockFallbackProber)
             .setPrimaryProbingInterval(Duration.ofSeconds(5))
@@ -1157,9 +1098,7 @@ public class GcpFallbackChannelTest {
 
     TestMetricExporter exporter = new TestMetricExporter();
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setPeriod(Duration.ofMinutes(1))
+        getDefaultOptionsBuilder()
             .setPrimaryProbingFunction(mockPrimaryProber)
             .setFallbackProbingFunction(mockFallbackProber)
             .setPrimaryProbingInterval(Duration.ofSeconds(5))
@@ -1206,9 +1145,7 @@ public class GcpFallbackChannelTest {
 
     TestMetricExporter exporter = new TestMetricExporter();
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setPeriod(Duration.ofMinutes(1))
+        getDefaultOptionsBuilder()
             .setPrimaryProbingFunction(mockPrimaryProber)
             .setFallbackProbingFunction(mockFallbackProber)
             .setPrimaryProbingInterval(Duration.ofSeconds(5))
@@ -1255,9 +1192,7 @@ public class GcpFallbackChannelTest {
 
     TestMetricExporter exporter = new TestMetricExporter();
     GcpFallbackChannelOptions options =
-        GcpFallbackChannelOptions.newBuilder()
-            .setEnableFallback(true)
-            .setPeriod(Duration.ofMinutes(1))
+        getDefaultOptionsBuilder()
             .setPrimaryProbingFunction(mockPrimaryProber)
             .setFallbackProbingFunction(mockFallbackProber)
             .setPrimaryProbingInterval(Duration.ofSeconds(5))
