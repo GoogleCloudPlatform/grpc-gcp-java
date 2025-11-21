@@ -16,12 +16,16 @@ repositories {
 version = '1.7.1-SNAPSHOT'
 group = 'com.google.cloud'
 description = 'GRPC-GCP-Extension Java'
-sourceCompatibility = '1.8'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
 
 def title = 'gRPC extension library for Google Cloud Platform'
-def grpcVersion = '1.36.3'
-def protobufVersion = '3.20.3'
-def protocVersion = '3.20.3'
+def grpcVersion = '1.69.0'
+def protobufVersion = '3.25.5'
+def protocVersion = '3.25.5'
 def spannerVersion = '6.1.0'
 def opencensusVersion = '0.28.3'
 
@@ -50,6 +54,8 @@ dependencies {
     testImplementation "org.mockito:mockito-core:4.11.0"
     testImplementation 'junit:junit:4.13.2'
     testImplementation libs.opentelemetry.sdk
+    testImplementation libs.opentelemetry.sdk.metrics
+    testImplementation libs.opentelemetry.sdk.testing
 }
 
 protobuf {
