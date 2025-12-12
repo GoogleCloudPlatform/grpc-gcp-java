@@ -183,8 +183,6 @@ public final class SpannerIntegrationTest {
       DatabaseClient databaseClient = spanner.getDatabaseClient(databaseId);
       initializeTable(databaseClient);
       resourcesCreated = true;
-    } catch (Exception e) {
-      Assume.assumeNoException("Unable to initialize Spanner resources", e);
     }
   }
 
