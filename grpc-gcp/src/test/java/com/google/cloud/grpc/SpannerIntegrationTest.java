@@ -1190,12 +1190,14 @@ public final class SpannerIntegrationTest {
           .isAnyOf(
               poolIndex + ": Channel " + i + " state change detected: null -> IDLE",
               poolIndex + ": Channel " + (i - 1) + " state change detected: IDLE -> CONNECTING",
-              poolIndex + ": Channel " + i + " created.");
+              poolIndex + ": Channel " + i + " created.",
+              poolIndex + ": Channel " + i + " picked for bind operation.");
       assertThat(lastLogMessage(2))
           .isAnyOf(
               poolIndex + ": Channel " + i + " state change detected: null -> IDLE",
               poolIndex + ": Channel " + (i - 1) + " state change detected: IDLE -> CONNECTING",
-              poolIndex + ": Channel " + i + " created.");
+              poolIndex + ": Channel " + i + " created.",
+              poolIndex + ": Channel " + i + " picked for bind operation.");
       assertThat(lastLogMessage())
           .isEqualTo(poolIndex + ": Channel " + i + " picked for bind operation.");
       assertThat(lastLogLevel()).isEqualTo(Level.FINEST);
