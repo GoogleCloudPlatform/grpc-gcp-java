@@ -67,6 +67,7 @@ public class BigtableIntegrationTest {
   private static final String INSTANCE_ID = "grpc-gcp-test-instance";
   private static final String TABLE_ID = "test-table";
   private static final String FAMILY_NAME = "test-family";
+  private static boolean resourcesCreated = false;
 
   private static final int DEFAULT_MAX_CHANNEL = 10;
   private static final int NEW_MAX_CHANNEL = 5;
@@ -86,27 +87,40 @@ public class BigtableIntegrationTest {
   public static void beforeClass() throws IOException {
     Assume.assumeTrue(
         "Need to provide GCP_PROJECT_ID for BigtableIntegrationTest", GCP_PROJECT_ID != null);
-    BigtableInstanceAdminClient instanceAdminClient =
-        BigtableInstanceAdminClient.create(GCP_PROJECT_ID);
-    CreateInstanceRequest createInstanceRequest =
-        CreateInstanceRequest.of(INSTANCE_ID)
-            .addCluster("grpc-gcp-test-cluster", "us-central1-c", 3, StorageType.SSD);
-    instanceAdminClient.createInstance(createInstanceRequest);
+    try {
+      BigtableInstanceAdminClient instanceAdminClient =
+          BigtableInstanceAdminClient.create(GCP_PROJECT_ID);
+      CreateInstanceRequest createInstanceRequest =
+          CreateInstanceRequest.of(INSTANCE_ID)
+              .addCluster("grpc-gcp-test-cluster", "us-central1-c", 3, StorageType.SSD);
+      instanceAdminClient.createInstance(createInstanceRequest);
 
-    BigtableTableAdminClient tableAdminClient =
-        BigtableTableAdminClient.create(GCP_PROJECT_ID, INSTANCE_ID);
-    CreateTableRequest createTableRequest = CreateTableRequest.of(TABLE_ID).addFamily(FAMILY_NAME);
-    tableAdminClient.createTable(createTableRequest);
-    tableAdminClient.close();
-    instanceAdminClient.close();
+      BigtableTableAdminClient tableAdminClient =
+          BigtableTableAdminClient.create(GCP_PROJECT_ID, INSTANCE_ID);
+      CreateTableRequest createTableRequest =
+          CreateTableRequest.of(TABLE_ID).addFamily(FAMILY_NAME);
+      tableAdminClient.createTable(createTableRequest);
+      tableAdminClient.close();
+      instanceAdminClient.close();
+      resourcesCreated = true;
+    } catch (Exception e) {
+      Assume.assumeNoException("Unable to initialize Bigtable resources", e);
+    }
   }
 
   @AfterClass
   public static void afterClass() throws IOException {
-    BigtableInstanceAdminClient instanceAdminClient =
-        BigtableInstanceAdminClient.create(GCP_PROJECT_ID);
-    instanceAdminClient.deleteInstance(INSTANCE_ID);
-    instanceAdminClient.close();
+    if (GCP_PROJECT_ID == null || !resourcesCreated) {
+      return;
+    }
+    try {
+      BigtableInstanceAdminClient instanceAdminClient =
+          BigtableInstanceAdminClient.create(GCP_PROJECT_ID);
+      instanceAdminClient.deleteInstance(INSTANCE_ID);
+      instanceAdminClient.close();
+    } catch (Exception ignored) {
+      // Ignore cleanup failures in test environments.
+    }
   }
 
   private static GoogleCredentials getCreds() {

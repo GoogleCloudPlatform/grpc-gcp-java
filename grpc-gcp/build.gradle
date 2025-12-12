@@ -49,6 +49,8 @@ dependencies {
     testImplementation "com.google.api.grpc:grpc-google-cloud-bigtable-v2:0.39.0"
     testImplementation "com.google.auth:google-auth-library-oauth2-http:0.9.0"
     testImplementation "io.grpc:grpc-auth:${grpcVersion}"
+    // Align grpc-alts with the grpc-netty-shaded version to avoid runtime NoSuchMethodError in tests.
+    testImplementation "io.grpc:grpc-alts:${grpcVersion}"
     testImplementation "io.grpc:grpc-stub:${grpcVersion}"
     testImplementation "com.google.truth:truth:0.42"
     testImplementation "org.mockito:mockito-core:4.11.0"
@@ -78,7 +80,17 @@ test {
 }
 
 task allTests( type: Test ) {
-    // Execute all the tests, including integration tests.
+    // Execute all the tests, including integration tests (Spanner/Bigtable).
+    group = 'verification'
+    description = 'Runs all tests, including integration tests.'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+
+    testLogging {
+        outputs.upToDateWhen {false}
+        showStandardStreams = true
+    }
 }
 
 sourceSets {
@@ -93,12 +105,13 @@ sourceSets {
 task javadocJar(type: Jar, dependsOn: javadoc) {
     archiveClassifier = 'javadoc'
     from javadoc.destinationDir
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 task sourcesJar(type: Jar) {
-    duplicatesStrategy = DuplicatesStrategy.WARN
     archiveClassifier = 'sources'
     from sourceSets.main.allJava
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 publishing {

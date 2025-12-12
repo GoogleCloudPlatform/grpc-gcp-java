@@ -151,6 +151,7 @@ public final class SpannerIntegrationTest {
 
   private static final int MAX_CHANNEL = 3;
   private static final int MAX_STREAM = 2;
+  private static boolean resourcesCreated = false;
 
   private static final ManagedChannelBuilder<?> builder =
       ManagedChannelBuilder.forAddress(SPANNER_TARGET, 443);
@@ -181,6 +182,9 @@ public final class SpannerIntegrationTest {
       initializeDatabase(databaseAdminClient, databaseId);
       DatabaseClient databaseClient = spanner.getDatabaseClient(databaseId);
       initializeTable(databaseClient);
+      resourcesCreated = true;
+    } catch (Exception e) {
+      Assume.assumeNoException("Unable to initialize Spanner resources", e);
     }
   }
 
@@ -264,11 +268,16 @@ public final class SpannerIntegrationTest {
 
   @AfterClass
   public static void afterClass() {
+    if (GCP_PROJECT_ID == null || !resourcesCreated) {
+      return;
+    }
     SpannerOptions options = SpannerOptions.newBuilder().setProjectId(GCP_PROJECT_ID).build();
     try (Spanner spanner = options.getService()) {
       InstanceAdminClient instanceAdminClient = spanner.getInstanceAdminClient();
       InstanceId instanceId = InstanceId.of(GCP_PROJECT_ID, INSTANCE_ID);
       cleanUpInstance(instanceAdminClient, instanceId);
+    } catch (Exception ignored) {
+      // Ignore cleanup failures in test environments.
     }
   }
 
