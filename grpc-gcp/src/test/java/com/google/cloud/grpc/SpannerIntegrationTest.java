@@ -1187,12 +1187,7 @@ public final class SpannerIntegrationTest {
       ListenableFuture<Session> future = stub.createSession(req);
       futures.add(future);
       assertThat(poolIndex + ": Channel " + i + " picked for bind operation.")
-          .isAnyOf(
-            lastLogMessage(4),
-            lastLogMessage(3),
-            lastLogMessage(2),
-            lastLogMessage()
-          );
+          .isAnyOf(lastLogMessage(4), lastLogMessage(3), lastLogMessage(2), lastLogMessage());
     }
     // Each channel should have 1 active stream with the CreateSession request because we create
     // them concurrently.
