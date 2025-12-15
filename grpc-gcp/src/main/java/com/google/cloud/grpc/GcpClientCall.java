@@ -123,8 +123,12 @@ public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
         }
         delegateChannelRef.activeStreamsCountIncr();
 
-        // Create the client call and do the previous operations.
-        delegateCall = delegateChannelRef.getChannel().newCall(methodDescriptor, callOptions);
+        // Create the client call with the actual channel ID set in callOptions.
+        // This allows downstream interceptors to know the real channel being used.
+        CallOptions callOptionsWithChannelId =
+            callOptions.withOption(GcpManagedChannel.CHANNEL_ID_KEY, delegateChannelRef.getId());
+        delegateCall =
+            delegateChannelRef.getChannel().newCall(methodDescriptor, callOptionsWithChannelId);
         for (Runnable call : calls) {
           call.run();
         }
@@ -233,7 +237,11 @@ public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
         MethodDescriptor<ReqT, RespT> methodDescriptor,
         CallOptions callOptions) {
       this.channelRef = channelRef;
-      this.delegateCall = channelRef.getChannel().newCall(methodDescriptor, callOptions);
+      // Set the actual channel ID in callOptions so downstream interceptors can access it.
+      CallOptions callOptionsWithChannelId =
+          callOptions.withOption(GcpManagedChannel.CHANNEL_ID_KEY, channelRef.getId());
+      this.delegateCall =
+          channelRef.getChannel().newCall(methodDescriptor, callOptionsWithChannelId);
     }
 
     @Override
