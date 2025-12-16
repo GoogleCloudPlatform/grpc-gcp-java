@@ -123,6 +123,7 @@ public class GcpClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
         }
         delegateChannelRef.activeStreamsCountIncr();
 
+        // Create the client call and do the previous operations.
         delegateCall = delegateChannelRef.getChannel().newCall(methodDescriptor, callOptions);
         for (Runnable call : calls) {
           call.run();

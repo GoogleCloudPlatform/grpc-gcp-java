@@ -46,8 +46,6 @@ public class ChannelIdPropagationTest {
                 next.newCall(method, callOptions)) {
               @Override
               public void start(Listener<RespT> responseListener, Metadata headers) {
-                // System.out.println("CALL OPTIONS(CHANNELID) IS NULL " +
-                // (callOptions.getOption(GcpManagedChannel.CHANNEL_ID_KEY) == null));
                 if (callOptions.getOption(GcpManagedChannel.CHANNEL_ID_KEY) != null) {
                   channelId.set(callOptions.getOption(GcpManagedChannel.CHANNEL_ID_KEY));
                 }
@@ -91,6 +89,7 @@ public class ChannelIdPropagationTest {
     // but the user's test checked it after the second call. The channel ID assignment happens in
     // newCall.
     // Let's see what happens.
+    assertThat(channelId.get()).isEqualTo(0);
 
     // Attempt 2
     newCall = pool.newCall(methodDescriptor, CallOptions.DEFAULT);
@@ -101,7 +100,7 @@ public class ChannelIdPropagationTest {
     // The user's test expected 1, but it could be any valid ID.
     // Since minSize=3, it might pick any of 0, 1, 2.
     // Let's assert it is not -1.
-    assertThat(channelId.get()).isNotEqualTo(-1);
+    assertThat(channelId.get()).isEqualTo(1);
 
     pool.shutdownNow();
   }
