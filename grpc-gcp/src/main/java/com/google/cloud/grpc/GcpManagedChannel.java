@@ -93,6 +93,7 @@ public class GcpManagedChannel extends ManagedChannel {
       CallOptions.Key.createWithDefault("DisableAffinity", false);
   public static final Context.Key<String> AFFINITY_CTX_KEY = Context.key("AffinityKey");
   public static final CallOptions.Key<String> AFFINITY_KEY = CallOptions.Key.create("AffinityKey");
+
   /** When set to true, the affinity key will be unbound after the call completes. */
   public static final CallOptions.Key<Boolean> UNBIND_AFFINITY_KEY =
       CallOptions.Key.createWithDefault("UnbindAffinityKey", false);

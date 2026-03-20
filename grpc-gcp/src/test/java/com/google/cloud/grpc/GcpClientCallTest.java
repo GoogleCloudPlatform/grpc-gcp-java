@@ -105,8 +105,8 @@ public final class GcpClientCallTest {
     call.start(new ClientCall.Listener<String>() {}, new Metadata());
 
     ArgumentCaptor<ClientCall.Listener<String>> listenerCaptor =
-        (ArgumentCaptor<ClientCall.Listener<String>>) (ArgumentCaptor<?>)
-            ArgumentCaptor.forClass(ClientCall.Listener.class);
+        (ArgumentCaptor<ClientCall.Listener<String>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(ClientCall.Listener.class);
     verify(delegateCall).start(listenerCaptor.capture(), any(Metadata.class));
 
     assertThat(gcpChannel.affinityKeyToChannelRef).containsKey(affinityKey);
@@ -133,8 +133,8 @@ public final class GcpClientCallTest {
     call.start(new ClientCall.Listener<String>() {}, new Metadata());
 
     ArgumentCaptor<ClientCall.Listener<String>> listenerCaptor =
-        (ArgumentCaptor<ClientCall.Listener<String>>) (ArgumentCaptor<?>)
-            ArgumentCaptor.forClass(ClientCall.Listener.class);
+        (ArgumentCaptor<ClientCall.Listener<String>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(ClientCall.Listener.class);
     verify(delegateCall).start(listenerCaptor.capture(), any(Metadata.class));
 
     listenerCaptor.getValue().onClose(Status.OK, new Metadata());
