@@ -195,6 +195,7 @@ public class GcpManagedChannel extends ManagedChannel {
   private final AtomicLong totalReadinessTime = new AtomicLong();
   private final AtomicLong readinessTimeOccurrences = new AtomicLong();
   private final AtomicInteger totalActiveStreams = new AtomicInteger();
+  private final AtomicInteger leastBusyPickOffset = new AtomicInteger();
   private AtomicInteger minActiveStreams = new AtomicInteger();
   private AtomicInteger maxActiveStreams = new AtomicInteger();
   private AtomicInteger minTotalActiveStreams = new AtomicInteger();
@@ -1759,12 +1760,19 @@ public class GcpManagedChannel extends ManagedChannel {
 
     // Pick the least busy channel and the least busy ready and not overloaded channel (this could
     // be the same channel or different or no channel).
-    ChannelRef channelCandidate = channelRefs.get(0);
+    // Iteration starts at a rotating offset so that ties don't always break to channelRefs[0]:
+    // activeStreamsCount is incremented later in GcpClientCall.start(), so a burst of concurrent
+    // first-time getChannelRef(key) calls all observe equal counts and would otherwise all bind to
+    // index 0, funnelling traffic onto one channel.
+    final int size = channelRefs.size();
+    final int offset = Math.floorMod(leastBusyPickOffset.getAndIncrement(), size);
+    ChannelRef channelCandidate = channelRefs.get(offset);
     int minStreams = channelCandidate.getActiveStreamsCount();
     ChannelRef readyCandidate = null;
     int readyMinStreams = Integer.MAX_VALUE;
 
-    for (ChannelRef channelRef : channelRefs) {
+    for (int i = 0; i < size; i++) {
+      ChannelRef channelRef = channelRefs.get((offset + i) % size);
       int cnt = channelRef.getActiveStreamsCount();
       if (cnt < minStreams) {
         minStreams = cnt;

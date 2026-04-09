@@ -315,6 +315,23 @@ public final class GcpManagedChannelTest {
     assertEquals(6, gcpChannel.getChannelRef(null).getAffinityCount());
   }
 
+  @Test
+  public void testNewKeyBindingsSpreadAcrossIdleChannels() {
+    // Regression: when all activeStreamsCounts are equal (e.g., a burst of new
+    // affinity keys arriving before any GcpClientCall.start() runs), bindings
+    // should spread across channels rather than collapsing onto index 0.
+    resetGcpChannel();
+    final int numChannels = 8;
+    for (int i = 0; i < numChannels; i++) {
+      gcpChannel.channelRefs.add(gcpChannel.new ChannelRef(builder.build(), i, 0));
+    }
+    Set<ChannelRef> picked = new HashSet<>();
+    for (int i = 0; i < 64; i++) {
+      picked.add(gcpChannel.getChannelRef("k" + i));
+    }
+    assertThat(picked).hasSize(numChannels);
+  }
+
   private void assertFallbacksMetric(
       FakeMetricRegistry fakeRegistry, long successes, long failures) {
     MetricsRecord record = fakeRegistry.pollRecord();
