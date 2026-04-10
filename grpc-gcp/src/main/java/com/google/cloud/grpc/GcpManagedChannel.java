@@ -1838,31 +1838,33 @@ public class GcpManagedChannel extends ManagedChannel {
    * needs to filter channels by readiness state and max stream limits.
    */
   private ChannelRef pickLeastBusyWithFallback(boolean forFallback) {
-    // Full scan required: readyCandidate must be filtered by fallbackMap and DEFAULT_MAX_STREAM.
-    ChannelRef channelCandidate = channelRefs.get(0);
-    int minStreams = channelCandidate.getActiveStreamsCount();
-    ChannelRef readyCandidate = null;
-    int readyMinStreams = Integer.MAX_VALUE;
+    // Full scan to collect eligible ("ready") channels not in fallbackMap and under max streams.
+    List<ChannelRef> readyCandidates = new ArrayList<>();
+    ChannelRef overallCandidate = channelRefs.get(0);
+    int overallMinStreams = overallCandidate.getActiveStreamsCount();
+    int readyMaxStreams = 0;
 
     for (ChannelRef channelRef : channelRefs) {
       int cnt = channelRef.getActiveStreamsCount();
-      if (cnt < minStreams) {
-        minStreams = cnt;
-        channelCandidate = channelRef;
+      if (cnt < overallMinStreams) {
+        overallMinStreams = cnt;
+        overallCandidate = channelRef;
       }
-      if (cnt < readyMinStreams
-          && !fallbackMap.containsKey(channelRef.getId())
-          && cnt < DEFAULT_MAX_STREAM) {
-        readyMinStreams = cnt;
-        readyCandidate = channelRef;
+      if (!fallbackMap.containsKey(channelRef.getId()) && cnt < DEFAULT_MAX_STREAM) {
+        readyCandidates.add(channelRef);
+        if (cnt > readyMaxStreams) {
+          readyMaxStreams = cnt;
+        }
       }
     }
 
-    if (shouldScaleUp(readyMinStreams)) {
+    // For scale-up, use maxStreams among ready channels (consistent with non-fallback path).
+    int scaleUpStreams = readyCandidates.isEmpty() ? Integer.MAX_VALUE : readyMaxStreams;
+    if (shouldScaleUp(scaleUpStreams)) {
       ChannelRef newChannel = tryCreateNewChannel();
       if (newChannel != null) {
         scaleUpCount.incrementAndGet();
-        if (!forFallback && readyCandidate == null) {
+        if (!forFallback && readyCandidates.isEmpty()) {
           if (logger.isLoggable(Level.FINEST)) {
             logger.finest(log("Fallback to newly created channel %d", newChannel.getId()));
           }
@@ -1872,13 +1874,15 @@ public class GcpManagedChannel extends ManagedChannel {
       }
     }
 
-    if (readyCandidate != null) {
-      if (!forFallback && readyCandidate.getId() != channelCandidate.getId()) {
+    if (!readyCandidates.isEmpty()) {
+      // Apply power-of-two among eligible channels to avoid thundering herd.
+      ChannelRef readyCandidate = pickFromCandidates(readyCandidates);
+      if (!forFallback && readyCandidate.getId() != overallCandidate.getId()) {
         if (logger.isLoggable(Level.FINEST)) {
           logger.finest(
               log(
                   "Picking fallback channel: %d -> %d",
-                  channelCandidate.getId(), readyCandidate.getId()));
+                  overallCandidate.getId(), readyCandidate.getId()));
         }
         fallbacksSucceeded.incrementAndGet();
       }
@@ -1887,11 +1891,47 @@ public class GcpManagedChannel extends ManagedChannel {
 
     if (!forFallback) {
       if (logger.isLoggable(Level.FINEST)) {
-        logger.finest(log("Failed to find fallback for channel %d", channelCandidate.getId()));
+        logger.finest(log("Failed to find fallback for channel %d", overallCandidate.getId()));
       }
       fallbacksFailed.incrementAndGet();
     }
-    return channelCandidate;
+    return overallCandidate;
+  }
+
+  /**
+   * Picks a channel from the given candidate list using the configured strategy. For POWER_OF_TWO,
+   * samples two random candidates; for LINEAR_SCAN, picks the least busy.
+   */
+  private ChannelRef pickFromCandidates(List<ChannelRef> candidates) {
+    if (candidates.size() == 1) {
+      return candidates.get(0);
+    }
+    if (channelPickStrategy == GcpManagedChannelOptions.ChannelPickStrategy.POWER_OF_TWO) {
+      ThreadLocalRandom random = ThreadLocalRandom.current();
+      int i = random.nextInt(candidates.size());
+      int j = random.nextInt(candidates.size() - 1);
+      if (j >= i) {
+        j++;
+      }
+      ChannelRef a = candidates.get(i);
+      ChannelRef b = candidates.get(j);
+      int aStreams = a.getActiveStreamsCount();
+      int bStreams = b.getActiveStreamsCount();
+      if (aStreams < bStreams) return a;
+      if (bStreams < aStreams) return b;
+      return a.lastResponseNanos >= b.lastResponseNanos ? a : b;
+    }
+    // LINEAR_SCAN: pick the least busy.
+    ChannelRef best = candidates.get(0);
+    int bestStreams = best.getActiveStreamsCount();
+    for (int k = 1; k < candidates.size(); k++) {
+      int cnt = candidates.get(k).getActiveStreamsCount();
+      if (cnt < bestStreams) {
+        bestStreams = cnt;
+        best = candidates.get(k);
+      }
+    }
+    return best;
   }
 
   /**
