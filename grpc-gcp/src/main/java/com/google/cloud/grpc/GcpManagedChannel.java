@@ -1804,7 +1804,7 @@ public class GcpManagedChannel extends ManagedChannel {
     int minStreams;
 
     if (channelPickStrategy == GcpManagedChannelOptions.ChannelPickStrategy.POWER_OF_TWO) {
-      channelCandidate = pickPowerOfTwo();
+      channelCandidate = pickFromCandidates(channelRefs);
       // With power-of-two, streams distribute approximately (not exactly) evenly.
       // Use max streams for scale-up: if ANY channel hits the watermark, it's overloaded now
       // and we should add capacity before other channels follow. This preserves the original
@@ -1899,8 +1899,13 @@ public class GcpManagedChannel extends ManagedChannel {
   }
 
   /**
-   * Picks a channel from the given candidate list using the configured strategy. For POWER_OF_TWO,
-   * samples two random candidates; for LINEAR_SCAN, picks the least busy.
+   * Picks a channel from the given candidate list using the configured strategy.
+   *
+   * <p>For {@code POWER_OF_TWO}: samples two distinct random candidates and picks the less busy
+   * one. On tie, prefers the channel with more recent activity (warmer) to preserve connection
+   * warmth under low traffic.
+   *
+   * <p>For {@code LINEAR_SCAN}: deterministic scan picking the first least-busy channel.
    */
   private ChannelRef pickFromCandidates(List<ChannelRef> candidates) {
     if (candidates.size() == 1) {
@@ -1919,6 +1924,7 @@ public class GcpManagedChannel extends ManagedChannel {
       int bStreams = b.getActiveStreamsCount();
       if (aStreams < bStreams) return a;
       if (bStreams < aStreams) return b;
+      // Tie: prefer the warmer channel (more recent activity).
       return a.lastResponseNanos >= b.lastResponseNanos ? a : b;
     }
     // LINEAR_SCAN: pick the least busy.
@@ -1932,41 +1938,6 @@ public class GcpManagedChannel extends ManagedChannel {
       }
     }
     return best;
-  }
-
-  /**
-   * Power-of-two random choices: pick two channels at random and return the less busy one. On tie,
-   * prefer the channel with more recent activity (warmer) to preserve connection warmth under low
-   * traffic.
-   */
-  private ChannelRef pickPowerOfTwo() {
-    int size = channelRefs.size();
-    if (size == 1) {
-      return channelRefs.get(0);
-    }
-
-    ThreadLocalRandom random = ThreadLocalRandom.current();
-    int i = random.nextInt(size);
-    int j = random.nextInt(size - 1);
-    if (j >= i) {
-      j++;
-    }
-
-    ChannelRef a = channelRefs.get(i);
-    ChannelRef b = channelRefs.get(j);
-
-    int aStreams = a.getActiveStreamsCount();
-    int bStreams = b.getActiveStreamsCount();
-
-    if (aStreams < bStreams) {
-      return a;
-    }
-    if (bStreams < aStreams) {
-      return b;
-    }
-
-    // Tie: prefer the warmer channel (more recent activity) to preserve connection warmth.
-    return a.lastResponseNanos >= b.lastResponseNanos ? a : b;
   }
 
   @Override
