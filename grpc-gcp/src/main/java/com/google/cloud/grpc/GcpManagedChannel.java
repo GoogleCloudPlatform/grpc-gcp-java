@@ -1797,7 +1797,12 @@ public class GcpManagedChannel extends ManagedChannel {
 
     if (channelPickStrategy == GcpManagedChannelOptions.ChannelPickStrategy.POWER_OF_TWO) {
       channelCandidate = pickPowerOfTwo();
-      minStreams = channelCandidate.getActiveStreamsCount();
+      // With power-of-two, streams distribute approximately (not exactly) evenly.
+      // Use max streams for scale-up: if ANY channel hits the watermark, it's overloaded now
+      // and we should add capacity before other channels follow. This preserves the original
+      // per-channel watermark semantics (with LINEAR_SCAN, min == max so it didn't matter).
+      // Global min would delay scale-up; sampled min would be noisy.
+      minStreams = getMaxActiveStreams();
     } else {
       channelCandidate = channelRefs.get(0);
       minStreams = channelCandidate.getActiveStreamsCount();
