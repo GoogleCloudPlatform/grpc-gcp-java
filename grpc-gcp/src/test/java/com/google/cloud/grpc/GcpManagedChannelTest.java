@@ -67,6 +67,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.logging.Handler;
@@ -406,9 +407,9 @@ public final class GcpManagedChannelTest {
         busyPicks++;
       }
     }
-    // The only way channel 0 gets picked is if both random choices land on it,
-    // which is (1/10)^2 = 1%. With 100 picks, expect ~1. Allow up to 5.
-    assertThat(busyPicks).isAtMost(5);
+    // Power-of-two guarantees distinct indices, so channel 0 (50 streams) is always
+    // paired with an idle channel (0 streams) and can never win.
+    assertEquals(0, busyPicks);
   }
 
   /**
@@ -570,17 +571,20 @@ public final class GcpManagedChannelTest {
   @Test
   public void testPowerOfTwoPrefersWarmChannelOnTie() throws Exception {
     resetGcpChannel();
+    // Use a fake clock to deterministically control lastResponseNanos.
+    final AtomicLong fakeNanos = new AtomicLong(1_000_000_000L);
+    gcpChannel.setNanoClock(fakeNanos::get);
+
     final int numChannels = 10;
     for (int i = 0; i < numChannels; i++) {
       ManagedChannel channel = builder.build();
       gcpChannel.channelRefs.add(gcpChannel.new ChannelRef(channel, i, 0));
     }
 
-    // Simulate channel 5 being the "warm" one by receiving a message on it.
-    // messageReceived() updates lastResponseNanos.
+    // Advance the clock, then simulate channel 5 receiving a message.
+    // This gives channel 5 a clearly more recent lastResponseNanos than the others.
+    fakeNanos.set(2_000_000_000L);
     ChannelRef warmChannel = gcpChannel.channelRefs.get(5);
-    // Small delay to ensure lastResponseNanos is clearly more recent than other channels.
-    Thread.sleep(5);
     warmChannel.messageReceived();
 
     // Pick many times. The warm channel should be picked more often than average because

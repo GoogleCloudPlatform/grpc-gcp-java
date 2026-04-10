@@ -231,6 +231,14 @@ public class GcpManagedChannel extends ManagedChannel {
   private AtomicLong scaleUpCount = new AtomicLong();
   private AtomicLong scaleDownCount = new AtomicLong();
 
+  // Clock supplier for nanoTime, injectable for testing.
+  private Supplier<Long> nanoClock = System::nanoTime;
+
+  @VisibleForTesting
+  void setNanoClock(Supplier<Long> nanoClock) {
+    this.nanoClock = nanoClock;
+  }
+
   private static ScheduledThreadPoolExecutor createSharedBackgroundService() {
     ScheduledThreadPoolExecutor executor =
         new ScheduledThreadPoolExecutor(
@@ -1978,7 +1986,7 @@ public class GcpManagedChannel extends ManagedChannel {
     return key;
   }
 
-  private void cancelBackgroundTasks() {
+  private synchronized void cancelBackgroundTasks() {
     if (cleanupTask != null) {
       cleanupTask.cancel(false);
       cleanupTask = null;
@@ -2290,7 +2298,7 @@ public class GcpManagedChannel extends ManagedChannel {
     // activeStreamsCount are mutated from the GcpClientCall concurrently using the
     // `activeStreamsCountIncr()` and `activeStreamsCountDecr()` methods.
     private final AtomicInteger activeStreamsCount;
-    private long lastResponseNanos = System.nanoTime();
+    private long lastResponseNanos = nanoClock.get();
     private final AtomicInteger deadlineExceededCount = new AtomicInteger();
     private final AtomicLong okCalls = new AtomicLong();
     private final AtomicLong errCalls = new AtomicLong();
@@ -2366,7 +2374,7 @@ public class GcpManagedChannel extends ManagedChannel {
     }
 
     protected void messageReceived() {
-      lastResponseNanos = System.nanoTime();
+      lastResponseNanos = nanoClock.get();
       deadlineExceededCount.set(0);
     }
 
@@ -2401,13 +2409,13 @@ public class GcpManagedChannel extends ManagedChannel {
       }
       if (!fromClientSide) {
         // If not a deadline exceeded and not coming from the client side then reset time and count.
-        lastResponseNanos = System.nanoTime();
+        lastResponseNanos = nanoClock.get();
         deadlineExceededCount.set(0);
       }
     }
 
     private long msSinceLastResponse() {
-      return (System.nanoTime() - lastResponseNanos) / 1000000;
+      return (nanoClock.get() - lastResponseNanos) / 1000000;
     }
 
     private synchronized void maybeReconnectUnresponsive() {
@@ -2415,14 +2423,14 @@ public class GcpManagedChannel extends ManagedChannel {
       if (deadlineExceededCount.get() >= unresponsiveDropCount
           && msSinceLastResponse >= unresponsiveMs) {
         recordUnresponsiveDetection(
-            System.nanoTime() - lastResponseNanos, deadlineExceededCount.get());
+            nanoClock.get() - lastResponseNanos, deadlineExceededCount.get());
         logger.finer(
             log(
                 "Channel %d connection is unresponsive for %d ms and %d deadline exceeded calls. "
                     + "Forcing channel to idle state.",
                 channelId, msSinceLastResponse, deadlineExceededCount.get()));
         delegate.enterIdle();
-        lastResponseNanos = System.nanoTime();
+        lastResponseNanos = nanoClock.get();
         deadlineExceededCount.set(0);
       }
     }
