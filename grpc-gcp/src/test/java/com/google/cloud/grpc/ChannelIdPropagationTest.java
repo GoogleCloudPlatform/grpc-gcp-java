@@ -136,6 +136,42 @@ public class ChannelIdPropagationTest {
   }
 
   @Test
+  public void testChannelIdAffinityTakesPrecedenceOverDisableAffinity() {
+    ManagedChannelBuilder<?> builder = ManagedChannelBuilder.forAddress("localhost", 443);
+    final AtomicInteger channelId = new AtomicInteger(-1);
+
+    builder.intercept(channelIdCapturingInterceptor(channelId));
+
+    final GcpManagedChannel pool =
+        (GcpManagedChannel)
+            GcpManagedChannelBuilder.forDelegateBuilder(builder)
+                .withOptions(
+                    GcpManagedChannelOptions.newBuilder()
+                        .withChannelPoolOptions(
+                            GcpChannelPoolOptions.newBuilder().setMinSize(3).setMaxSize(3).build())
+                        .build())
+                .build();
+
+    MethodDescriptor<String, String> methodDescriptor = testMethodDescriptor();
+    AtomicReference<Integer> channelIdRef = new AtomicReference<>(1);
+
+    ClientCall<String, String> newCall =
+        pool.newCall(
+            methodDescriptor,
+            CallOptions.DEFAULT
+                .withOption(GcpManagedChannel.DISABLE_AFFINITY_KEY, true)
+                .withOption(GcpManagedChannel.CHANNEL_ID_AFFINITY_KEY, channelIdRef));
+    newCall.start(
+        new ForwardingClientCall.SimpleForwardingClientCall.Listener<String>() {}, new Metadata());
+
+    assertThat(channelId.get()).isEqualTo(1);
+    assertThat(channelIdRef.get()).isEqualTo(1);
+    assertThat(pool.affinityKeyToChannelRef).isEmpty();
+
+    pool.shutdownNow();
+  }
+
+  @Test
   public void testChannelIdAffinityPicksAndStoresChannelWhenUnsetOrStale() {
     ManagedChannelBuilder<?> builder = ManagedChannelBuilder.forAddress("localhost", 443);
     final AtomicInteger channelId = new AtomicInteger(-1);

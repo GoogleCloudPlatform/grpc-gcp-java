@@ -111,7 +111,13 @@ public class GcpManagedChannel extends ManagedChannel {
   /**
    * CallOptions key for sticky channel routing without affinity-key map state. The referenced
    * channel id is used when it points to an active channel in the pool. If it is unset or stale, a
-   * channel is selected normally and the reference is updated with the selected channel id.
+   * channel is selected normally and the reference is updated with the selected channel id using a
+   * compare-and-set operation so concurrent callers sharing the same reference converge on one
+   * winner.
+   *
+   * <p>This option is an explicit channel routing override. When set, it takes precedence over
+   * {@link #DISABLE_AFFINITY_KEY}, {@link #DISABLE_AFFINITY_CTX_KEY}, and method affinity
+   * configuration.
    */
   public static final CallOptions.Key<AtomicReference<Integer>> CHANNEL_ID_AFFINITY_KEY =
       CallOptions.Key.create("GcpChannelIdAffinity");
@@ -1693,11 +1699,26 @@ public class GcpManagedChannel extends ManagedChannel {
    *
    * <p>If the reference points to an active channel, use that channel. If the reference is unset or
    * stale (for example because the channel was removed by dynamic scaling), pick a channel normally
-   * and update the reference with the selected channel id.
+   * and update the reference with the selected channel id. If another caller updates the reference
+   * first, retry and use the channel selected by the winning update when it is still active.
    */
   protected ChannelRef getChannelRefByIdAffinity(AtomicReference<Integer> channelIdRef) {
     maybeDynamicUpscale();
-    Integer channelId = channelIdRef.get();
+    while (true) {
+      Integer channelId = channelIdRef.get();
+      ChannelRef channelRef = getChannelRefById(channelId);
+      if (channelRef != null) {
+        return channelRef;
+      }
+
+      channelRef = pickLeastBusyChannel(/* forFallback= */ false);
+      if (channelIdRef.compareAndSet(channelId, channelRef.getId())) {
+        return channelRef;
+      }
+    }
+  }
+
+  private ChannelRef getChannelRefById(Integer channelId) {
     if (channelId != null) {
       for (ChannelRef channelRef : channelRefs) {
         if (channelRef.getId() == channelId) {
@@ -1705,9 +1726,7 @@ public class GcpManagedChannel extends ManagedChannel {
         }
       }
     }
-    ChannelRef channelRef = pickLeastBusyChannel(/* forFallback= */ false);
-    channelIdRef.set(channelRef.getId());
-    return channelRef;
+    return null;
   }
 
   // Create a new channel and add it to channelRefs.
