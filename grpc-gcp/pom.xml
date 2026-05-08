@@ -63,7 +63,7 @@
     <bigtable.version>2.77.1</bigtable.version>
     <spanner.version>6.117.0</spanner.version>
     <truth.version>1.4.5</truth.version>
-    <mockito.version>5.23.0</mockito.version>
+    <mockito.version>4.11.0</mockito.version>
     <checkstyle.skip>true</checkstyle.skip>
     <clirr.skip>true</clirr.skip>
     <jacoco.skip>true</jacoco.skip>
