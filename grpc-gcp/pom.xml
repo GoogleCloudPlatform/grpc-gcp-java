@@ -87,8 +87,10 @@
       </dependency>
       <dependency>
         <groupId>com.google.cloud</groupId>
-        <artifactId>google-cloud-spanner</artifactId>
+        <artifactId>google-cloud-spanner-bom</artifactId>
         <version>${spanner.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
       <dependency>
         <groupId>junit</groupId>
